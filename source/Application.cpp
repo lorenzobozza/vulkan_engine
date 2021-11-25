@@ -43,6 +43,7 @@ Application::Application(const char* binaryPath) {
            .build();
     
     loadSolidObjects();
+    
 }
 
 Application::~Application() {}
