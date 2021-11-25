@@ -42,4 +42,5 @@ void main() {
     vec3 specularLighting = ubo.lightColor.xyz * attenuation * blinnTerm;
     
     outColor = vec4( (diffuseLight + ambientLight + specularLighting) * fragColor, 1.0);
+
 } 
