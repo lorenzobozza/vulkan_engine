@@ -208,7 +208,7 @@ void Application::run() {
 
 void Application::loadSolidObjects() {
     auto vase = SolidObject::createSolidObject();
-    vase.model = Model::createModelFromFile(device, "/Users/lorenzo/Downloads/smooth_vase.obj");
+    vase.model = Model::createModelFromFile(device, shaderPath+"smooth_vase.obj");
     
     vase.color = {1.f, 1.f, 1.f};
     vase.transform.translation = {.0f, .0f, .0f};
@@ -219,7 +219,7 @@ void Application::loadSolidObjects() {
     
     
     auto plane = SolidObject::createSolidObject();
-    plane.model = Model::createModelFromFile(device, "/Users/lorenzo/Downloads/plane.obj");
+    plane.model = Model::createModelFromFile(device, shaderPath+"plane.obj");
     
     plane.color = {1.f, 1.f, 1.f};
     plane.transform.translation = {.0f, .0f, .0f};

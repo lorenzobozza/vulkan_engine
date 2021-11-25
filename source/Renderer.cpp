@@ -9,6 +9,7 @@
 
 #include <array>
 #include <cassert>
+#include <stdexcept>
 
 Renderer::Renderer(Window &passWindow, Device &passDevice) : window{passWindow}, device{passDevice} {
     recreateSwapChain();
