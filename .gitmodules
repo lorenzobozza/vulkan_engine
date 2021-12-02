@@ -1,0 +1,9 @@
+[submodule "externals/glfw"]
+	path = externals/glfw
+	url = git://github.com/glfw/glfw.git
+[submodule "externals/glm"]
+	path = externals/glm
+	url = git://github.com/g-truc/glm.git
+[submodule "externals/vulkan"]
+	path = externals/vulkan
+	url = git://github.com/KhronosGroup/Vulkan-Headers.git
