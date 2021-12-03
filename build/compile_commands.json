@@ -1,0 +1,77 @@
+[
+{
+  "directory": "/Users/lorenzo/myGitRepos/vulkan_engine/build",
+  "command": "/usr/bin/clang++  -I/Users/lorenzo/myGitRepos/vulkan_engine/external -I/Users/lorenzo/myGitRepos/vulkan_engine/source -I/Users/lorenzo/myGitRepos/vulkan_engine/source/include -I/Users/lorenzo/myGitRepos/vulkan_engine/source/lib -isystem /opt/homebrew/include -g -arch arm64 -isysroot /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -std=gnu++17 -o CMakeFiles/vulkan_engine.dir/source/2bodyproblem.cpp.o -c /Users/lorenzo/myGitRepos/vulkan_engine/source/2bodyproblem.cpp",
+  "file": "/Users/lorenzo/myGitRepos/vulkan_engine/source/2bodyproblem.cpp"
+},
+{
+  "directory": "/Users/lorenzo/myGitRepos/vulkan_engine/build",
+  "command": "/usr/bin/clang++  -I/Users/lorenzo/myGitRepos/vulkan_engine/external -I/Users/lorenzo/myGitRepos/vulkan_engine/source -I/Users/lorenzo/myGitRepos/vulkan_engine/source/include -I/Users/lorenzo/myGitRepos/vulkan_engine/source/lib -isystem /opt/homebrew/include -g -arch arm64 -isysroot /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -std=gnu++17 -o CMakeFiles/vulkan_engine.dir/source/Application.cpp.o -c /Users/lorenzo/myGitRepos/vulkan_engine/source/Application.cpp",
+  "file": "/Users/lorenzo/myGitRepos/vulkan_engine/source/Application.cpp"
+},
+{
+  "directory": "/Users/lorenzo/myGitRepos/vulkan_engine/build",
+  "command": "/usr/bin/clang++  -I/Users/lorenzo/myGitRepos/vulkan_engine/external -I/Users/lorenzo/myGitRepos/vulkan_engine/source -I/Users/lorenzo/myGitRepos/vulkan_engine/source/include -I/Users/lorenzo/myGitRepos/vulkan_engine/source/lib -isystem /opt/homebrew/include -g -arch arm64 -isysroot /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -std=gnu++17 -o CMakeFiles/vulkan_engine.dir/source/Buffer.cpp.o -c /Users/lorenzo/myGitRepos/vulkan_engine/source/Buffer.cpp",
+  "file": "/Users/lorenzo/myGitRepos/vulkan_engine/source/Buffer.cpp"
+},
+{
+  "directory": "/Users/lorenzo/myGitRepos/vulkan_engine/build",
+  "command": "/usr/bin/clang++  -I/Users/lorenzo/myGitRepos/vulkan_engine/external -I/Users/lorenzo/myGitRepos/vulkan_engine/source -I/Users/lorenzo/myGitRepos/vulkan_engine/source/include -I/Users/lorenzo/myGitRepos/vulkan_engine/source/lib -isystem /opt/homebrew/include -g -arch arm64 -isysroot /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -std=gnu++17 -o CMakeFiles/vulkan_engine.dir/source/Camera.cpp.o -c /Users/lorenzo/myGitRepos/vulkan_engine/source/Camera.cpp",
+  "file": "/Users/lorenzo/myGitRepos/vulkan_engine/source/Camera.cpp"
+},
+{
+  "directory": "/Users/lorenzo/myGitRepos/vulkan_engine/build",
+  "command": "/usr/bin/clang++  -I/Users/lorenzo/myGitRepos/vulkan_engine/external -I/Users/lorenzo/myGitRepos/vulkan_engine/source -I/Users/lorenzo/myGitRepos/vulkan_engine/source/include -I/Users/lorenzo/myGitRepos/vulkan_engine/source/lib -isystem /opt/homebrew/include -g -arch arm64 -isysroot /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -std=gnu++17 -o CMakeFiles/vulkan_engine.dir/source/Descriptors.cpp.o -c /Users/lorenzo/myGitRepos/vulkan_engine/source/Descriptors.cpp",
+  "file": "/Users/lorenzo/myGitRepos/vulkan_engine/source/Descriptors.cpp"
+},
+{
+  "directory": "/Users/lorenzo/myGitRepos/vulkan_engine/build",
+  "command": "/usr/bin/clang++  -I/Users/lorenzo/myGitRepos/vulkan_engine/external -I/Users/lorenzo/myGitRepos/vulkan_engine/source -I/Users/lorenzo/myGitRepos/vulkan_engine/source/include -I/Users/lorenzo/myGitRepos/vulkan_engine/source/lib -isystem /opt/homebrew/include -g -arch arm64 -isysroot /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -std=gnu++17 -o CMakeFiles/vulkan_engine.dir/source/Device.cpp.o -c /Users/lorenzo/myGitRepos/vulkan_engine/source/Device.cpp",
+  "file": "/Users/lorenzo/myGitRepos/vulkan_engine/source/Device.cpp"
+},
+{
+  "directory": "/Users/lorenzo/myGitRepos/vulkan_engine/build",
+  "command": "/usr/bin/clang++  -I/Users/lorenzo/myGitRepos/vulkan_engine/external -I/Users/lorenzo/myGitRepos/vulkan_engine/source -I/Users/lorenzo/myGitRepos/vulkan_engine/source/include -I/Users/lorenzo/myGitRepos/vulkan_engine/source/lib -isystem /opt/homebrew/include -g -arch arm64 -isysroot /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -std=gnu++17 -o CMakeFiles/vulkan_engine.dir/source/Keyboard.cpp.o -c /Users/lorenzo/myGitRepos/vulkan_engine/source/Keyboard.cpp",
+  "file": "/Users/lorenzo/myGitRepos/vulkan_engine/source/Keyboard.cpp"
+},
+{
+  "directory": "/Users/lorenzo/myGitRepos/vulkan_engine/build",
+  "command": "/usr/bin/clang++  -I/Users/lorenzo/myGitRepos/vulkan_engine/external -I/Users/lorenzo/myGitRepos/vulkan_engine/source -I/Users/lorenzo/myGitRepos/vulkan_engine/source/include -I/Users/lorenzo/myGitRepos/vulkan_engine/source/lib -isystem /opt/homebrew/include -g -arch arm64 -isysroot /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -std=gnu++17 -o CMakeFiles/vulkan_engine.dir/source/Model.cpp.o -c /Users/lorenzo/myGitRepos/vulkan_engine/source/Model.cpp",
+  "file": "/Users/lorenzo/myGitRepos/vulkan_engine/source/Model.cpp"
+},
+{
+  "directory": "/Users/lorenzo/myGitRepos/vulkan_engine/build",
+  "command": "/usr/bin/clang++  -I/Users/lorenzo/myGitRepos/vulkan_engine/external -I/Users/lorenzo/myGitRepos/vulkan_engine/source -I/Users/lorenzo/myGitRepos/vulkan_engine/source/include -I/Users/lorenzo/myGitRepos/vulkan_engine/source/lib -isystem /opt/homebrew/include -g -arch arm64 -isysroot /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -std=gnu++17 -o CMakeFiles/vulkan_engine.dir/source/Pipeline.cpp.o -c /Users/lorenzo/myGitRepos/vulkan_engine/source/Pipeline.cpp",
+  "file": "/Users/lorenzo/myGitRepos/vulkan_engine/source/Pipeline.cpp"
+},
+{
+  "directory": "/Users/lorenzo/myGitRepos/vulkan_engine/build",
+  "command": "/usr/bin/clang++  -I/Users/lorenzo/myGitRepos/vulkan_engine/external -I/Users/lorenzo/myGitRepos/vulkan_engine/source -I/Users/lorenzo/myGitRepos/vulkan_engine/source/include -I/Users/lorenzo/myGitRepos/vulkan_engine/source/lib -isystem /opt/homebrew/include -g -arch arm64 -isysroot /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -std=gnu++17 -o CMakeFiles/vulkan_engine.dir/source/RenderSystem.cpp.o -c /Users/lorenzo/myGitRepos/vulkan_engine/source/RenderSystem.cpp",
+  "file": "/Users/lorenzo/myGitRepos/vulkan_engine/source/RenderSystem.cpp"
+},
+{
+  "directory": "/Users/lorenzo/myGitRepos/vulkan_engine/build",
+  "command": "/usr/bin/clang++  -I/Users/lorenzo/myGitRepos/vulkan_engine/external -I/Users/lorenzo/myGitRepos/vulkan_engine/source -I/Users/lorenzo/myGitRepos/vulkan_engine/source/include -I/Users/lorenzo/myGitRepos/vulkan_engine/source/lib -isystem /opt/homebrew/include -g -arch arm64 -isysroot /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -std=gnu++17 -o CMakeFiles/vulkan_engine.dir/source/Renderer.cpp.o -c /Users/lorenzo/myGitRepos/vulkan_engine/source/Renderer.cpp",
+  "file": "/Users/lorenzo/myGitRepos/vulkan_engine/source/Renderer.cpp"
+},
+{
+  "directory": "/Users/lorenzo/myGitRepos/vulkan_engine/build",
+  "command": "/usr/bin/clang++  -I/Users/lorenzo/myGitRepos/vulkan_engine/external -I/Users/lorenzo/myGitRepos/vulkan_engine/source -I/Users/lorenzo/myGitRepos/vulkan_engine/source/include -I/Users/lorenzo/myGitRepos/vulkan_engine/source/lib -isystem /opt/homebrew/include -g -arch arm64 -isysroot /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -std=gnu++17 -o CMakeFiles/vulkan_engine.dir/source/SolidObject.cpp.o -c /Users/lorenzo/myGitRepos/vulkan_engine/source/SolidObject.cpp",
+  "file": "/Users/lorenzo/myGitRepos/vulkan_engine/source/SolidObject.cpp"
+},
+{
+  "directory": "/Users/lorenzo/myGitRepos/vulkan_engine/build",
+  "command": "/usr/bin/clang++  -I/Users/lorenzo/myGitRepos/vulkan_engine/external -I/Users/lorenzo/myGitRepos/vulkan_engine/source -I/Users/lorenzo/myGitRepos/vulkan_engine/source/include -I/Users/lorenzo/myGitRepos/vulkan_engine/source/lib -isystem /opt/homebrew/include -g -arch arm64 -isysroot /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -std=gnu++17 -o CMakeFiles/vulkan_engine.dir/source/SwapChain.cpp.o -c /Users/lorenzo/myGitRepos/vulkan_engine/source/SwapChain.cpp",
+  "file": "/Users/lorenzo/myGitRepos/vulkan_engine/source/SwapChain.cpp"
+},
+{
+  "directory": "/Users/lorenzo/myGitRepos/vulkan_engine/build",
+  "command": "/usr/bin/clang++  -I/Users/lorenzo/myGitRepos/vulkan_engine/external -I/Users/lorenzo/myGitRepos/vulkan_engine/source -I/Users/lorenzo/myGitRepos/vulkan_engine/source/include -I/Users/lorenzo/myGitRepos/vulkan_engine/source/lib -isystem /opt/homebrew/include -g -arch arm64 -isysroot /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -std=gnu++17 -o CMakeFiles/vulkan_engine.dir/source/Window.cpp.o -c /Users/lorenzo/myGitRepos/vulkan_engine/source/Window.cpp",
+  "file": "/Users/lorenzo/myGitRepos/vulkan_engine/source/Window.cpp"
+},
+{
+  "directory": "/Users/lorenzo/myGitRepos/vulkan_engine/build",
+  "command": "/usr/bin/clang++  -I/Users/lorenzo/myGitRepos/vulkan_engine/external -I/Users/lorenzo/myGitRepos/vulkan_engine/source -I/Users/lorenzo/myGitRepos/vulkan_engine/source/include -I/Users/lorenzo/myGitRepos/vulkan_engine/source/lib -isystem /opt/homebrew/include -g -arch arm64 -isysroot /Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX12.1.sdk -std=gnu++17 -o CMakeFiles/vulkan_engine.dir/source/main.cpp.o -c /Users/lorenzo/myGitRepos/vulkan_engine/source/main.cpp",
+  "file": "/Users/lorenzo/myGitRepos/vulkan_engine/source/main.cpp"
+}
+]
