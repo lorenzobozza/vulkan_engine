@@ -35,7 +35,7 @@ endif()
 
 # 2. Set GLFW_PATH in .env.cmake to target specific glfw
 if (DEFINED GLFW_PATH)
-  message(STATUS "Using GLFW path specified in .env")
+  message(STATUS "Using specified GLFW path: ${GLFW_PATH}")
   set(GLFW_INCLUDE_DIRS "${GLFW_PATH}/include")
   if (MSVC)
     set(GLFW_LIB "${GLFW_PATH}/lib-vc2019") # 2.1 Update lib-vc2019 to use same version as your visual studio
@@ -70,7 +70,7 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 
-set_property(TARGET ${PROJECT_NAME} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/build")
+#set_property(TARGET ${PROJECT_NAME} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/build")
 
 if (WIN32)
   message(STATUS "CREATING BUILD FOR WINDOWS")
@@ -105,7 +105,16 @@ elseif (UNIX)
       ${PROJECT_SOURCE_DIR}/source
       ${PROJECT_SOURCE_DIR}/source/include
       ${PROJECT_SOURCE_DIR}/source/lib
+      ${Vulkan_INCLUDE_DIRS}
+      ${GLFW_INCLUDE_DIRS}
       ${GLM_PATH}
     )
-    target_link_libraries(${PROJECT_NAME} ${GLFW_LIB} ${Vulkan_LIBRARIES})
+
+    if (APPLE)
+      target_link_directories(${PROJECT_NAME} PUBLIC
+        ${Vulkan_LIBRARIES}
+        ${GLFW_LIB}
+      )
+      target_link_libraries(${PROJECT_NAME} libglfw3.dylib libvulkan.1.2.189.dylib)
+    endif()
 endif()
