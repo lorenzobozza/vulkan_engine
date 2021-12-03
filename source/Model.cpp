@@ -6,10 +6,11 @@
 //
 
 #include "include/Model.hpp"
-#include "lib/utils.h"
+#include "include/utils.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
-#include "lib/tiny_obj_loader.h"
+#include <tiny-obj/tiny_obj_loader.h>
+
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/hash.hpp>
 
