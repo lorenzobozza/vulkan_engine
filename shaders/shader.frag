@@ -4,10 +4,11 @@
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec3 fragPosWorld;
 layout(location = 2) in vec3 fragNormalWorld;
+layout(location = 3) in vec2 fragUv;
 
 layout(location = 0) out vec4 outColor;
 
-layout(set = 0, binding = 0) uniform GlobalUbo {
+layout(binding = 0) uniform GlobalUbo {
     mat4 projectionViewMatrix;
     vec4 ambientLightColor;
     vec3 lightPosition;
@@ -15,6 +16,8 @@ layout(set = 0, binding = 0) uniform GlobalUbo {
     mat4 viewMatrix;
     mat4 invViewMatrix;
 } ubo;
+
+layout(binding = 1) uniform sampler2D texSampler;
 
 layout(push_constant) uniform Push {
     mat4 modelMatrix;
@@ -41,6 +44,6 @@ void main() {
     blinnTerm = pow(blinnTerm, 32.0);
     vec3 specularLighting = ubo.lightColor.xyz * attenuation * blinnTerm;
     
-    outColor = vec4( (diffuseLight + ambientLight + specularLighting) * fragColor, 1.0);
+    outColor = vec4( texture(texSampler, fragUv).rgb * (diffuseLight + ambientLight + specularLighting) * fragColor, 1.0);
 
 } 

@@ -89,8 +89,8 @@ void Model::Data::loadModel(const std::string &filePath) {
             }
             if (index.texcoord_index >= 0) {
                 vertex.uv = {
-                    attrib.texcoords[3 * index.texcoord_index + 0],
-                    attrib.texcoords[3 * index.texcoord_index + 1]
+                    attrib.texcoords[2 * index.texcoord_index + 0],
+                    attrib.texcoords[2 * index.texcoord_index + 1]
                 };
             }
             

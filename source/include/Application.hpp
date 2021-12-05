@@ -16,6 +16,7 @@
 #include "SolidObject.hpp"
 #include "Camera.hpp"
 #include "Keyboard.hpp"
+#include "Image.hpp"
 
 //std
 #include <memory>

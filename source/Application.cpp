@@ -24,9 +24,9 @@
 
 struct GlobalUbo {
     glm::mat4 projectionView{1.f};
-    glm::vec4 ambientLightColor{1.f, 1.f, 1.f, .02f};
+    glm::vec4 ambientLightColor{1.f, 1.f, 1.f, .1f};
     glm::vec3 lightPosition{.0f, -2.f, .8f};
-    alignas(16) glm::vec4 lightColor{.5f, .5f, 1.f, .8f};
+    alignas(16) glm::vec4 lightColor{1.f, 1.f, 1.f, 1.f};
     glm::mat4 viewMatrix{1.f};
     glm::mat4 invViewMatrix{1.f};
 };
@@ -40,6 +40,7 @@ Application::Application(const char* binaryPath) {
        DescriptorPool::Builder(device)
            .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
            .build();
     
     loadSolidObjects();
@@ -49,6 +50,8 @@ Application::~Application() {}
 
 
 void Application::run() {
+    Image texture{device, "water_texture.jpg"};
+    
     std::vector<std::unique_ptr<Buffer>> uboBuffers(SwapChain::MAX_FRAMES_IN_FLIGHT);
     for (int i = 0; i < uboBuffers.size(); i++) {
         uboBuffers[i] = std::make_unique<Buffer>(
@@ -64,13 +67,16 @@ void Application::run() {
     auto globalSetLayout =
         DescriptorSetLayout::Builder(device)
             .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
+            .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .build();
 
     std::vector<VkDescriptorSet> globalDescriptorSets(SwapChain::MAX_FRAMES_IN_FLIGHT);
     for (int i = 0; i < globalDescriptorSets.size(); i++) {
         auto bufferInfo = uboBuffers[i]->descriptorInfo();
+        auto imageInfo = texture.descriptorInfo();
         DescriptorWriter(*globalSetLayout, *globalPool)
             .writeBuffer(0, &bufferInfo)
+            .writeImage(1, &imageInfo)
             .build(globalDescriptorSets[i]);
     }
     
@@ -219,7 +225,7 @@ void Application::loadSolidObjects() {
     
     
     auto plane = SolidObject::createSolidObject();
-    plane.model = Model::createModelFromFile(device, shaderPath+"plane.obj");
+    plane.model = Model::createModelFromFile(device, shaderPath+"piano.obj");
     
     plane.color = {1.f, 1.f, 1.f};
     plane.transform.translation = {.0f, .0f, .0f};

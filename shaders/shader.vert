@@ -9,8 +9,9 @@ layout(location = 3) in vec2 uv;
 layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec3 fragPosWorld;
 layout(location = 2) out vec3 fragNormalWorld;
+layout(location = 3) out vec2 fragUv;
 
-layout(set = 0, binding = 0) uniform GlobalUbo {
+layout(binding = 0) uniform GlobalUbo {
     mat4 projectionViewMatrix;
     vec4 ambientLightColor;
     vec3 lightPosition;
@@ -18,6 +19,8 @@ layout(set = 0, binding = 0) uniform GlobalUbo {
     mat4 viewMatrix;
     mat4 invViewMatrix;
 } ubo;
+
+layout(binding = 1) uniform sampler2D texSampler;
 
 layout(push_constant) uniform Push {
     mat4 modelMatrix;
@@ -32,4 +35,5 @@ void main() {
     fragNormalWorld = normalize(mat3(push.normalMatrix) * normal);
     fragPosWorld = positionWorld.xyz;
     fragColor = color;
+    fragUv = uv;
 }

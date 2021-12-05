@@ -8,8 +8,6 @@
 #ifndef Device_hpp
 #define Device_hpp
 
-#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset" //MoltenVK
-
 #include "Window.hpp"
 
 // std lib headers
@@ -109,10 +107,15 @@ class Device {
   VkSurfaceKHR surface_;
   VkQueue graphicsQueue_;
   VkQueue presentQueue_;
+  
 
   const std::vector<const char *> validationLayers = {"VK_LAYER_KHRONOS_validation"};
   const std::vector<const char *> deviceExtensions = {
-      VK_KHR_SWAPCHAIN_EXTENSION_NAME//,VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME, VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME //MoltenVK
+      VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+      
+      #ifdef __APPLE__
+      "VK_KHR_portability_subset" //MoltenVK
+      #endif
   };
 };
 
