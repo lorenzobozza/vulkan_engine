@@ -157,6 +157,16 @@ void Device::createLogicalDevice() {
 
   VkPhysicalDeviceFeatures deviceFeatures = {};
   deviceFeatures.samplerAnisotropy = VK_TRUE;
+  deviceFeatures.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
+  
+    // Descriptor indexing (for textures)
+    VkPhysicalDeviceDescriptorIndexingFeatures descriptor_indexing_features{};
+    descriptor_indexing_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+    // Enable non-uniform indexing
+    descriptor_indexing_features.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+    descriptor_indexing_features.runtimeDescriptorArray = VK_TRUE;
+    descriptor_indexing_features.descriptorBindingVariableDescriptorCount = VK_TRUE;
+    descriptor_indexing_features.descriptorBindingPartiallyBound = VK_TRUE;
 
   VkDeviceCreateInfo createInfo = {};
   createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -167,6 +177,8 @@ void Device::createLogicalDevice() {
   createInfo.pEnabledFeatures = &deviceFeatures;
   createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
   createInfo.ppEnabledExtensionNames = deviceExtensions.data();
+  
+  createInfo.pNext = &descriptor_indexing_features;
 
   // might not really be necessary anymore because device specific validation layers
   // have been deprecated

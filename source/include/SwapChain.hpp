@@ -60,7 +60,7 @@ class SwapChain {
     void createFramebuffers();
     void createSyncObjects();
     
-    bool enableVSync = true;
+    bool enableVSync = false;
 
   // Helper functions
   VkSurfaceFormatKHR chooseSwapSurfaceFormat(

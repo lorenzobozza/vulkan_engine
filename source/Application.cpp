@@ -15,6 +15,9 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
 
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
 //std
 #include <array>
 #include <cassert>
@@ -24,9 +27,9 @@
 
 struct GlobalUbo {
     glm::mat4 projectionView{1.f};
-    glm::vec4 ambientLightColor{1.f, 1.f, 1.f, .1f};
-    glm::vec3 lightPosition{.0f, -2.f, .8f};
-    alignas(16) glm::vec4 lightColor{1.f, 1.f, 1.f, 1.f};
+    glm::vec4 ambientLightColor{1.f, 1.f, 1.f, .2f};
+    glm::vec3 lightPosition{.0f, -.4f, -1.f};
+    alignas(16) glm::vec4 lightColor{1.f, 1.f, 1.f, .8f};
     glm::mat4 viewMatrix{1.f};
     glm::mat4 invViewMatrix{1.f};
 };
@@ -36,13 +39,6 @@ Application::Application(const char* binaryPath) {
     shaderPath = binaryPath;
     while(shaderPath.back() != '/' && !shaderPath.empty()) shaderPath.pop_back();
     
-    globalPool =
-       DescriptorPool::Builder(device)
-           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .build();
-    
     loadSolidObjects();
 }
 
@@ -50,8 +46,25 @@ Application::~Application() {}
 
 
 void Application::run() {
-    Image texture{device, "water_texture.jpg"};
+
+    glfwSetWindowOpacity(window.getGLFWwindow(), 1.f);
     
+    Texture skin{device, "texture/normal_pavement.png"};
+    Texture floor{device, "texture/pavement.png"};
+    Texture normalMap{device, "texture/normal_pavement.png"};
+
+    textures.push_back(skin.descriptorInfo());
+    textures.push_back(floor.descriptorInfo());
+    auto normal = normalMap.descriptorInfo();
+    
+    globalPool =
+       DescriptorPool::Builder(device)
+           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, (uint32_t)textures.size() * SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .build();
+           
     std::vector<std::unique_ptr<Buffer>> uboBuffers(SwapChain::MAX_FRAMES_IN_FLIGHT);
     for (int i = 0; i < uboBuffers.size(); i++) {
         uboBuffers[i] = std::make_unique<Buffer>(
@@ -68,15 +81,18 @@ void Application::run() {
         DescriptorSetLayout::Builder(device)
             .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
             .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .addBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT,
+                VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
+                (uint32_t)textures.size())
             .build();
 
     std::vector<VkDescriptorSet> globalDescriptorSets(SwapChain::MAX_FRAMES_IN_FLIGHT);
     for (int i = 0; i < globalDescriptorSets.size(); i++) {
         auto bufferInfo = uboBuffers[i]->descriptorInfo();
-        auto imageInfo = texture.descriptorInfo();
         DescriptorWriter(*globalSetLayout, *globalPool)
             .writeBuffer(0, &bufferInfo)
-            .writeImage(1, &imageInfo)
+            .writeImage(1, &normal)
+            .writeImage(2, textures.data())
             .build(globalDescriptorSets[i]);
     }
     
@@ -89,12 +105,12 @@ void Application::run() {
     };
     
     // Cursor prototype
-        unsigned char pixels[16 * 16 * 4];
+        unsigned char pixels[8 * 8 * 4];
         memset(pixels, 0xaf, sizeof(pixels));
      
         GLFWimage image;
-        image.width = 16;
-        image.height = 16;
+        image.width = 8;
+        image.height = 8;
         image.pixels = pixels;
      
         GLFWcursor* cursor = glfwCreateCursor(&image, 0, 0);
@@ -122,6 +138,38 @@ void Application::run() {
     int cnt = 0;
     
     glm::vec3 pos{-1.f};
+    
+    
+    // TEXT 2D LAYER RENDERING
+    std::unique_ptr<DescriptorPool> fpsPool =
+       DescriptorPool::Builder(device)
+           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .build();
+    
+    auto fpsSetLayout =
+        DescriptorSetLayout::Builder(device)
+            .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .build();
+            
+    TextRender font{device, textMeshes, "fonts/monaco.ttf"};
+    auto faces = font.getDescriptor();
+    
+    std::vector<VkDescriptorSet> fpsDescriptorSets(SwapChain::MAX_FRAMES_IN_FLIGHT);
+    for (int i = 0; i < fpsDescriptorSets.size(); i++) {
+        DescriptorWriter(*fpsSetLayout, *fpsPool)
+            .writeImage(0, &faces)
+            .build(fpsDescriptorSets[i]);
+    }
+    
+    RenderSystem guiSystem{
+        device,
+        renderer.getSwapChainRenderPass(),
+        fpsSetLayout->getDescriptorSetLayout(),
+        shaderPath+"fps"
+    };
+    
+    font.renderText("Vulkan Engine text rendering feature alpha (v0.4)", -.95f, -.9f, .1f, {.2f, .8f, 1.f});
 
     while(!window.shouldClose()) {
         glfwPollEvents();
@@ -150,6 +198,10 @@ void Application::run() {
             camera.setProjection[1].perspective(glm::radians(fovy));
         }
         
+        if(glfwGetKey(window.getGLFWwindow(), GLFW_KEY_T) == GLFW_PRESS) {
+            solidObjects.at(0).textureIndex ^= 1;
+        }
+        
         // Fix camera projection if the viewport's aspect ratio changes
         if (aspect != renderer.getAspectRatio()) {
             aspect = renderer.getAspectRatio();
@@ -171,6 +223,7 @@ void Application::run() {
         pos.x = .8f * glm::sin((float)cnt / 100.f);
         pos.z = .8f * glm::cos((float)cnt / 100.f);
         
+        
         if (auto commandBuffer = renderer.beginFrame()) {
             int frameIndex = renderer.getFrameIndex();
             FrameInfo frameInfo{
@@ -182,43 +235,64 @@ void Application::run() {
                 solidObjects
             };
             
+            FrameInfo fpsInfo{
+                frameIndex,
+                frameTime,
+                commandBuffer,
+                camera,
+                fpsDescriptorSets[frameIndex],
+                textMeshes
+            };
+            
             //Update
             GlobalUbo ubo{};
             ubo.projectionView = frameInfo.camera.getProjection();
             ubo.viewMatrix = frameInfo.camera.getView();
             ubo.invViewMatrix = frameInfo.camera.getInverseView();
-            ubo.lightPosition = pos;
+            //ubo.lightPosition = pos;
             uboBuffers[frameIndex]->writeToBuffer(&ubo);
             uboBuffers[frameIndex]->flush();
             
             //Render
             renderer.beginSwapChainRenderPass(commandBuffer);
+            
+            
             renderSystem.renderSolidObjects(frameInfo);
+            
+            guiSystem.renderSolidObjects(fpsInfo);
+
+            
             renderer.endSwapChainRenderPass(commandBuffer);
             renderer.endFrame();
         }
         
         // Compute average of the last n frames
-        if (!(cnt % 314)) {
+        if (!(cnt % 628)) {
             float avg = 0;
             for (int k = 0; k < frameTimes.size(); k++) {
                 avg += frameTimes[k];
             }
             avg = avg / frameTimes.size();
-            std::cout << "FPS(AVG): " << (int)(1.f / avg) << '\n';
+            int fps = (int)(1.f / avg);
+            //std::cout << "FPS(AVG): " << fps << '\n';
+            vkDeviceWaitIdle(device.device());
+            textMeshes.clear();
+            font.renderText(std::to_string(fps) + " fps", .82f, -.95f, .1f);
             frameTimes.clear();
         }
+        
     }
     vkDeviceWaitIdle(device.device());
 }
 
 void Application::loadSolidObjects() {
     auto vase = SolidObject::createSolidObject();
-    vase.model = Model::createModelFromFile(device, shaderPath+"smooth_vase.obj");
+    vase.model = Model::createModelFromFile(device, shaderPath+"monkey_triangle.obj");
     
     vase.color = {1.f, 1.f, 1.f};
+    vase.textureIndex = 0;
     vase.transform.translation = {.0f, .0f, .0f};
-    vase.transform.scale = {2.f, 2.f, 2.f};
+    vase.transform.scale = {1.f, 1.f, 1.f};
     vase.transform.rotation = {.0f, .0f, .0f};
     
     solidObjects.emplace(vase.getId(), std::move(vase));
@@ -228,6 +302,7 @@ void Application::loadSolidObjects() {
     plane.model = Model::createModelFromFile(device, shaderPath+"piano.obj");
     
     plane.color = {1.f, 1.f, 1.f};
+    plane.textureIndex = 1;
     plane.transform.translation = {.0f, .0f, .0f};
     plane.transform.scale = {1.f, 1.f, 1.f};
     plane.transform.rotation = {.0f, .0f, .0f};
@@ -236,6 +311,31 @@ void Application::loadSolidObjects() {
     
     someId = vase.getId();
     std::cout << "Vase id: "<< someId << '\n';
+    /*
+    //FPS
+    Model::Data rectMesh{};
+    rectMesh.vertices = {
+        {{-1.f, -1.f, 0.f},{1.f, 1.f, 0.f},{0.f,0.f,-1.f},{0.f,0.f}},
+        {{-.96f, -1.f, 0.f},{1.f, 1.f, 0.f},{0.f,0.f,-1.f},{1.f,0.f}},
+        {{-.96f, -.93f, 0.f},{1.f, 1.f, 0.f},{0.f,0.f,-1.f},{1.f,1.f}},
+        {{-1.f, -.93f, 0.f},{1.f, 1.f, 0.f},{0.f,0.f,-1.f},{0.f,1.f}}
+    };
+    rectMesh.indices = {0,1,2,2,3,0};
+    
+    auto rect = SolidObject::createSolidObject();
+    rect.model = std::make_shared<Model>(device, rectMesh);
+    rect.textureIndex = 0;
+    mesh2d.emplace(rect.getId(), std::move(rect));
+    
+    rectMesh.vertices = {
+        {{-.94f, -1.f, 0.f},{1.f, 1.f, 0.f},{0.f,0.f,-1.f},{0.f,0.f}},
+        {{-.90f, -1.f, 0.f},{1.f, 1.f, 0.f},{0.f,0.f,-1.f},{1.f,0.f}},
+        {{-.90f, -.93f, 0.f},{1.f, 1.f, 0.f},{0.f,0.f,-1.f},{1.f,1.f}},
+        {{-.94f, -.93f, 0.f},{1.f, 1.f, 0.f},{0.f,0.f,-1.f},{0.f,1.f}}
+    };
+    rect.model = std::make_shared<Model>(device, rectMesh);
+    mesh2d.emplace(rect.getId()+1, std::move(rect));
+    */
 }
 
 

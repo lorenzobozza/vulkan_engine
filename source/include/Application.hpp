@@ -16,7 +16,8 @@
 #include "SolidObject.hpp"
 #include "Camera.hpp"
 #include "Keyboard.hpp"
-#include "Image.hpp"
+#include "Texture.hpp"
+#include "TextRender.hpp"
 
 //std
 #include <memory>
@@ -41,14 +42,15 @@ public:
 private:
     void loadSolidObjects();
     
-    Window window{WIDTH, HEIGHT, "Vulkan on MacOS"};
+    Window window{WIDTH, HEIGHT, "Vulkan Engine Development"};
     Device device{window};
     Renderer renderer{window, device};
     
+    std::vector<VkDescriptorImageInfo> textures{};
+    
     std::unique_ptr<DescriptorPool> globalPool{};
     SolidObject::Map solidObjects;
-    
-    //void sierpinski(std::vector<Model::Vertex> &vertices, int depth, glm::vec2 left, glm::vec2 right, glm::vec2 top);
+    SolidObject::Map textMeshes;
     
     std::string shaderPath;
     

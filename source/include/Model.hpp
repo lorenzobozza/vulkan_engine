@@ -27,6 +27,8 @@ public:
         glm::vec3 color{};
         glm::vec3 normal{};
         glm::vec2 uv{};
+        glm::vec3 tangent{};
+        glm::vec3 bitangent{};
         
         static std::vector<VkVertexInputBindingDescription> getBindingDescriptions();
         static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions();
@@ -40,6 +42,8 @@ public:
         std::vector<Vertex> vertices{};
         std::vector<uint32_t> indices{};
         
+        void computeTangentBasis(Model::Vertex &v0, Model::Vertex &v1, Model::Vertex &v2);
+        
         void loadModel(const std::string &filePath);
     };
     
@@ -49,7 +53,7 @@ public:
     // Prevent Obj copy
     Model(const Model &) = delete;
     Model &operator=(const Model &) = delete;
-    
+        
     static std::unique_ptr<Model> createModelFromFile(Device &device, const std::string &filePath);
     
     void bind(VkCommandBuffer commandBuffer);

@@ -17,6 +17,7 @@
 class Window {
 public:
     Window(int w, int h, std::string name);
+    Window(std::string name);
     ~Window();
     
     // Prevent Obj copy
@@ -39,6 +40,9 @@ private:
     int width;
     int height;
     bool frameBufferResized = false;
+    
+    GLFWmonitor* monitor;
+    bool fullScreen = false;
     
     std::string windowName;
     GLFWwindow* window;

@@ -18,6 +18,7 @@
 #include <cassert>
 #include <cstring>
 #include <unordered_map>
+#include <iostream>
 
 namespace std {
     template <>
@@ -46,9 +47,50 @@ std::vector<VkVertexInputAttributeDescription> Model::Vertex::getAttributeDescri
     attributeDescriptions.push_back({1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color)});
     attributeDescriptions.push_back({2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal)});
     attributeDescriptions.push_back({3, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, uv)});
+    attributeDescriptions.push_back({4, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)});
+    attributeDescriptions.push_back({5, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, bitangent)});
     
     return attributeDescriptions;
 }
+
+ void Model::Data::computeTangentBasis(Model::Vertex &v0, Model::Vertex &v1, Model::Vertex &v2) {
+    // Edges of the triangle : position delta
+    glm::vec3 deltaPos1 = v1.position - v0.position;
+    glm::vec3 deltaPos2 = v2.position - v0.position;
+
+    // UV delta
+    glm::vec2 deltaUV1 = v1.uv - v0.uv;
+    glm::vec2 deltaUV2 = v2.uv - v0.uv;
+    
+    float r = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
+    glm::vec3 tangent = (deltaPos1 * deltaUV2.y - deltaPos2 * deltaUV1.y) * r;
+    glm::vec3 bitangent = (deltaPos2 * deltaUV1.x - deltaPos1 * deltaUV2.x) * r;
+
+    if (v0.tangent != glm::vec3{.0f} || v0.bitangent != glm::vec3{.0f}) {
+        v0.tangent = normalize(v0.tangent + bitangent);
+        v0.bitangent = normalize(v0.bitangent + bitangent);
+    } else {
+        v0.tangent = tangent;
+        v0.bitangent = bitangent;
+    }
+    
+    if (v1.tangent != glm::vec3{.0f} || v1.bitangent != glm::vec3{.0f}) {
+        v1.tangent = normalize(v1.tangent + bitangent);
+        v1.bitangent = normalize(v1.bitangent + bitangent);
+    } else {
+        v1.tangent = tangent;
+        v1.bitangent = bitangent;
+    }
+    
+    if (v2.tangent != glm::vec3{.0f} || v2.bitangent != glm::vec3{.0f}) {
+        v2.tangent = normalize(v2.tangent + bitangent);
+        v2.bitangent = normalize(v2.bitangent + bitangent);
+    } else {
+        v2.tangent = tangent;
+        v2.bitangent = bitangent;
+    }
+
+ }
 
 void Model::Data::loadModel(const std::string &filePath) {
     tinyobj::attrib_t attrib;
@@ -65,6 +107,9 @@ void Model::Data::loadModel(const std::string &filePath) {
     
     std::unordered_map<Vertex, uint32_t> uniqueVertices{};
     for (const auto &shape: shapes) {
+    
+        uint32_t vertexCount{0};
+        
         for (const auto &index: shape.mesh.indices) {
             Vertex vertex{};
             
@@ -99,7 +144,20 @@ void Model::Data::loadModel(const std::string &filePath) {
                 vertices.push_back(vertex);
             }
             indices.push_back(uniqueVertices[vertex]);
+            
+            if (vertexCount++ == 2) {
+                
+                // compute tangent basis for every triangle
+                computeTangentBasis(
+                    vertices.at(indices.rbegin()[0]),
+                    vertices.at(indices.rbegin()[1]),
+                    vertices.at(indices.rbegin()[2])
+                );
+                vertexCount = 0;
+            }
+            
         }
+        
     }
 }
 

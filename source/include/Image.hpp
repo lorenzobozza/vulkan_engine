@@ -13,30 +13,19 @@
 
 class Image {
 public:
-    Image(Device &dev, const char* path);
+    Image(Device &dev, uint32_t layerCount = 1);
     ~Image();
     
-    VkDescriptorImageInfo descriptorInfo();
-    
-private:
     void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory);
     void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
     void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
-    void createTextureImage();
-    
     VkImageView createImageView(VkImage image, VkFormat format);
-    void createTextureImageView();
     
-    void createTextureSampler();
-    
+private:
     Device &device;
     
-    VkImage textureImage{};
-    VkDeviceMemory textureImageMemory{};
-    VkImageView textureImageView{};
-    VkSampler textureSampler{};
+    uint32_t layerCount;
     
-    const char* filePath;
 };
 
 #endif /* Image_hpp */

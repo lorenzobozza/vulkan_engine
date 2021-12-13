@@ -5,11 +5,13 @@ layout(location = 0) in vec3 position;
 layout(location = 1) in vec3 color;
 layout(location = 2) in vec3 normal;
 layout(location = 3) in vec2 uv;
+layout(location = 4) in vec3 tangent;
+layout(location = 5) in vec3 bitangent;
 
 layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec3 fragPosWorld;
-layout(location = 2) out vec3 fragNormalWorld;
-layout(location = 3) out vec2 fragUv;
+layout(location = 2) out vec2 fragUv;
+layout(location = 3) out mat3 fragTBN;
 
 layout(binding = 0) uniform GlobalUbo {
     mat4 projectionViewMatrix;
@@ -19,8 +21,6 @@ layout(binding = 0) uniform GlobalUbo {
     mat4 viewMatrix;
     mat4 invViewMatrix;
 } ubo;
-
-layout(binding = 1) uniform sampler2D texSampler;
 
 layout(push_constant) uniform Push {
     mat4 modelMatrix;
@@ -32,8 +32,13 @@ void main() {
     
     gl_Position = ubo.projectionViewMatrix * ubo.viewMatrix * positionWorld;
     
-    fragNormalWorld = normalize(mat3(push.normalMatrix) * normal);
     fragPosWorld = positionWorld.xyz;
     fragColor = color;
     fragUv = uv;
+    fragTBN = mat3(
+        normalize(mat3(push.normalMatrix) * tangent),
+        normalize(mat3(push.normalMatrix) * bitangent),
+        normalize(mat3(push.normalMatrix) * normal)
+    );
+    
 }

@@ -9,6 +9,7 @@
 #define Descriptors_hpp
 
 #include "Device.hpp"
+#include "SwapChain.hpp"
 
 // std
 #include <memory>
@@ -25,16 +26,21 @@ class DescriptorSetLayout {
         uint32_t binding,
         VkDescriptorType descriptorType,
         VkShaderStageFlags stageFlags,
+        VkDescriptorBindingFlags bindingFlags = 0,
         uint32_t count = 1);
     std::unique_ptr<DescriptorSetLayout> build() const;
 
    private:
     Device &device;
     std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings{};
+    std::vector<VkDescriptorBindingFlags> bindingsFlags{};
+    
   };
 
   DescriptorSetLayout(
-      Device &device, std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings);
+      Device &device,
+      std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings,
+      std::vector<VkDescriptorBindingFlags> bindingsFlags);
   ~DescriptorSetLayout();
   DescriptorSetLayout(const DescriptorSetLayout &) = delete;
   DescriptorSetLayout &operator=(const DescriptorSetLayout &) = delete;
@@ -45,6 +51,7 @@ class DescriptorSetLayout {
   Device &device;
   VkDescriptorSetLayout descriptorSetLayout;
   std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings;
+  std::vector<VkDescriptorBindingFlags> bindingsFlags;
 
   friend class DescriptorWriter;
 };
@@ -77,7 +84,7 @@ class DescriptorPool {
   DescriptorPool &operator=(const DescriptorPool &) = delete;
 
   bool allocateDescriptor(
-      const VkDescriptorSetLayout descriptorSetLayout, VkDescriptorSet &descriptor) const;
+      const VkDescriptorSetLayout descriptorSetLayout, VkDescriptorSet &descriptor, const std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> &bindings) const;
 
   void freeDescriptors(std::vector<VkDescriptorSet> &descriptors) const;
 

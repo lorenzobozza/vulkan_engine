@@ -18,6 +18,10 @@ struct PushConstantData {
   glm::mat4 normalMatrix{1.f};
 };
 
+struct PushObjInfo {
+    unsigned int textureIndex{0};
+};
+
 RenderSystem::RenderSystem(
     Device& passDevice,
     VkRenderPass renderPass,
@@ -32,10 +36,15 @@ RenderSystem::~RenderSystem() {
 }
 
 void RenderSystem::createPipelineLayout(VkDescriptorSetLayout globalSetLayout) {
-  VkPushConstantRange pushConstantRange{};
-  pushConstantRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
-  pushConstantRange.offset = 0;
-  pushConstantRange.size = sizeof(PushConstantData);
+  VkPushConstantRange pushConstantRanges[2];
+  
+  pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+  pushConstantRanges[0].offset = 0;
+  pushConstantRanges[0].size = sizeof(PushConstantData);
+  
+  pushConstantRanges[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+  pushConstantRanges[1].offset = sizeof(PushConstantData); // offset by previus push_constant size
+  pushConstantRanges[1].size = sizeof(PushObjInfo);
   
   std::vector<VkDescriptorSetLayout> descriptorSetLayouts{globalSetLayout};
 
@@ -43,8 +52,8 @@ void RenderSystem::createPipelineLayout(VkDescriptorSetLayout globalSetLayout) {
   pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
   pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
   pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
-  pipelineLayoutInfo.pushConstantRangeCount = 1;
-  pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+  pipelineLayoutInfo.pushConstantRangeCount = 2;
+  pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges;
   if (vkCreatePipelineLayout(device.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) !=
       VK_SUCCESS) {
     throw std::runtime_error("failed to create pipeline layout!");
@@ -85,14 +94,26 @@ void RenderSystem::renderSolidObjects(FrameInfo &frameInfo) {
     PushConstantData push{};
     push.modelMatrix = obj.transform.mat4();
     push.normalMatrix = obj.transform.normalMatrix();
+    
+    PushObjInfo pushInfo{};
+    pushInfo.textureIndex = obj.textureIndex;
 
     vkCmdPushConstants(
         frameInfo.commandBuffer,
         pipelineLayout,
-        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        VK_SHADER_STAGE_VERTEX_BIT,
         0,
         sizeof(PushConstantData),
         &push);
+        
+    vkCmdPushConstants(
+        frameInfo.commandBuffer,
+        pipelineLayout,
+        VK_SHADER_STAGE_FRAGMENT_BIT,
+        sizeof(PushConstantData), // offset by previus push_constant size
+        sizeof(PushObjInfo),
+        &pushInfo);
+        
     obj.model->bind(frameInfo.commandBuffer);
     obj.model->draw(frameInfo.commandBuffer);
   }
