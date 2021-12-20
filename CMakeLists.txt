@@ -90,12 +90,14 @@ if (WIN32)
     ${PROJECT_SOURCE_DIR}/source/lib
     ${Vulkan_INCLUDE_DIRS}
     ${GLFW_INCLUDE_DIRS}
-    ${GLM_PATH}
+    ${FTYPE_PATH}/include
+    ${UTIL_PATH}
     )
 
   target_link_directories(${PROJECT_NAME} PUBLIC
     ${Vulkan_LIBRARIES}
     ${GLFW_LIB}
+    ${FTYPE_PATH}/lib
   )
 
   target_link_libraries(${PROJECT_NAME} glfw3 vulkan-1)
@@ -107,14 +109,16 @@ elseif (UNIX)
       ${PROJECT_SOURCE_DIR}/source/lib
       ${Vulkan_INCLUDE_DIRS}
       ${GLFW_INCLUDE_DIRS}
-      ${GLM_PATH}
+      ${FTYPE_PATH}/include
+      ${UTIL_PATH}
     )
 
     if (APPLE)
       target_link_directories(${PROJECT_NAME} PUBLIC
         ${Vulkan_LIBRARIES}
         ${GLFW_LIB}
+        ${FTYPE_PATH}/lib
       )
-      target_link_libraries(${PROJECT_NAME} libglfw3.dylib libvulkan.1.2.189.dylib)
+      target_link_libraries(${PROJECT_NAME} libglfw3.dylib libfreetype.6.dylib libvulkan.1.2.189.dylib)
     endif()
 endif()

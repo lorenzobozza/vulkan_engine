@@ -78,6 +78,7 @@ class Device {
       VkDeviceMemory &imageMemory);
 
   VkPhysicalDeviceProperties properties;
+  VkSampleCountFlagBits msaaSamples;
 
  private:
   void createInstance();
@@ -88,6 +89,7 @@ class Device {
   void createCommandPool();
 
   // helper functions
+  VkSampleCountFlagBits getMaxUsableSampleCount();
   bool isDeviceSuitable(VkPhysicalDevice device);
   std::vector<const char *> getRequiredExtensions();
   bool checkValidationLayerSupport();

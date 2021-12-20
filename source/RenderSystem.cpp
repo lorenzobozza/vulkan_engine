@@ -67,6 +67,7 @@ void RenderSystem::createPipeline(VkRenderPass renderPass) {
   Pipeline::defaultPipelineConfigInfo(pipelineConfig);
   pipelineConfig.renderPass = renderPass;
   pipelineConfig.pipelineLayout = pipelineLayout;
+  pipelineConfig.multisampleInfo.rasterizationSamples = device.msaaSamples;
   pipeline = std::make_unique<Pipeline>(
       device,
       shaderPath+".vert.spv",

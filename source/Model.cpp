@@ -46,10 +46,9 @@ std::vector<VkVertexInputAttributeDescription> Model::Vertex::getAttributeDescri
     attributeDescriptions.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, position)});
     attributeDescriptions.push_back({1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color)});
     attributeDescriptions.push_back({2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal)});
-    attributeDescriptions.push_back({3, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, uv)});
-    attributeDescriptions.push_back({4, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)});
-    attributeDescriptions.push_back({5, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, bitangent)});
-    
+    attributeDescriptions.push_back({3, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)});
+    attributeDescriptions.push_back({4, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, uv)});
+
     return attributeDescriptions;
 }
 
@@ -64,30 +63,23 @@ std::vector<VkVertexInputAttributeDescription> Model::Vertex::getAttributeDescri
     
     float r = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
     glm::vec3 tangent = (deltaPos1 * deltaUV2.y - deltaPos2 * deltaUV1.y) * r;
-    glm::vec3 bitangent = (deltaPos2 * deltaUV1.x - deltaPos1 * deltaUV2.x) * r;
 
-    if (v0.tangent != glm::vec3{.0f} || v0.bitangent != glm::vec3{.0f}) {
-        v0.tangent = normalize(v0.tangent + bitangent);
-        v0.bitangent = normalize(v0.bitangent + bitangent);
+    if (v0.tangent != glm::vec3{.0f}) {
+        v0.tangent = normalize(v0.tangent) + normalize(tangent);
     } else {
         v0.tangent = tangent;
-        v0.bitangent = bitangent;
     }
     
-    if (v1.tangent != glm::vec3{.0f} || v1.bitangent != glm::vec3{.0f}) {
-        v1.tangent = normalize(v1.tangent + bitangent);
-        v1.bitangent = normalize(v1.bitangent + bitangent);
+    if (v1.tangent != glm::vec3{.0f}) {
+        v1.tangent = normalize(v1.tangent) + normalize(tangent);
     } else {
         v1.tangent = tangent;
-        v1.bitangent = bitangent;
     }
     
-    if (v2.tangent != glm::vec3{.0f} || v2.bitangent != glm::vec3{.0f}) {
-        v2.tangent = normalize(v2.tangent + bitangent);
-        v2.bitangent = normalize(v2.bitangent + bitangent);
+    if (v2.tangent != glm::vec3{.0f}) {
+        v2.tangent = normalize(v2.tangent) + normalize(tangent);
     } else {
         v2.tangent = tangent;
-        v2.bitangent = bitangent;
     }
 
  }
@@ -146,8 +138,7 @@ void Model::Data::loadModel(const std::string &filePath) {
             indices.push_back(uniqueVertices[vertex]);
             
             if (vertexCount++ == 2) {
-                
-                // compute tangent basis for every triangle
+                // compute tangent basis for each triangle
                 computeTangentBasis(
                     vertices.at(indices.rbegin()[0]),
                     vertices.at(indices.rbegin()[1]),

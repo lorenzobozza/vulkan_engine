@@ -4,14 +4,14 @@
 layout(location = 0) in vec3 position;
 layout(location = 1) in vec3 color;
 layout(location = 2) in vec3 normal;
-layout(location = 3) in vec2 uv;
-layout(location = 4) in vec3 tangent;
-layout(location = 5) in vec3 bitangent;
+layout(location = 3) in vec3 tangent;
+layout(location = 4) in vec2 uv;
 
 layout(location = 0) out vec3 fragColor;
-layout(location = 1) out vec3 fragPosWorld;
-layout(location = 2) out vec2 fragUv;
-layout(location = 3) out mat3 fragTBN;
+layout(location = 1) out vec3 tangentFragPos;
+layout(location = 2) out vec3 tangentViewPos;
+layout(location = 3) out vec3 tangentLightPos;
+layout(location = 4) out vec2 fragUv;
 
 layout(binding = 0) uniform GlobalUbo {
     mat4 projectionViewMatrix;
@@ -30,15 +30,18 @@ layout(push_constant) uniform Push {
 void main() {
     vec4 positionWorld = push.modelMatrix * vec4(position, 1.0);
     
-    gl_Position = ubo.projectionViewMatrix * ubo.viewMatrix * positionWorld;
+    vec3 T = normalize( vec3(push.modelMatrix * vec4(tangent, 0.0)) );
+    vec3 N = normalize( vec3(push.modelMatrix * vec4(normal, 0.0)) );
+    T = normalize(T - dot(T, N) * N);
+    vec3 B = cross(N, T);
+
+    mat3 TBN = transpose( mat3(T, B, N) );
     
-    fragPosWorld = positionWorld.xyz;
     fragColor = color;
+    tangentFragPos  = TBN * positionWorld.xyz;
+    tangentViewPos  = TBN * ubo.invViewMatrix[3].xyz;
+    tangentLightPos = TBN * ubo.lightPosition;
     fragUv = uv;
-    fragTBN = mat3(
-        normalize(mat3(push.normalMatrix) * tangent),
-        normalize(mat3(push.normalMatrix) * bitangent),
-        normalize(mat3(push.normalMatrix) * normal)
-    );
-    
+
+    gl_Position = ubo.projectionViewMatrix * ubo.viewMatrix * positionWorld;
 }

@@ -29,7 +29,7 @@ struct GlobalUbo {
     glm::mat4 projectionView{1.f};
     glm::vec4 ambientLightColor{1.f, 1.f, 1.f, .2f};
     glm::vec3 lightPosition{.0f, -.4f, -1.f};
-    alignas(16) glm::vec4 lightColor{1.f, 1.f, 1.f, .8f};
+    alignas(16) glm::vec4 lightColor{1.f, 1.f, 1.f, .5f};
     glm::mat4 viewMatrix{1.f};
     glm::mat4 invViewMatrix{1.f};
 };
@@ -49,9 +49,10 @@ void Application::run() {
 
     glfwSetWindowOpacity(window.getGLFWwindow(), 1.f);
     
-    Texture skin{device, "texture/normal_pavement.png"};
-    Texture floor{device, "texture/pavement.png"};
-    Texture normalMap{device, "texture/normal_pavement.png"};
+    std::cout << "Loading textures..." << std::endl;
+    Texture skin{device, "texture/silver.jpg"};
+    Texture floor{device, "texture/black_tiles.png"};
+    Texture normalMap{device, "texture/normal_black_tiles.png", VK_FORMAT_R8G8B8A8_UNORM};
 
     textures.push_back(skin.descriptorInfo());
     textures.push_back(floor.descriptorInfo());
@@ -169,7 +170,7 @@ void Application::run() {
         shaderPath+"fps"
     };
     
-    font.renderText("Vulkan Engine text rendering feature alpha (v0.4)", -.95f, -.9f, .1f, {.2f, .8f, 1.f});
+    font.renderText("Vulkan Engine text rendering feature alpha (v0.4), MSAA x" + std::to_string(device.msaaSamples), -.95f, -.9f, .1f, {.2f, .8f, 1.f});
 
     while(!window.shouldClose()) {
         glfwPollEvents();
@@ -217,11 +218,12 @@ void Application::run() {
         camera.setViewYXZ(cameraObj.transform.translation, cameraObj.transform.rotation);
         
         
-        auto &obj = solidObjects.at(someId);
-        obj.transform.rotation.y = glm::mod(obj.transform.rotation.y + 0.02f, glm::two_pi<float>());
+        //auto &obj = solidObjects.at(someId);
+        //obj.transform.rotation.y = glm::mod(obj.transform.rotation.y + 0.02f, glm::two_pi<float>());
         
-        pos.x = .8f * glm::sin((float)cnt / 100.f);
-        pos.z = .8f * glm::cos((float)cnt / 100.f);
+        pos.x = 1.f * glm::sin((float)cnt / 100.f);
+        pos.z = 1.f * glm::cos((float)cnt / 100.f);
+        solidObjects.at(2).transform.translation = pos;
         
         
         if (auto commandBuffer = renderer.beginFrame()) {
@@ -249,7 +251,7 @@ void Application::run() {
             ubo.projectionView = frameInfo.camera.getProjection();
             ubo.viewMatrix = frameInfo.camera.getView();
             ubo.invViewMatrix = frameInfo.camera.getInverseView();
-            //ubo.lightPosition = pos;
+            ubo.lightPosition = pos;
             uboBuffers[frameIndex]->writeToBuffer(&ubo);
             uboBuffers[frameIndex]->flush();
             
@@ -287,7 +289,7 @@ void Application::run() {
 
 void Application::loadSolidObjects() {
     auto vase = SolidObject::createSolidObject();
-    vase.model = Model::createModelFromFile(device, shaderPath+"monkey_triangle.obj");
+    vase.model = Model::createModelFromFile(device, shaderPath+"smooth_vase.obj");
     
     vase.color = {1.f, 1.f, 1.f};
     vase.textureIndex = 0;
@@ -304,84 +306,22 @@ void Application::loadSolidObjects() {
     plane.color = {1.f, 1.f, 1.f};
     plane.textureIndex = 1;
     plane.transform.translation = {.0f, .0f, .0f};
-    plane.transform.scale = {1.f, 1.f, 1.f};
+    plane.transform.scale = {2.f, 2.f, 2.f};
     plane.transform.rotation = {.0f, .0f, .0f};
     
     solidObjects.emplace(plane.getId(), std::move(plane));
     
+    auto light = SolidObject::createSolidObject();
+    light.model = Model::createModelFromFile(device, shaderPath+"cube.obj");
+    
+    light.color = {1.f, .2f, .1f};
+    light.textureIndex = 1;
+    light.transform.translation = {.0f, .0f, .0f};
+    light.transform.scale = {.1f, .1f, .1f};
+    light.transform.rotation = {.0f, .0f, .0f};
+    
+    solidObjects.emplace(light.getId(), std::move(light));
+    
     someId = vase.getId();
-    std::cout << "Vase id: "<< someId << '\n';
-    /*
-    //FPS
-    Model::Data rectMesh{};
-    rectMesh.vertices = {
-        {{-1.f, -1.f, 0.f},{1.f, 1.f, 0.f},{0.f,0.f,-1.f},{0.f,0.f}},
-        {{-.96f, -1.f, 0.f},{1.f, 1.f, 0.f},{0.f,0.f,-1.f},{1.f,0.f}},
-        {{-.96f, -.93f, 0.f},{1.f, 1.f, 0.f},{0.f,0.f,-1.f},{1.f,1.f}},
-        {{-1.f, -.93f, 0.f},{1.f, 1.f, 0.f},{0.f,0.f,-1.f},{0.f,1.f}}
-    };
-    rectMesh.indices = {0,1,2,2,3,0};
-    
-    auto rect = SolidObject::createSolidObject();
-    rect.model = std::make_shared<Model>(device, rectMesh);
-    rect.textureIndex = 0;
-    mesh2d.emplace(rect.getId(), std::move(rect));
-    
-    rectMesh.vertices = {
-        {{-.94f, -1.f, 0.f},{1.f, 1.f, 0.f},{0.f,0.f,-1.f},{0.f,0.f}},
-        {{-.90f, -1.f, 0.f},{1.f, 1.f, 0.f},{0.f,0.f,-1.f},{1.f,0.f}},
-        {{-.90f, -.93f, 0.f},{1.f, 1.f, 0.f},{0.f,0.f,-1.f},{1.f,1.f}},
-        {{-.94f, -.93f, 0.f},{1.f, 1.f, 0.f},{0.f,0.f,-1.f},{0.f,1.f}}
-    };
-    rect.model = std::make_shared<Model>(device, rectMesh);
-    mesh2d.emplace(rect.getId()+1, std::move(rect));
-    */
 }
-
-
-/*
-void Application::loadSolidObjects() {
-    std::vector<Model::Vertex> vertices {};
-    std::vector<Model::Vertex> vertices2 {};
-    
-    sierpinski(vertices, 6, {-0.5f, -0.5f}, {0.5f, -0.5f}, {-0.5f, 0.5f} );
-    sierpinski(vertices2, 6, {-0.5f, 0.5f}, {0.5f, 0.5f}, {0.5f, -0.5f} );
-    
-    auto model = std::make_shared<Model>(device, vertices);
-    auto model2 = std::make_shared<Model>(device, vertices2);
-    
-    auto triangle = SolidObject::createSolidObject();
-    triangle.model = model;
-    triangle.color = {.1f, .8f, .1f};
-    triangle.transform2d.translation.x = 0.0f;
-    triangle.transform2d.scale = {1.5f, 1.5f};
-    triangle.transform2d.rotation = 0.0f;
-    
-    solidObjects.emplace(std::move(triangle));
-    
-    auto nuovo = SolidObject::createSolidObject();
-    nuovo.model = model2;
-    nuovo.color = {.4f, .2f, .4f};
-    nuovo.transform2d.translation.y = 0.0f;
-    nuovo.transform2d.scale = {1.5f, 1.5f};
-    nuovo.transform2d.rotation = 0.0f;
-    solidObjects.emplace(std::move(nuovo));
-}*/
-
-/*
-void Application::sierpinski(
-    std::vector<Model::Vertex> &vertices, int depth, glm::vec2 left, glm::vec2 right, glm::vec2 top) {
-  if (depth <= 0) {
-    vertices.push_back({top});
-    vertices.push_back({right});
-    vertices.push_back({left});
-  } else {
-    auto leftTop = 0.5f * (left + top);
-    auto rightTop = 0.5f * (right + top);
-    auto leftRight = 0.5f * (left + right);
-    sierpinski(vertices, depth - 1, left, leftRight, leftTop);
-    sierpinski(vertices, depth - 1, leftRight, right, rightTop);
-    sierpinski(vertices, depth - 1, leftTop, rightTop, top);
-  }
-}*/
 

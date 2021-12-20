@@ -28,8 +28,7 @@ public:
         glm::vec3 normal{};
         glm::vec2 uv{};
         glm::vec3 tangent{};
-        glm::vec3 bitangent{};
-        
+
         static std::vector<VkVertexInputBindingDescription> getBindingDescriptions();
         static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions();
         

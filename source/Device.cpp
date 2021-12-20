@@ -81,9 +81,9 @@ void Device::createInstance() {
 
   VkApplicationInfo appInfo = {};
   appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-  appInfo.pApplicationName = "LittleVulkanEngine App";
+  appInfo.pApplicationName = "VulkanEngine App";
   appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-  appInfo.pEngineName = "No Engine";
+  appInfo.pEngineName = "Test Engine";
   appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
   appInfo.apiVersion = VK_API_VERSION_1_0;
 
@@ -114,6 +114,21 @@ void Device::createInstance() {
   hasGflwRequiredInstanceExtensions();
 }
 
+VkSampleCountFlagBits Device::getMaxUsableSampleCount() {
+    VkPhysicalDeviceProperties physicalDeviceProperties;
+    vkGetPhysicalDeviceProperties(physicalDevice, &physicalDeviceProperties);
+
+    VkSampleCountFlags counts = physicalDeviceProperties.limits.framebufferColorSampleCounts & physicalDeviceProperties.limits.framebufferDepthSampleCounts;
+    if (counts & VK_SAMPLE_COUNT_64_BIT) { return VK_SAMPLE_COUNT_64_BIT; }
+    if (counts & VK_SAMPLE_COUNT_32_BIT) { return VK_SAMPLE_COUNT_32_BIT; }
+    if (counts & VK_SAMPLE_COUNT_16_BIT) { return VK_SAMPLE_COUNT_16_BIT; }
+    if (counts & VK_SAMPLE_COUNT_8_BIT) { return VK_SAMPLE_COUNT_8_BIT; }
+    if (counts & VK_SAMPLE_COUNT_4_BIT) { return VK_SAMPLE_COUNT_4_BIT; }
+    if (counts & VK_SAMPLE_COUNT_2_BIT) { return VK_SAMPLE_COUNT_2_BIT; }
+
+    return VK_SAMPLE_COUNT_1_BIT;
+}
+
 void Device::pickPhysicalDevice() {
   uint32_t deviceCount = 0;
   vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
@@ -127,6 +142,7 @@ void Device::pickPhysicalDevice() {
   for (const auto &device : devices) {
     if (isDeviceSuitable(device)) {
       physicalDevice = device;
+      msaaSamples = getMaxUsableSampleCount();
       break;
     }
   }
@@ -136,7 +152,7 @@ void Device::pickPhysicalDevice() {
   }
 
   vkGetPhysicalDeviceProperties(physicalDevice, &properties);
-  std::cout << "physical device: " << properties.deviceName << std::endl;
+  std::cout << "Physical device -> " << properties.deviceName << std::endl;
 }
 
 void Device::createLogicalDevice() {
@@ -302,17 +318,17 @@ void Device::hasGflwRequiredInstanceExtensions() {
   std::vector<VkExtensionProperties> extensions(extensionCount);
   vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
 
-  std::cout << "available extensions:" << std::endl;
+  //std::cout << "available extensions:" << std::endl;
   std::unordered_set<std::string> available;
   for (const auto &extension : extensions) {
-    std::cout << "\t" << extension.extensionName << std::endl;
+    //std::cout << "\t" << extension.extensionName << std::endl;
     available.insert(extension.extensionName);
   }
 
-  std::cout << "required extensions:" << std::endl;
+  //std::cout << "required extensions:" << std::endl;
   auto requiredExtensions = getRequiredExtensions();
   for (const auto &required : requiredExtensions) {
-    std::cout << "\t" << required << std::endl;
+    //std::cout << "\t" << required << std::endl;
     if (available.find(required) == available.end()) {
       throw std::runtime_error("Missing required glfw extension");
     }
