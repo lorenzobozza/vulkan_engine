@@ -13,6 +13,7 @@
 // std lib headers
 #include <string>
 #include <vector>
+#include <stdexcept>
 
 
 struct SwapChainSupportDetails {

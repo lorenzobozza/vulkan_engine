@@ -91,7 +91,7 @@ void TextRender::loadFaces(const char firstChar, const char lastChar) {
     const uint32_t maxArea = maxSize * maxSize;
     bitmapArea = maxArea;
 
-    unsigned char buffer[maxArea * layers];
+    unsigned char* buffer = (unsigned char*) malloc(sizeof(unsigned char) * maxArea * layers);
     
     for(unsigned int c = firstChar; c < lastChar; c++) {
         FT_Load_Char(face, c, FT_LOAD_RENDER);

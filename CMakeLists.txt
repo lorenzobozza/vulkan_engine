@@ -20,7 +20,7 @@ project(${NAME} VERSION 0.1)
 # 1. Set VULKAN_SDK_PATH in .env.cmake to target specific vulkan version
 if (DEFINED VULKAN_SDK_PATH)
   set(Vulkan_INCLUDE_DIRS "${VULKAN_SDK_PATH}/include") # 1.1 Make sure this include path is correct
-  set(Vulkan_LIBRARIES "${VULKAN_SDK_PATH}/lib") # 1.2 Make sure lib path is correct
+  set(Vulkan_LIBRARIES "${VULKAN_SDK_PATH}") # 1.2 Make sure lib path is correct
   set(Vulkan_FOUND "True")
 else()
   find_package(Vulkan REQUIRED) # throws error if could not find Vulkan
@@ -38,12 +38,12 @@ if (DEFINED GLFW_PATH)
   message(STATUS "Using specified GLFW path: ${GLFW_PATH}")
   set(GLFW_INCLUDE_DIRS "${GLFW_PATH}/include")
   if (MSVC)
-    set(GLFW_LIB "${GLFW_PATH}/lib-vc2019") # 2.1 Update lib-vc2019 to use same version as your visual studio
+    set(GLFW_LIB "${GLFW_PATH}/windows/lib-vc2019") # 2.1 Update lib-vc2019 to use same version as your visual studio
   elseif (CMAKE_GENERATOR STREQUAL "MinGW Makefiles")
     message(STATUS "USING MINGW")
     set(GLFW_LIB "${GLFW_PATH}/lib-mingw-w64") # 2.1 make sure matches glfw mingw subdirectory
   else()
-    set(GLFW_LIB "${GLFW_PATH}/lib")
+    set(GLFW_LIB "${GLFW_PATH}/macOS/lib")
   endif()
 else()
   find_package(glfw3 3.3 REQUIRED)
@@ -58,11 +58,6 @@ endif()
 
 include_directories(external)
 
-# If TINYOBJ_PATH not specified in .env.cmake, try fetching from git repo
-#if (NOT TINYOBJ_PATH)
-#  message(STATUS "TINYOBJ_PATH not specified in .env.cmake, using external/tinyobjloader")
-#  set(TINYOBJ_PATH external/tinyobjloader)
-#endif()
 
 file(GLOB_RECURSE SOURCES ${PROJECT_SOURCE_DIR}/source/*.cpp)
 
@@ -95,12 +90,12 @@ if (WIN32)
     )
 
   target_link_directories(${PROJECT_NAME} PUBLIC
-    ${Vulkan_LIBRARIES}
+    ${Vulkan_LIBRARIES}/windows/lib
     ${GLFW_LIB}
-    ${FTYPE_PATH}/lib
+    ${FTYPE_PATH}/windows/lib
   )
 
-  target_link_libraries(${PROJECT_NAME} glfw3 vulkan-1)
+  target_link_libraries(${PROJECT_NAME} glfw3 freetype vulkan-1)
 elseif (UNIX)
     message(STATUS "CREATING BUILD FOR UNIX")
     target_include_directories(${PROJECT_NAME} PUBLIC
@@ -115,9 +110,9 @@ elseif (UNIX)
 
     if (APPLE)
       target_link_directories(${PROJECT_NAME} PUBLIC
-        ${Vulkan_LIBRARIES}
+        ${Vulkan_LIBRARIES}/macOS/lib
         ${GLFW_LIB}
-        ${FTYPE_PATH}/lib
+        ${FTYPE_PATH}/macOS/lib
       )
       target_link_libraries(${PROJECT_NAME} libglfw3.dylib libfreetype.6.dylib libvulkan.1.2.189.dylib)
     endif()

@@ -9,8 +9,8 @@ on:
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Release
-  VULKAN_SDK_PATH: ${{github.workspace}}/external/vulkan/macOS
-  GLFW_PATH: ${{github.workspace}}/external/glfw/macOS
+  VULKAN_SDK_PATH: ${{github.workspace}}/external/vulkan
+  GLFW_PATH: ${{github.workspace}}/external/glfw
   FTYPE_PATH: ${{github.workspace}}/external/freetype
   UTIL_PATH: ${{github.workspace}}/external/utils
 
