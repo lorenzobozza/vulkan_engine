@@ -13,7 +13,7 @@
 class Texture {
 public:
     
-    Texture(Device &dev, const char* filePath, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB);
+    Texture(Device &dev, Image &image, const char* filePath, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB);
     ~Texture();
     
     VkDescriptorImageInfo descriptorInfo();
@@ -24,7 +24,7 @@ private:
     void createTextureSampler();
     
     Device &device;
-    Image image{device};
+    Image &image;
     
     VkImage textureImage{};
     VkDeviceMemory textureImageMemory{};

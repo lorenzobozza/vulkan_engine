@@ -12,7 +12,7 @@
 #include <stb-master/stb_image.h>
 
 
-Texture::Texture(Device &dev, const char* filePath, VkFormat format) : device{dev}, textureFilePath{filePath}, format{format} {
+Texture::Texture(Device &dev, Image &image, const char* filePath, VkFormat format) : device{dev}, image{image}, textureFilePath{filePath}, format{format} {
     createTextureImage();
     createTextureImageView();
     createTextureSampler();
@@ -58,11 +58,15 @@ void Texture::createTextureImage() {
     
     image.createImage(texWidth, texHeight, format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
     
-    image.transitionImageLayout(textureImage, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    auto commandBuffer = image.beginSingleTimeCommands();
     
-    image.copyBufferToImage(stagingBuffer.getBuffer(), textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+    image.transitionImageLayout(commandBuffer, textureImage, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     
-    image.transitionImageLayout(textureImage, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    image.copyBufferToImage(commandBuffer, stagingBuffer.getBuffer(), textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+    
+    image.transitionImageLayout(commandBuffer, textureImage, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    
+    image.endSingleTimeCommands(commandBuffer);
 }
 
 void Texture::createTextureImageView() {
@@ -82,7 +86,7 @@ void Texture::createTextureSampler() {
     samplerInfo.anisotropyEnable = VK_TRUE;
     samplerInfo.maxAnisotropy = device.properties.limits.maxSamplerAnisotropy;
     
-    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
+    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
     samplerInfo.unnormalizedCoordinates = VK_FALSE;
     
     samplerInfo.compareEnable = VK_FALSE;

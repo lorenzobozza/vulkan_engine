@@ -13,8 +13,13 @@ layout(location = 2) out vec2 fragUv;
 
 layout(binding = 0) uniform sampler2D tex;
 
+layout(push_constant) uniform Push {
+    mat4 modelMatrix;
+    mat3 normalMatrix;
+} push;
+
 void main() {
-    vec4 positionWorld = vec4(position, 1.0);
+    vec4 positionWorld = push.modelMatrix * vec4(position, 1.0);
     
     gl_Position = positionWorld;
     

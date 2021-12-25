@@ -41,6 +41,8 @@ public:
         return currentImageIndex;
     }
     
+    bool isVSyncEnabled() { return swapChain->isVSyncEnabled(); }
+    
     VkCommandBuffer beginFrame();
     void endFrame();
     void beginSwapChainRenderPass(VkCommandBuffer commandBuffer);

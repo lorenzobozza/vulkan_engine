@@ -22,6 +22,7 @@ struct SwapChainSupportDetails {
   std::vector<VkPresentModeKHR> presentModes;
 };
 
+//TODO: Add at least one transfer queue and one compute queue
 struct QueueFamilyIndices {
   uint32_t graphicsFamily;
   uint32_t presentFamily;

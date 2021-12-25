@@ -23,6 +23,7 @@
 #include <cassert>
 #include <chrono>
 #include <iostream>
+#include <future>
 
 
 struct GlobalUbo {
@@ -47,23 +48,118 @@ Application::~Application() {}
 
 void Application::run() {
 
-    glfwSetWindowOpacity(window.getGLFWwindow(), 1.f);
+    //glfwSetWindowOpacity(window.getGLFWwindow(), 1.f);
     
-    std::cout << "Loading textures..." << std::endl;
-    Texture skin{device, "texture/silver.jpg"};
-    Texture floor{device, "texture/black_tiles.png"};
-    Texture normalMap{device, "texture/normal_black_tiles.png", VK_FORMAT_R8G8B8A8_UNORM};
+    // Cursor prototype
+    unsigned char pixels[8 * 8 * 4];
+    memset(pixels, 0xaf, sizeof(pixels));
+ 
+    GLFWimage image;
+    image.width = 8;
+    image.height = 8;
+    image.pixels = pixels;
+ 
+    GLFWcursor* cursor = glfwCreateCursor(&image, 0, 0);
+    glfwSetCursor(window.getGLFWwindow(), cursor);
+    
+    // GAMELOOP TIMING
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    std::vector<float> frameTimes;
+    int cnt{0};
+    auto startTime = currentTime;
+    
+    Camera camera{};
+    
+    // 2D LAYER RENDERING
+    std::unique_ptr<DescriptorPool> guiPool =
+       DescriptorPool::Builder(device)
+           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .build();
+    
+    auto guiSetLayout =
+        DescriptorSetLayout::Builder(device)
+            .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .build();
+            
+    TextRender font{device, textMeshes, "fonts/monaco.ttf"};
+    auto faces = font.getDescriptor();
+    
+    std::vector<VkDescriptorSet> guiDescriptorSets(SwapChain::MAX_FRAMES_IN_FLIGHT);
+    for (int i = 0; i < guiDescriptorSets.size(); i++) {
+        DescriptorWriter(*guiSetLayout, *guiPool)
+            .writeImage(0, &faces)
+            .build(guiDescriptorSets[i]);
+    }
+    
+    RenderSystem guiSystem{
+        device,
+        renderer.getSwapChainRenderPass(),
+        guiSetLayout->getDescriptorSetLayout(),
+        shaderPath+"fps"
+    };
+    
+    font.renderText("Vulkan Engine v0.5, MSAA x" + std::to_string(device.msaaSamples) + ", V-Sync: " + (renderer.isVSyncEnabled() ? "On" : "Off") , -.95f, -.9f, .1f, {.2f, .8f, 1.f});
 
-    textures.push_back(skin.descriptorInfo());
-    textures.push_back(floor.descriptorInfo());
-    auto normal = normalMap.descriptorInfo();
+    // Load heavy assets on a separate threads
+    std::vector<std::future<void>> handles;
+    handles.push_back( std::async(std::launch::async, [this]() { this->textures.push_back(std::make_unique<Texture>(this->device, vulkanImage, "texture/silver.jpg")); }) );
+    handles.push_back( std::async(std::launch::async, [this]() { this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/black_tiles.png")); }) );
+    handles.push_back( std::async(std::launch::async, [this]() { this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/normal_black_tiles.png", VK_FORMAT_R8G8B8A8_UNORM)); }) );
+    std::thread([this, &handles]() { for (auto &a : handles) { a.wait(); } this->assetsLoaded = true; }).detach();
+
+    font.renderText("-> Loading Assets...", -.95f, -.8f, .1f, { 1.f, .3f, 1.f});
+    auto flip = font.renderText("-", 0.f, 0.f, .25f, { 1.f, .2f, .2f});
+
+    while (!assetsLoaded) {
+        glfwPollEvents();
+        
+        cnt = (cnt + 78) % 628;
+        
+        auto newTime = std::chrono::high_resolution_clock::now();
+        float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime -  currentTime).count();
+        currentTime = newTime;
+        frameTime = glm::min(frameTime, .05f);
+        
+        textMeshes.at(flip).transform.rotation.z = cnt / 100.f;
+
+        if (auto commandBuffer = renderer.beginFrame()) {
+            int frameIndex = renderer.getFrameIndex();
+            
+            FrameInfo guiInfo{
+                frameIndex,
+                frameTime,
+                commandBuffer,
+                camera,
+                guiDescriptorSets[frameIndex],
+                textMeshes
+            };
+            
+            //Render
+            renderer.beginSwapChainRenderPass(commandBuffer);
+            
+            guiSystem.renderSolidObjects(guiInfo);
+
+            renderer.endSwapChainRenderPass(commandBuffer);
+            renderer.endFrame();
+        }
+    }
+    
+    std::cout << std::chrono::duration<float, std::chrono::seconds::period>(std::chrono::high_resolution_clock::now() - startTime).count() << std::endl;
+    
+    vkDeviceWaitIdle(device.device());
+    textMeshes.clear();
+    
+    textureInfos.push_back(textures.at(0)->descriptorInfo());
+    textureInfos.push_back(textures.at(1)->descriptorInfo());
+    auto normal = textures.at(2)->descriptorInfo();
     
     globalPool =
        DescriptorPool::Builder(device)
            .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, (uint32_t)textures.size() * SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, (uint32_t)textureInfos.size() * SwapChain::MAX_FRAMES_IN_FLIGHT)
            .build();
            
     std::vector<std::unique_ptr<Buffer>> uboBuffers(SwapChain::MAX_FRAMES_IN_FLIGHT);
@@ -84,7 +180,7 @@ void Application::run() {
             .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .addBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT,
                 VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
-                (uint32_t)textures.size())
+                (uint32_t)textureInfos.size())
             .build();
 
     std::vector<VkDescriptorSet> globalDescriptorSets(SwapChain::MAX_FRAMES_IN_FLIGHT);
@@ -93,7 +189,7 @@ void Application::run() {
         DescriptorWriter(*globalSetLayout, *globalPool)
             .writeBuffer(0, &bufferInfo)
             .writeImage(1, &normal)
-            .writeImage(2, textures.data())
+            .writeImage(2, textureInfos.data())
             .build(globalDescriptorSets[i]);
     }
     
@@ -105,20 +201,9 @@ void Application::run() {
         shaderPath+"shader"
     };
     
-    // Cursor prototype
-        unsigned char pixels[8 * 8 * 4];
-        memset(pixels, 0xaf, sizeof(pixels));
-     
-        GLFWimage image;
-        image.width = 8;
-        image.height = 8;
-        image.pixels = pixels;
-     
-        GLFWcursor* cursor = glfwCreateCursor(&image, 0, 0);
-        glfwSetCursor(window.getGLFWwindow(), cursor);
+    
     
     // Set camera projection based on aspect ratio of the viewport
-    Camera camera{};
     float aspect = renderer.getAspectRatio();
     bool orth = false;
     camera.setProjection.perspective(aspect, 1.f, .01f, 100.f);
@@ -131,46 +216,9 @@ void Application::run() {
     Keyboard cameraCtrl{};
     
     float fovy{60.f};
-
-    // Gameloop sync
-    auto currentTime = std::chrono::high_resolution_clock::now();
-    std::vector<float> frameTimes;
-    
-    int cnt = 0;
     
     glm::vec3 pos{-1.f};
     
-    
-    // TEXT 2D LAYER RENDERING
-    std::unique_ptr<DescriptorPool> fpsPool =
-       DescriptorPool::Builder(device)
-           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .build();
-    
-    auto fpsSetLayout =
-        DescriptorSetLayout::Builder(device)
-            .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .build();
-            
-    TextRender font{device, textMeshes, "fonts/monaco.ttf"};
-    auto faces = font.getDescriptor();
-    
-    std::vector<VkDescriptorSet> fpsDescriptorSets(SwapChain::MAX_FRAMES_IN_FLIGHT);
-    for (int i = 0; i < fpsDescriptorSets.size(); i++) {
-        DescriptorWriter(*fpsSetLayout, *fpsPool)
-            .writeImage(0, &faces)
-            .build(fpsDescriptorSets[i]);
-    }
-    
-    RenderSystem guiSystem{
-        device,
-        renderer.getSwapChainRenderPass(),
-        fpsSetLayout->getDescriptorSetLayout(),
-        shaderPath+"fps"
-    };
-    
-    font.renderText("Vulkan Engine text rendering feature alpha (v0.4), MSAA x" + std::to_string(device.msaaSamples), -.95f, -.9f, .1f, {.2f, .8f, 1.f});
 
     while(!window.shouldClose()) {
         glfwPollEvents();
@@ -237,12 +285,12 @@ void Application::run() {
                 solidObjects
             };
             
-            FrameInfo fpsInfo{
+            FrameInfo guiInfo{
                 frameIndex,
                 frameTime,
                 commandBuffer,
                 camera,
-                fpsDescriptorSets[frameIndex],
+                guiDescriptorSets[frameIndex],
                 textMeshes
             };
             
@@ -261,7 +309,7 @@ void Application::run() {
             
             renderSystem.renderSolidObjects(frameInfo);
             
-            guiSystem.renderSolidObjects(fpsInfo);
+            guiSystem.renderSolidObjects(guiInfo);
 
             
             renderer.endSwapChainRenderPass(commandBuffer);
@@ -323,5 +371,22 @@ void Application::loadSolidObjects() {
     solidObjects.emplace(light.getId(), std::move(light));
     
     someId = vase.getId();
+    
+    /*
+    Model::Data rectMesh{};
+    rectMesh.vertices = {
+        {{.2f, -.2f, 0.f}, glm::vec3{1.f}, {0.f, 0.f, -1.f}, {1.f, 0.f}},
+        {{.2f, .2f, 0.f}, glm::vec3{1.f}, {0.f, 0.f, -1.f}, {1.f, 1.f}},
+        {{-.2f, .2f, 0.f}, glm::vec3{1.f}, {0.f, 0.f, -1.f}, {0.f, 1.f}},
+        {{-.2f, -.2f, 0.f}, glm::vec3{1.f}, {0.f, 0.f, -1.f}, {0.f, 0.f}}
+    };
+    rectMesh.indices = {0,1,2,0,2,3};
+
+    auto rect = SolidObject::createSolidObject();
+    rect.model = std::make_shared<Model>(device, rectMesh);
+    rect.textureIndex = 0;
+    
+    textMeshes.emplace(rect.getId(), std::move(rect));
+     */
 }
 

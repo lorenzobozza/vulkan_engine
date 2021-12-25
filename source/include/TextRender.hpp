@@ -38,7 +38,7 @@ public:
     TextRender(Device &device, SolidObject::Map &meshes, const char* fontPath);
     ~TextRender();
     
-    void renderText(std::string text, float x, float y, float scale, glm::vec3 color = glm::vec3{1.f});
+    id_t renderText(std::string text, float x, float y, float scale, glm::vec3 color = glm::vec3{1.f});
     
     VkDescriptorImageInfo getDescriptor();
 
@@ -46,14 +46,14 @@ private:
 
     Device &device;
     SolidObject::Map &meshes;
-    std::unique_ptr<Image> sampler;
+    std::unique_ptr<Image> vulkanImage;
     std::unordered_map<char, Character> characters;
 
     void loadFaces(const char firstChar, const char lastChar);
     void createImageStack();
     void createSampler();
 
-    void* bitmaps;
+    unsigned char* bitmaps;
     uint16_t layers;
     uint32_t bitmapSize;
     uint32_t bitmapArea;

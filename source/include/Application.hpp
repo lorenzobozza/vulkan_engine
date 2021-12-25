@@ -39,14 +39,19 @@ public:
     void run();
     void simulate();
     
+    static int sum(int a) { return a + a; }
+    
 private:
     void loadSolidObjects();
     
     Window window{WIDTH, HEIGHT, "Vulkan Engine Development"};
     Device device{window};
     Renderer renderer{window, device};
+    Image vulkanImage{device};
     
-    std::vector<VkDescriptorImageInfo> textures{};
+    std::vector< std::unique_ptr<Texture> > textures{};
+    std::vector<VkDescriptorImageInfo> textureInfos{};
+    bool assetsLoaded = false;
     
     std::unique_ptr<DescriptorPool> globalPool{};
     SolidObject::Map solidObjects;

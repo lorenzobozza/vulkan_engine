@@ -25,15 +25,16 @@ TextRender::~TextRender() {
     vkFreeMemory(device.device(), bitmapImageMemory, nullptr);
 }
 
-void TextRender::renderText(std::string text, float x, float y, float scale, glm::vec3 color) {
+id_t TextRender::renderText(std::string text, float x, float y, float scale, glm::vec3 color) {
+    id_t lastId{0};
     std::string::const_iterator c;
     for (c = text.begin(); c != text.end(); c++)
     {
         if (*c != 32) {
             Character ch = characters[*c];
 
-            float xpos = x + (ch.Bearing.x / 100.f) * scale;
-            float ypos = y - (ch.Bearing.y / 100.f) * scale;
+            float xpos = /*x*/ + (ch.Bearing.x / 100.f) * scale;
+            float ypos = /*y*/ - (ch.Bearing.y / 100.f) * scale;
 
             float w = (ch.Size.x / 100.f) * scale;
             float h = (ch.Size.y / 100.f) * scale;
@@ -50,9 +51,11 @@ void TextRender::renderText(std::string text, float x, float y, float scale, glm
         
             auto rect = SolidObject::createSolidObject();
             rect.model = std::make_shared<Model>(device, rectMesh);
+            rect.transform.translation = {x, y, 0.f};
             rect.textureIndex = ch.TextureID;
             
             meshes.emplace(rect.getId(), std::move(rect));
+            lastId = rect.getId();
 
             x += (ch.Advance >> 6) / 100.f * scale; // bitshift by 6 to get value in pixels (2^6 = 64)
         } else {
@@ -60,6 +63,7 @@ void TextRender::renderText(std::string text, float x, float y, float scale, glm
         }
         
     }
+    return lastId;
 }
 
 VkDescriptorImageInfo TextRender::getDescriptor() {
@@ -91,7 +95,7 @@ void TextRender::loadFaces(const char firstChar, const char lastChar) {
     const uint32_t maxArea = maxSize * maxSize;
     bitmapArea = maxArea;
 
-    unsigned char* buffer = (unsigned char*) malloc(sizeof(unsigned char) * maxArea * layers);
+    bitmaps = (unsigned char*) malloc(sizeof(unsigned char) * maxArea * layers);
     
     for(unsigned int c = firstChar; c < lastChar; c++) {
         FT_Load_Char(face, c, FT_LOAD_RENDER);
@@ -101,9 +105,9 @@ void TextRender::loadFaces(const char firstChar, const char lastChar) {
         for (int i = 0, row = 0, charI = 0; i < maxArea; i++) {
             int col = (i % maxSize);
             if (col < charWidth && row >= (maxSize - charHeight)) {
-                buffer[i+((c - firstChar) * maxArea)] = face->glyph->bitmap.buffer[charI++];
+                bitmaps[i+((c - firstChar) * maxArea)] = face->glyph->bitmap.buffer[charI++];
             } else {
-                buffer[i+((c - firstChar) * maxArea)] = 0;
+                bitmaps[i+((c - firstChar) * maxArea)] = 0;
             }
             if (col == maxSize - 1) {
                 row++;
@@ -119,8 +123,6 @@ void TextRender::loadFaces(const char firstChar, const char lastChar) {
         };
         characters.insert(std::pair<char, Character>(c, character));
     }
-
-    bitmaps = buffer;
 
     FT_Done_Face(face);
     
@@ -145,9 +147,11 @@ void TextRender::createImageStack() {
     stagingBuffer.map();
     stagingBuffer.writeToBuffer(bitmaps);
     
-    sampler = std::make_unique<Image>(device, layers);
+    free(bitmaps);
     
-    sampler->createImage(
+    vulkanImage = std::make_unique<Image>(device, layers);
+    
+    vulkanImage->createImage(
         bitmapSize, bitmapSize,
         VK_FORMAT_R8_SRGB,
         VK_IMAGE_TILING_OPTIMAL,
@@ -155,26 +159,33 @@ void TextRender::createImageStack() {
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         bitmapImage,
         bitmapImageMemory);
+        
+    auto commandBuffer = vulkanImage->beginSingleTimeCommands();
     
-    sampler->transitionImageLayout(
+    vulkanImage->transitionImageLayout(
+        commandBuffer,
         bitmapImage,
         VK_FORMAT_R8_SRGB,
         VK_IMAGE_LAYOUT_UNDEFINED,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     
-    sampler->copyBufferToImage(
+    vulkanImage->copyBufferToImage(
+        commandBuffer,
         stagingBuffer.getBuffer(),
         bitmapImage,
         bitmapSize,
         bitmapSize);
     
-    sampler->transitionImageLayout(
+    vulkanImage->transitionImageLayout(
+        commandBuffer,
         bitmapImage,
         VK_FORMAT_R8_SRGB,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         
-    bitmapImageView = sampler->createImageView(bitmapImage, VK_FORMAT_R8_SRGB);
+    vulkanImage->endSingleTimeCommands(commandBuffer);
+        
+    bitmapImageView = vulkanImage->createImageView(bitmapImage, VK_FORMAT_R8_SRGB);
 }
 
 void TextRender::createSampler() {
