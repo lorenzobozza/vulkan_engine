@@ -140,9 +140,9 @@ void Model::Data::loadModel(const std::string &filePath) {
             if (vertexCount++ == 2) {
                 // compute tangent basis for each triangle
                 computeTangentBasis(
-                    vertices.at(indices.rbegin()[0]),
+                    vertices.at(indices.rbegin()[2]),
                     vertices.at(indices.rbegin()[1]),
-                    vertices.at(indices.rbegin()[2])
+                    vertices.at(indices.rbegin()[0])
                 );
                 vertexCount = 0;
             }

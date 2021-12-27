@@ -29,8 +29,8 @@
 struct GlobalUbo {
     glm::mat4 projectionView{1.f};
     glm::vec4 ambientLightColor{1.f, 1.f, 1.f, .2f};
-    glm::vec3 lightPosition{.0f, -.4f, -1.f};
-    alignas(16) glm::vec4 lightColor{1.f, 1.f, 1.f, .5f};
+    glm::vec3 lightPosition{.0f};
+    alignas(16) glm::vec4 lightColor{1.f, 1.f, .9f, 2.f};
     glm::mat4 viewMatrix{1.f};
     glm::mat4 invViewMatrix{1.f};
 };
@@ -101,27 +101,30 @@ void Application::run() {
     
     font.renderText("Vulkan Engine v0.5, MSAA x" + std::to_string(device.msaaSamples) + ", V-Sync: " + (renderer.isVSyncEnabled() ? "On" : "Off") , -.95f, -.9f, .1f, {.2f, .8f, 1.f});
 
-    // Load heavy assets on a separate threads
-    std::vector<std::future<void>> handles;
-    handles.push_back( std::async(std::launch::async, [this]() { this->textures.push_back(std::make_unique<Texture>(this->device, vulkanImage, "texture/silver.jpg")); }) );
-    handles.push_back( std::async(std::launch::async, [this]() { this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/black_tiles.png")); }) );
-    handles.push_back( std::async(std::launch::async, [this]() { this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/normal_black_tiles.png", VK_FORMAT_R8G8B8A8_UNORM)); }) );
-    std::thread([this, &handles]() { for (auto &a : handles) { a.wait(); } this->assetsLoaded = true; }).detach();
+    // Load heavy assets on a separate thread
+    std::thread([this]() {
+        this->textures.push_back(std::make_unique<Texture>(this->device, vulkanImage, "texture/blue.jpg"));
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Metal021_2K_Color.png"));
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Metal021_2K_NormalGL.png", VK_FORMAT_R8G8B8A8_UNORM));
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Metal021_2K_Metalness.png", VK_FORMAT_R8_UNORM));
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Metal021_2K_Roughness.png", VK_FORMAT_R8_UNORM));
+        this->assetsLoaded = true;
+    }).detach();
 
     font.renderText("-> Loading Assets...", -.95f, -.8f, .1f, { 1.f, .3f, 1.f});
-    auto flip = font.renderText("-", 0.f, 0.f, .25f, { 1.f, .2f, .2f});
+    auto loading = font.renderText("-", 0.f, 0.f, .25f, { 1.f, .2f, .2f});
 
     while (!assetsLoaded) {
         glfwPollEvents();
         
-        cnt = (cnt + 78) % 628;
+        cnt = (cnt + 130) % 628;
         
         auto newTime = std::chrono::high_resolution_clock::now();
         float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime -  currentTime).count();
         currentTime = newTime;
         frameTime = glm::min(frameTime, .05f);
         
-        textMeshes.at(flip).transform.rotation.z = cnt / 100.f;
+        textMeshes.at(loading).transform.rotation.z = - cnt / 100.f;
 
         if (auto commandBuffer = renderer.beginFrame()) {
             int frameIndex = renderer.getFrameIndex();
@@ -145,19 +148,23 @@ void Application::run() {
         }
     }
     
-    std::cout << std::chrono::duration<float, std::chrono::seconds::period>(std::chrono::high_resolution_clock::now() - startTime).count() << std::endl;
-    
     vkDeviceWaitIdle(device.device());
     textMeshes.clear();
+    
+    font.renderText("-> Finished after: " + std::to_string(std::chrono::duration<float, std::chrono::seconds::period>(std::chrono::high_resolution_clock::now() - startTime).count()).substr(0, 5) + " s", -.95f, -.9f, .1f, { 1.f, .3f, 1.f});
     
     textureInfos.push_back(textures.at(0)->descriptorInfo());
     textureInfos.push_back(textures.at(1)->descriptorInfo());
     auto normal = textures.at(2)->descriptorInfo();
+    auto metalness = textures.at(3)->descriptorInfo();
+    auto roughness = textures.at(4)->descriptorInfo();
     
     globalPool =
        DescriptorPool::Builder(device)
            .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, (uint32_t)textureInfos.size() * SwapChain::MAX_FRAMES_IN_FLIGHT)
            .build();
@@ -178,7 +185,9 @@ void Application::run() {
         DescriptorSetLayout::Builder(device)
             .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
             .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .addBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT,
+            .addBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .addBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .addBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT,
                 VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
                 (uint32_t)textureInfos.size())
             .build();
@@ -189,7 +198,9 @@ void Application::run() {
         DescriptorWriter(*globalSetLayout, *globalPool)
             .writeBuffer(0, &bufferInfo)
             .writeImage(1, &normal)
-            .writeImage(2, textureInfos.data())
+            .writeImage(2, &metalness)
+            .writeImage(3, &roughness)
+            .writeImage(4, textureInfos.data())
             .build(globalDescriptorSets[i]);
     }
     
@@ -217,7 +228,7 @@ void Application::run() {
     
     float fovy{60.f};
     
-    glm::vec3 pos{-1.f};
+    glm::vec3 pos{-.4f};
     
 
     while(!window.shouldClose()) {
@@ -249,6 +260,12 @@ void Application::run() {
         
         if(glfwGetKey(window.getGLFWwindow(), GLFW_KEY_T) == GLFW_PRESS) {
             solidObjects.at(0).textureIndex ^= 1;
+        }
+        
+        if(glfwGetKey(window.getGLFWwindow(), GLFW_KEY_B) == GLFW_PRESS) {
+            solidObjects.at(0).blinn = false;
+        } else {
+            solidObjects.at(0).blinn = true;
         }
         
         // Fix camera projection if the viewport's aspect ratio changes
@@ -341,8 +358,9 @@ void Application::loadSolidObjects() {
     
     vase.color = {1.f, 1.f, 1.f};
     vase.textureIndex = 0;
+    vase.blinn = true;
     vase.transform.translation = {.0f, .0f, .0f};
-    vase.transform.scale = {1.f, 1.f, 1.f};
+    vase.transform.scale = {2.f, 2.f, 2.f};
     vase.transform.rotation = {.0f, .0f, .0f};
     
     solidObjects.emplace(vase.getId(), std::move(vase));
@@ -353,8 +371,9 @@ void Application::loadSolidObjects() {
     
     plane.color = {1.f, 1.f, 1.f};
     plane.textureIndex = 1;
+    plane.blinn = true;
     plane.transform.translation = {.0f, .0f, .0f};
-    plane.transform.scale = {2.f, 2.f, 2.f};
+    plane.transform.scale = {3.f, 3.f, 3.f};
     plane.transform.rotation = {.0f, .0f, .0f};
     
     solidObjects.emplace(plane.getId(), std::move(plane));
@@ -363,9 +382,9 @@ void Application::loadSolidObjects() {
     light.model = Model::createModelFromFile(device, shaderPath+"cube.obj");
     
     light.color = {1.f, .2f, .1f};
-    light.textureIndex = 1;
+    light.textureIndex = 0;
     light.transform.translation = {.0f, .0f, .0f};
-    light.transform.scale = {.1f, .1f, .1f};
+    light.transform.scale = {.01f, .01f, .01f};
     light.transform.rotation = {.0f, .0f, .0f};
     
     solidObjects.emplace(light.getId(), std::move(light));

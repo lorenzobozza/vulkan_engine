@@ -14,6 +14,7 @@ layout(binding = 0) uniform sampler2DArray tex;
 layout(push_constant) uniform PushInfo {
     layout(offset = 128)
     uint texIndex;
+    bool blinn;
 } obj;
 
 void main() {

@@ -20,6 +20,7 @@ struct PushConstantData {
 
 struct PushObjInfo {
     unsigned int textureIndex{0};
+    bool blinn{false};
 };
 
 RenderSystem::RenderSystem(
@@ -98,6 +99,7 @@ void RenderSystem::renderSolidObjects(FrameInfo &frameInfo) {
     
     PushObjInfo pushInfo{};
     pushInfo.textureIndex = obj.textureIndex;
+    pushInfo.blinn = obj.blinn;
 
     vkCmdPushConstants(
         frameInfo.commandBuffer,

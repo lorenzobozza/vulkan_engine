@@ -53,6 +53,7 @@ public:
     std::shared_ptr<Model> model{};
     glm::vec3 color{};
     id_t textureIndex{0};
+    bool blinn{false};
     TransformComponent transform{};
     
     RigidBody2dComponent rigidBody2d{};
