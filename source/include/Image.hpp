@@ -28,9 +28,6 @@ private:
     Device &device;
     
     VkCommandPool commandPool;
-    VkQueue imageQueue_;
-
-    VkSemaphore semaphore;
     
     uint32_t layerCount;
 };

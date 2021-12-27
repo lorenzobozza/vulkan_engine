@@ -17,11 +17,6 @@ Image::Image(Device &dev, uint32_t layerCount) : device{dev}, layerCount{layerCo
     if (vkCreateCommandPool(device.device(), &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
         throw std::runtime_error("failed to create command pool!");
     }
-    
-    VkEventCreateInfo eventInfo{};
-    eventInfo.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO;
-    
-    vkGetDeviceQueue(device.device(), 1, 0, &imageQueue_);
 }
 
 Image::~Image() {
@@ -182,8 +177,8 @@ void Image::endSingleTimeCommands(VkCommandBuffer commandBuffer) {
   submitInfo.commandBufferCount = 1;
   submitInfo.pCommandBuffers = &commandBuffer;
   
-  vkQueueSubmit(imageQueue_, 1, &submitInfo, VK_NULL_HANDLE);
-  vkQueueWaitIdle(imageQueue_);
+  vkQueueSubmit(device.transferQueue(), 1, &submitInfo, VK_NULL_HANDLE);
+  vkQueueWaitIdle(device.transferQueue());
   
   vkFreeCommandBuffers(device.device(), commandPool, 1, &commandBuffer);
 }

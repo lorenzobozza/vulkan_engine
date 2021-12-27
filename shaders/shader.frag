@@ -41,8 +41,8 @@ void main() {
     // G-Buffer
     vec3 color = texture(colorMap[obj.textureId], fragUv * 1.0).rgb;
     vec3 normal = normalize(texture(normalMap, fragUv * 1.0).rgb * 2.0 - 1.0);
-    float metalness = texture(metalnessMap, fragUv * 1.0);
-    float roughness = texture(roughnessMap, fragUv * 1.0);
+    float metalness = texture(metalnessMap, fragUv * 1.0).r;
+    float roughness = texture(roughnessMap, fragUv * 1.0).r;
 
     // Lighting directions
     vec3 viewDir = normalize(viewPos - fragPos);

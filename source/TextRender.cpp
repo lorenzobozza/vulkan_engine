@@ -25,8 +25,8 @@ TextRender::~TextRender() {
     vkFreeMemory(device.device(), bitmapImageMemory, nullptr);
 }
 
-id_t TextRender::renderText(std::string text, float x, float y, float scale, glm::vec3 color) {
-    id_t lastId{0};
+unsigned int TextRender::renderText(std::string text, float x, float y, float scale, glm::vec3 color) {
+    unsigned int lastId{0};
     std::string::const_iterator c;
     for (c = text.begin(); c != text.end(); c++)
     {

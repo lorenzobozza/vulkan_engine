@@ -103,7 +103,7 @@ void Application::run() {
 
     // Load heavy assets on a separate thread
     std::thread([this]() {
-        this->textures.push_back(std::make_unique<Texture>(this->device, vulkanImage, "texture/blue.jpg"));
+        this->textures.push_back(std::make_unique<Texture>(this->device, vulkanImage, "texture/tiles.png"));
         this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Metal021_2K_Color.png"));
         this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Metal021_2K_NormalGL.png", VK_FORMAT_R8G8B8A8_UNORM));
         this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Metal021_2K_Metalness.png", VK_FORMAT_R8_UNORM));

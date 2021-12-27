@@ -38,7 +38,7 @@ public:
     TextRender(Device &device, SolidObject::Map &meshes, const char* fontPath);
     ~TextRender();
     
-    id_t renderText(std::string text, float x, float y, float scale, glm::vec3 color = glm::vec3{1.f});
+    unsigned int renderText(std::string text, float x, float y, float scale, glm::vec3 color = glm::vec3{1.f});
     
     VkDescriptorImageInfo getDescriptor();
 

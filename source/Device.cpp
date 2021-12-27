@@ -159,14 +159,21 @@ void Device::createLogicalDevice() {
   QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 
   std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-  std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily, indices.presentFamily, 1}; //TODO: MoltenVK has 4 Family queues by definition, find a solution
+  std::set<uint32_t> uniqueQueueFamilies;
+  
+  bool multipleQueues = indices.graphicsFamily == indices.transferFamily;
+  if ( multipleQueues ) {
+    uniqueQueueFamilies = {indices.graphicsFamily, indices.presentFamily};
+  } else {
+    uniqueQueueFamilies = {indices.graphicsFamily, indices.transferFamily, indices.presentFamily};
+  }
 
   float queuePriority = 1.0f;
   for (uint32_t queueFamily : uniqueQueueFamilies) {
     VkDeviceQueueCreateInfo queueCreateInfo = {};
     queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     queueCreateInfo.queueFamilyIndex = queueFamily;
-    queueCreateInfo.queueCount = 1;
+    queueCreateInfo.queueCount = (multipleQueues && queueFamily == indices.graphicsFamily) ? 2 : 1;
     queueCreateInfo.pQueuePriorities = &queuePriority;
     queueCreateInfos.push_back(queueCreateInfo);
   }
@@ -209,7 +216,8 @@ void Device::createLogicalDevice() {
     throw std::runtime_error("failed to create logical device!");
   }
 
-  vkGetDeviceQueue(device_, indices.graphicsFamily, 0, &graphicsQueue_);
+  vkGetDeviceQueue(device_, indices.graphicsFamily, indices.graphicsQueueCount, &graphicsQueue_);
+  vkGetDeviceQueue(device_, indices.transferFamily, indices.transferQueueCount, &transferQueue_);
   vkGetDeviceQueue(device_, indices.presentFamily, 0, &presentQueue_);
 }
 
@@ -364,16 +372,32 @@ QueueFamilyIndices Device::findQueueFamilies(VkPhysicalDevice device) {
 
   int i = 0;
   for (const auto &queueFamily : queueFamilies) {
-    if (queueFamily.queueCount > 0 && queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-      indices.graphicsFamily = i;
-      indices.graphicsFamilyHasValue = true;
-    }
     VkBool32 presentSupport = false;
     vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface_, &presentSupport);
-    if (queueFamily.queueCount > 0 && presentSupport) {
+    if (queueFamily.queueCount > 0 && presentSupport && !indices.presentFamilyHasValue) {
       indices.presentFamily = i;
       indices.presentFamilyHasValue = true;
     }
+    
+    if (queueFamily.queueCount > 0 && (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) && !indices.graphicsFamilyHasValue) {
+      indices.graphicsFamily = i;
+      indices.graphicsQueueCount = 0;
+      indices.graphicsFamilyHasValue = true;
+      if (queueFamily.queueCount > 1 && (queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT) && !indices.transferFamilyHasValue) {
+          indices.transferFamily = i;
+          indices.transferQueueCount = 1;
+          indices.transferFamilyHasValue = true;
+      }
+      i++;
+      continue;
+    }
+    
+    if (queueFamily.queueCount > 0 && (queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT) && !indices.transferFamilyHasValue) {
+      indices.transferFamily = i;
+      indices.transferQueueCount = 0;
+      indices.transferFamilyHasValue = true;
+    }
+    
     if (indices.isComplete()) {
       break;
     }

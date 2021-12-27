@@ -25,10 +25,15 @@ struct SwapChainSupportDetails {
 //TODO: Add at least one transfer queue and one compute queue
 struct QueueFamilyIndices {
   uint32_t graphicsFamily;
+  uint32_t graphicsQueueCount;
+  uint32_t transferFamily;
+  uint32_t transferQueueCount;
   uint32_t presentFamily;
+  uint32_t presentQueueCount;
   bool graphicsFamilyHasValue = false;
+  bool transferFamilyHasValue = false;
   bool presentFamilyHasValue = false;
-  bool isComplete() { return graphicsFamilyHasValue && presentFamilyHasValue; }
+  bool isComplete() { return graphicsFamilyHasValue && transferFamilyHasValue && presentFamilyHasValue; }
 };
 
 class Device {
@@ -52,6 +57,7 @@ class Device {
   VkDevice device() { return device_; }
   VkSurfaceKHR surface() { return surface_; }
   VkQueue graphicsQueue() { return graphicsQueue_; }
+  VkQueue transferQueue() { return transferQueue_; }
   VkQueue presentQueue() { return presentQueue_; }
 
   SwapChainSupportDetails getSwapChainSupport() { return querySwapChainSupport(physicalDevice); }
@@ -110,6 +116,7 @@ class Device {
   VkDevice device_;
   VkSurfaceKHR surface_;
   VkQueue graphicsQueue_;
+  VkQueue transferQueue_;
   VkQueue presentQueue_;
   
 
