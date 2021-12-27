@@ -9,9 +9,11 @@
 
 
 Image::Image(Device &dev, uint32_t layerCount) : device{dev}, layerCount{layerCount} {
+    auto indices = device.getFamilyIndices();
+
     VkCommandPoolCreateInfo poolInfo = {};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.queueFamilyIndex = 1;
+    poolInfo.queueFamilyIndex = indices.transferFamily;
     poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
     if (vkCreateCommandPool(device.device(), &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {

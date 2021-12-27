@@ -59,6 +59,7 @@ class Device {
   VkQueue graphicsQueue() { return graphicsQueue_; }
   VkQueue transferQueue() { return transferQueue_; }
   VkQueue presentQueue() { return presentQueue_; }
+  QueueFamilyIndices getFamilyIndices() { return indices; }
 
   SwapChainSupportDetails getSwapChainSupport() { return querySwapChainSupport(physicalDevice); }
   uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
@@ -112,6 +113,7 @@ class Device {
   VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
   Window &window;
   VkCommandPool commandPool;
+  QueueFamilyIndices indices;
 
   VkDevice device_;
   VkSurfaceKHR surface_;
