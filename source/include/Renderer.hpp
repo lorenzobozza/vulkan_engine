@@ -41,6 +41,9 @@ public:
         return currentImageIndex;
     }
     
+    VkImage getImage(int index) { return swapChain->getImage(index); }
+    VkExtent2D getSwapChainExtent() { return swapChain->getSwapChainExtent(); }
+
     bool isVSyncEnabled() { return swapChain->isVSyncEnabled(); }
     
     VkCommandBuffer beginFrame();

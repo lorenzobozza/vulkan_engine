@@ -18,6 +18,7 @@
 #include "Keyboard.hpp"
 #include "Texture.hpp"
 #include "TextRender.hpp"
+#include "HDRi.hpp"
 
 //std
 #include <memory>
@@ -26,8 +27,8 @@
 
 class Application {
 public:
-    static constexpr int WIDTH = 800;
-    static constexpr int HEIGHT = 800;
+    static constexpr int WIDTH = 1200;
+    static constexpr int HEIGHT = 1200;
     
     Application(const char* binaryPath);
     ~Application();
@@ -56,6 +57,9 @@ private:
     std::unique_ptr<DescriptorPool> globalPool{};
     SolidObject::Map solidObjects;
     SolidObject::Map textMeshes;
+    SolidObject::Map env;
+    
+    static void pan_callback(GLFWwindow* window, double xoffset, double yoffset);
     
     std::string shaderPath;
     

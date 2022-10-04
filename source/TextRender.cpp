@@ -149,43 +149,45 @@ void TextRender::createImageStack() {
     
     free(bitmaps);
     
-    vulkanImage = std::make_unique<Image>(device, layers);
-    
-    vulkanImage->createImage(
+    vulkanImage.createImage(
         bitmapSize, bitmapSize,
         VK_FORMAT_R8_SRGB,
         VK_IMAGE_TILING_OPTIMAL,
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         bitmapImage,
-        bitmapImageMemory);
+        bitmapImageMemory,
+        layers);
         
-    auto commandBuffer = vulkanImage->beginSingleTimeCommands();
+    auto commandBuffer = vulkanImage.beginSingleTimeCommands();
     
-    vulkanImage->transitionImageLayout(
+    vulkanImage.transitionImageLayout(
         commandBuffer,
         bitmapImage,
         VK_FORMAT_R8_SRGB,
         VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        layers);
     
-    vulkanImage->copyBufferToImage(
+    vulkanImage.copyBufferToImage(
         commandBuffer,
         stagingBuffer.getBuffer(),
         bitmapImage,
         bitmapSize,
-        bitmapSize);
+        bitmapSize,
+        layers);
     
-    vulkanImage->transitionImageLayout(
+    vulkanImage.transitionImageLayout(
         commandBuffer,
         bitmapImage,
         VK_FORMAT_R8_SRGB,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        layers);
         
-    vulkanImage->endSingleTimeCommands(commandBuffer);
+    vulkanImage.endSingleTimeCommands(commandBuffer);
         
-    bitmapImageView = vulkanImage->createImageView(bitmapImage, VK_FORMAT_R8_SRGB);
+    bitmapImageView = vulkanImage.createImageView(bitmapImage, VK_IMAGE_VIEW_TYPE_2D_ARRAY, VK_FORMAT_R8_SRGB, layers);
 }
 
 void TextRender::createSampler() {
@@ -196,10 +198,9 @@ void TextRender::createSampler() {
 
     samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    //samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     
-    samplerInfo.anisotropyEnable = VK_TRUE;
-    samplerInfo.maxAnisotropy = device.properties.limits.maxSamplerAnisotropy;
+    samplerInfo.anisotropyEnable = VK_FALSE;
     
     samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
     samplerInfo.unnormalizedCoordinates = VK_FALSE;

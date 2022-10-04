@@ -61,6 +61,11 @@ std::vector<VkVertexInputAttributeDescription> Model::Vertex::getAttributeDescri
     glm::vec2 deltaUV1 = v1.uv - v0.uv;
     glm::vec2 deltaUV2 = v2.uv - v0.uv;
     
+    if (v1.uv == v0.uv && v2.uv == v0.uv) {
+        deltaUV1 = {1.f, .0f};
+        deltaUV2 = {0.f, 1.f};
+    }
+    
     float r = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
     glm::vec3 tangent = (deltaPos1 * deltaUV2.y - deltaPos2 * deltaUV1.y) * r;
 

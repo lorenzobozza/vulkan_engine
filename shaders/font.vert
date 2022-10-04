@@ -15,7 +15,9 @@ layout(binding = 0) uniform sampler2D tex;
 
 layout(push_constant) uniform Push {
     mat4 modelMatrix;
-    mat3 normalMatrix;
+    int textureIndex;
+    float metalness;
+    float roughness;
 } push;
 
 void main() {

@@ -24,6 +24,8 @@ public:
     const glm::mat4 &getProjection() const { return projectionMatrix; }
     const glm::mat4 &getView() const { return viewMatrix; }
     const glm::mat4 &getInverseView() const { return inverseViewMatrix; }
+    
+    void setView(glm::mat4 view) { viewMatrix = view; }
 
 private:
     glm::mat4 projectionMatrix{1.f};

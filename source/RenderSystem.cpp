@@ -15,12 +15,9 @@
 
 struct PushConstantData {
   glm::mat4 modelMatrix{1.f};
-  glm::mat4 normalMatrix{1.f};
-};
-
-struct PushObjInfo {
-    unsigned int textureIndex{0};
-    bool blinn{false};
+  int textureIndex{};
+  float metalness{};
+  float roughness{};
 };
 
 RenderSystem::RenderSystem(
@@ -37,15 +34,15 @@ RenderSystem::~RenderSystem() {
 }
 
 void RenderSystem::createPipelineLayout(VkDescriptorSetLayout globalSetLayout) {
-  VkPushConstantRange pushConstantRanges[2];
+  VkPushConstantRange pushConstantRanges[1];
   
-  pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+  pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
   pushConstantRanges[0].offset = 0;
   pushConstantRanges[0].size = sizeof(PushConstantData);
   
-  pushConstantRanges[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-  pushConstantRanges[1].offset = sizeof(PushConstantData); // offset by previus push_constant size
-  pushConstantRanges[1].size = sizeof(PushObjInfo);
+  //pushConstantRanges[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+  //pushConstantRanges[1].offset = sizeof(PushConstantData); // offset by previus push_constant size
+  //pushConstantRanges[1].size = sizeof(PushCostant2);
   
   std::vector<VkDescriptorSetLayout> descriptorSetLayouts{globalSetLayout};
 
@@ -53,7 +50,7 @@ void RenderSystem::createPipelineLayout(VkDescriptorSetLayout globalSetLayout) {
   pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
   pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
   pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
-  pipelineLayoutInfo.pushConstantRangeCount = 2;
+  pipelineLayoutInfo.pushConstantRangeCount = 1;
   pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges;
   if (vkCreatePipelineLayout(device.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) !=
       VK_SUCCESS) {
@@ -69,6 +66,8 @@ void RenderSystem::createPipeline(VkRenderPass renderPass) {
   pipelineConfig.renderPass = renderPass;
   pipelineConfig.pipelineLayout = pipelineLayout;
   pipelineConfig.multisampleInfo.rasterizationSamples = device.msaaSamples;
+  pipelineConfig.multisampleInfo.sampleShadingEnable = VK_TRUE;
+  pipelineConfig.multisampleInfo.minSampleShading = .2f;
   pipeline = std::make_unique<Pipeline>(
       device,
       shaderPath+".vert.spv",
@@ -95,27 +94,28 @@ void RenderSystem::renderSolidObjects(FrameInfo &frameInfo) {
   
     PushConstantData push{};
     push.modelMatrix = obj.transform.mat4();
-    push.normalMatrix = obj.transform.normalMatrix();
+    //push.normalMatrix = obj.transform.normalMatrix();
+    push.textureIndex = obj.textureIndex;
+    push.metalness = obj.metalness;
+    push.roughness = obj.roughness;
     
-    PushObjInfo pushInfo{};
-    pushInfo.textureIndex = obj.textureIndex;
-    pushInfo.blinn = obj.blinn;
-
     vkCmdPushConstants(
         frameInfo.commandBuffer,
         pipelineLayout,
-        VK_SHADER_STAGE_VERTEX_BIT,
+        VK_SHADER_STAGE_ALL_GRAPHICS,
         0,
         sizeof(PushConstantData),
         &push);
         
+    /*
     vkCmdPushConstants(
         frameInfo.commandBuffer,
         pipelineLayout,
         VK_SHADER_STAGE_FRAGMENT_BIT,
         sizeof(PushConstantData), // offset by previus push_constant size
-        sizeof(PushObjInfo),
-        &pushInfo);
+        sizeof(PushConstant2),
+        &push2);
+    */
         
     obj.model->bind(frameInfo.commandBuffer);
     obj.model->draw(frameInfo.commandBuffer);

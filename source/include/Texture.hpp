@@ -13,7 +13,8 @@
 class Texture {
 public:
     
-    Texture(Device &dev, Image &image, const char* filePath, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB);
+    Texture(Device &dev, Image &image, std::string filePath, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB);
+    Texture(Device &dev, Image &image, std::string filePath, VkImageViewType viewType, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB);
     ~Texture();
     
     VkDescriptorImageInfo descriptorInfo();
@@ -31,9 +32,10 @@ private:
     VkImageView textureImageView{};
     VkSampler textureSampler{};
     
+    VkImageViewType viewType;
     VkFormat format;
     
-    const char* textureFilePath;
+    std::string textureFilePath;
 };
 
 #endif /* Texture_hpp */

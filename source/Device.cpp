@@ -180,6 +180,7 @@ void Device::createLogicalDevice() {
 
   VkPhysicalDeviceFeatures deviceFeatures = {};
   deviceFeatures.samplerAnisotropy = VK_TRUE;
+  deviceFeatures.sampleRateShading = VK_TRUE;
   deviceFeatures.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
   
     // Descriptor indexing (for textures)
