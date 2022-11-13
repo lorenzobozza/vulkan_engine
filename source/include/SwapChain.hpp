@@ -31,7 +31,9 @@ class SwapChain {
 
   VkFramebuffer getFrameBuffer(int index) { return swapChainFramebuffers[index]; }
   VkRenderPass getRenderPass() { return renderPass; }
+  VkImage getImage(int index) { return swapChainImages[index]; }
   VkImageView getImageView(int index) { return swapChainImageViews[index]; }
+  VkFence *getCurrentImageFence(int imageIndex) { return &imagesInFlight[imageIndex]; }
   size_t imageCount() { return swapChainImages.size(); }
   VkFormat getSwapChainImageFormat() { return swapChainImageFormat; }
   VkExtent2D getSwapChainExtent() { return swapChainExtent; }
@@ -81,9 +83,11 @@ class SwapChain {
   std::vector<VkImage> colorImages;
   std::vector<VkDeviceMemory> colorImageMemorys;
   std::vector<VkImageView> colorImageViews;
+  
   std::vector<VkImage> depthImages;
   std::vector<VkDeviceMemory> depthImageMemorys;
   std::vector<VkImageView> depthImageViews;
+  
   std::vector<VkImage> swapChainImages;
   std::vector<VkImageView> swapChainImageViews;
 

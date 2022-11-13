@@ -8,7 +8,7 @@
 #ifndef Application_hpp
 #define Application_hpp
 
-#include "Window.hpp"
+#include "SDLWindow.hpp"
 #include "Device.hpp"
 #include "Descriptors.hpp"
 #include "Model.hpp"
@@ -18,6 +18,7 @@
 #include "Keyboard.hpp"
 #include "Texture.hpp"
 #include "TextRender.hpp"
+#include "HDRi.hpp"
 
 //std
 #include <memory>
@@ -26,8 +27,8 @@
 
 class Application {
 public:
-    static constexpr int WIDTH = 800;
-    static constexpr int HEIGHT = 800;
+    static constexpr int WIDTH = 1920;
+    static constexpr int HEIGHT = 1080;
     
     Application(const char* binaryPath);
     ~Application();
@@ -44,7 +45,7 @@ public:
 private:
     void loadSolidObjects();
     
-    Window window{WIDTH, HEIGHT, "Vulkan Engine Development"};
+    SDLWindow window{WIDTH, HEIGHT, "Vulkan Engine Development"};
     Device device{window};
     Renderer renderer{window, device};
     Image vulkanImage{device};
@@ -56,6 +57,12 @@ private:
     std::unique_ptr<DescriptorPool> globalPool{};
     SolidObject::Map solidObjects;
     SolidObject::Map textMeshes;
+    SolidObject::Map env;
+    
+    SDL_Event sdl_event;
+    int frameIndex{0};
+    
+    static void pan_callback(GLFWwindow* window, double xoffset, double yoffset);
     
     std::string shaderPath;
     

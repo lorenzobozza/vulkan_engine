@@ -1,34 +1,42 @@
 //
-//  Window.cpp
+//  SDLWindow.cpp
 //  vulkan_engine
 //
-//  Created by Lorenzo Bozza on 05/11/21.
+//  Created by Lorenzo Bozza on 04/10/22.
 //
 
-#include "include/Window.hpp"
+#include "include/SDLWindow.hpp"
 
 #include <stdexcept>
 #include <iostream>
 
-Window::Window(int w, int h, std::string name) :  width{w}, height{h}, windowName{name} {
+SDLWindow::SDLWindow(int w, int h, std::string name) :  width{w}, height{h}, windowName{name} {
     initWindow();
 }
 
-Window::Window(std::string name) : windowName{name}, fullScreen{true} {
+SDLWindow::SDLWindow(std::string name) : windowName{name}, fullScreen{true} {
     initWindow();
 }
 
-Window::~Window() {
-    glfwDestroyWindow(window);
-    glfwTerminate();
+SDLWindow::~SDLWindow() {
+    SDL_DestroyWindow(window);
+    SDL_Quit();
 }
 
-void Window::createWindowSurface(VkInstance instance, VkSurfaceKHR *surface) {
-    if(glfwCreateWindowSurface(instance, window, nullptr, surface) != VK_SUCCESS) {
+void SDLWindow::createWindowSurface(VkInstance instance, VkSurfaceKHR *surface) {
+    if(SDL_Vulkan_CreateSurface(window, instance, surface) != SDL_TRUE) {
         throw std::runtime_error("Failed to create window surface");
     }
 }
 
+void SDLWindow::initWindow() {
+    SDL_Init(SDL_INIT_EVERYTHING);
+    
+    window = SDL_CreateWindow(windowName.c_str(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height,
+    SDL_WINDOW_VULKAN | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_RESIZABLE);
+}
+
+/*
 void Window::initWindow() {
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -50,3 +58,4 @@ void Window::frameBufferResizeCallback(GLFWwindow *window, int width, int height
     thisWindow->width = width;
     thisWindow->height = height;
 }
+ */

@@ -12,7 +12,15 @@
 #include <stb-master/stb_image.h>
 
 
-Texture::Texture(Device &dev, Image &image, const char* filePath, VkFormat format) : device{dev}, image{image}, textureFilePath{filePath}, format{format} {
+Texture::Texture(Device &dev, Image &image, std::string filePath, VkFormat format)
+    : device{dev}, image{image}, textureFilePath{filePath}, viewType{VK_IMAGE_VIEW_TYPE_2D}, format{format} {
+    createTextureImage();
+    createTextureImageView();
+    createTextureSampler();
+}
+
+Texture::Texture(Device &dev, Image &image, std::string filePath, VkImageViewType viewType, VkFormat format)
+    : device{dev}, image{image}, textureFilePath{filePath}, viewType{viewType}, format{format} {
     createTextureImage();
     createTextureImageView();
     createTextureSampler();
@@ -34,10 +42,37 @@ VkDescriptorImageInfo Texture::descriptorInfo() {
 }
 
 void Texture::createTextureImage() {
-    int texWidth, texHeight, texChannels;
-    stbi_uc* pixels = stbi_load(textureFilePath, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+    uint8_t depth;
+    switch (format) {
+        case VK_FORMAT_R8G8B8A8_SRGB:
+            depth = 4;
+            break;
+            
+        case VK_FORMAT_R8G8B8A8_UNORM:
+            depth = 4;
+            break;
+            
+        case VK_FORMAT_R8G8B8_UNORM:
+            depth = 3;
+            break;
+            
+        case VK_FORMAT_R8G8_UNORM:
+            depth = 2;
+            break;
 
-    VkDeviceSize imageSize = texWidth * texHeight * 4;
+        case VK_FORMAT_R16G16B16A16_SFLOAT:
+            depth = 8;
+            break;
+            
+        default:
+            depth = 4;
+            break;
+    }
+    
+    int texWidth, texHeight, texChannels;
+    stbi_uc* pixels = stbi_load(textureFilePath.c_str(), &texWidth, &texHeight, &texChannels, depth);
+
+    VkDeviceSize imageSize = texWidth * texHeight * depth;
     
     if (!pixels) {
         throw std::runtime_error("failed to load texture image!");
@@ -70,7 +105,7 @@ void Texture::createTextureImage() {
 }
 
 void Texture::createTextureImageView() {
-    textureImageView = image.createImageView(textureImage, format);
+    textureImageView = image.createImageView(textureImage, viewType, format);
 }
 
 void Texture::createTextureSampler() {
@@ -83,10 +118,10 @@ void Texture::createTextureSampler() {
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     
-    samplerInfo.anisotropyEnable = VK_TRUE;
+    samplerInfo.anisotropyEnable = VK_FALSE;
     samplerInfo.maxAnisotropy = device.properties.limits.maxSamplerAnisotropy;
     
-    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
     samplerInfo.unnormalizedCoordinates = VK_FALSE;
     
     samplerInfo.compareEnable = VK_FALSE;

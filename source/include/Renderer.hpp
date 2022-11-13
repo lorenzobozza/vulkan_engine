@@ -8,7 +8,7 @@
 #ifndef Renderer_hpp
 #define Renderer_hpp
 
-#include "Window.hpp"
+#include "SDLWindow.hpp"
 #include "Device.hpp"
 #include "SwapChain.hpp"
 
@@ -20,7 +20,7 @@
 class Renderer {
 public:
     
-    Renderer(Window &pasWindow, Device &passDevice);
+    Renderer(SDLWindow &pasWindow, Device &passDevice);
     ~Renderer();
     
     // Prevent Obj copy
@@ -41,6 +41,11 @@ public:
         return currentImageIndex;
     }
     
+    VkImage getImage(int index) { return swapChain->getImage(index); }
+    VkExtent2D getSwapChainExtent() { return swapChain->getSwapChainExtent(); }
+    
+    VkFence *getSwapChainImageFence(int imageIndex) { return swapChain->getCurrentImageFence(imageIndex); }
+
     bool isVSyncEnabled() { return swapChain->isVSyncEnabled(); }
     
     VkCommandBuffer beginFrame();
@@ -53,7 +58,7 @@ private:
     void createCommandBuffers();
     void freeCommandBuffers();
 
-    Window &window;
+    SDLWindow &window;
     Device &device;
     std::unique_ptr<SwapChain> swapChain;
     std::vector<VkCommandBuffer> commandBuffers;

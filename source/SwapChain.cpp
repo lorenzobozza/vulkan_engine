@@ -170,7 +170,7 @@ void SwapChain::createSwapChain() {
   QueueFamilyIndices indices = device.findPhysicalQueueFamilies();
   uint32_t queueFamilyIndices[] = {indices.graphicsFamily, indices.presentFamily};
 
-  if (indices.graphicsFamily != indices.presentFamily) {
+  if (indices.graphicsFamily != indices.presentFamily) {//TODO: FIX!
     createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
     createInfo.queueFamilyIndexCount = 2;
     createInfo.pQueueFamilyIndices = queueFamilyIndices;
@@ -234,7 +234,7 @@ void SwapChain::createRenderPass() {
   colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
   colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
   colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-  colorAttachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;//VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+  colorAttachment.finalLayout = device.msaaSamples == VK_SAMPLE_COUNT_1_BIT ? VK_IMAGE_LAYOUT_PRESENT_SRC_KHR : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
   
   VkAttachmentReference colorAttachmentRef = {};
   colorAttachmentRef.attachment = 0;
@@ -276,7 +276,7 @@ void SwapChain::createRenderPass() {
   subpass.colorAttachmentCount = 1;
   subpass.pColorAttachments = &colorAttachmentRef;
   subpass.pDepthStencilAttachment = &depthAttachmentRef;
-  subpass.pResolveAttachments = &colorAttachmentResolveRef;
+  if (device.msaaSamples != VK_SAMPLE_COUNT_1_BIT) { subpass.pResolveAttachments = &colorAttachmentResolveRef; }
 
   VkSubpassDependency dependency = {};
   dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -288,8 +288,14 @@ void SwapChain::createRenderPass() {
       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
   dependency.dstAccessMask =
       VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+      
+    std::vector<VkAttachmentDescription> attachments;
+    if (device.msaaSamples == VK_SAMPLE_COUNT_1_BIT) {
+        attachments = {colorAttachment, depthAttachment};
+    } else {
+        attachments = {colorAttachment, depthAttachment, colorAttachmentResolve};
+    }
 
-  std::array<VkAttachmentDescription, 3> attachments = {colorAttachment, depthAttachment, colorAttachmentResolve};
   VkRenderPassCreateInfo renderPassInfo = {};
   renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
   renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
@@ -307,7 +313,12 @@ void SwapChain::createRenderPass() {
 void SwapChain::createFramebuffers() {
   swapChainFramebuffers.resize(imageCount());
   for (size_t i = 0; i < imageCount(); i++) {
-    std::array<VkImageView, 3> attachments = {colorImageViews[i], depthImageViews[i], swapChainImageViews[i]};
+    std::vector<VkImageView> attachments;
+    if (device.msaaSamples == VK_SAMPLE_COUNT_1_BIT) {
+        attachments = {swapChainImageViews[i], depthImageViews[i]};
+    } else {
+        attachments = {colorImageViews[i], depthImageViews[i], swapChainImageViews[i]};
+    }
 
     VkExtent2D swapChainExtent = getSwapChainExtent();
     VkFramebufferCreateInfo framebufferInfo = {};
@@ -456,6 +467,7 @@ VkSurfaceFormatKHR SwapChain::chooseSwapSurfaceFormat(
   for (const auto &availableFormat : availableFormats) {
     if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB &&
         availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+      std::cout << "Found" << std::endl;
       return availableFormat;
     }
   }
@@ -469,11 +481,10 @@ VkPresentModeKHR SwapChain::chooseSwapPresentMode(const std::vector<VkPresentMod
           if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
             std::cout << "Present mode: Mailbox" << std::endl;
             return availablePresentMode;
-          } else if (availablePresentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
-              std::cout << "Present mode: Immediate" << std::endl;
-              return availablePresentMode;
           }
         }
+        std::cout << "Present mode: Immediate" << std::endl;
+        return VK_PRESENT_MODE_IMMEDIATE_KHR;
     }
 
     std::cout << "Present mode: V-Sync" << std::endl;

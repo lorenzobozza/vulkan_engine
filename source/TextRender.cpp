@@ -26,7 +26,10 @@ TextRender::~TextRender() {
 }
 
 unsigned int TextRender::renderText(std::string text, float x, float y, float scale, glm::vec3 color) {
-    unsigned int lastId{0};
+    float startingXpos = x;
+    float maxHeight{0};
+    std::vector<unsigned int> boxes;
+    scale *= .1f;
     std::string::const_iterator c;
     for (c = text.begin(); c != text.end(); c++)
     {
@@ -55,15 +58,19 @@ unsigned int TextRender::renderText(std::string text, float x, float y, float sc
             rect.textureIndex = ch.TextureID;
             
             meshes.emplace(rect.getId(), std::move(rect));
-            lastId = rect.getId();
+            boxes.push_back(rect.getId());
+            
+            if(ypos < maxHeight) { maxHeight = ypos; } //
 
             x += (ch.Advance >> 6) / 100.f * scale; // bitshift by 6 to get value in pixels (2^6 = 64)
         } else {
-            x += 15 / 100.f * scale;
+            x += 15 / 35.f * scale;
         }
-        
     }
-    return lastId;
+    for (auto box : boxes) {
+        meshes.at(box).transform.translation += glm::vec3(-.5f*(x - startingXpos), .5f*maxHeight, .0f);
+    }
+    return boxes.back();
 }
 
 VkDescriptorImageInfo TextRender::getDescriptor() {
@@ -82,7 +89,7 @@ void TextRender::loadFaces(const char firstChar, const char lastChar) {
     
     FT_Face face;
     FT_New_Face(ft, fontPath, 0, &face);
-    FT_Set_Pixel_Sizes(face, 0, 48);
+    FT_Set_Pixel_Sizes(face, 0, 96);
     
     FT_Load_Char(face, 'W', FT_LOAD_RENDER);
     bitmapSize = face->glyph->bitmap.width;
@@ -149,43 +156,45 @@ void TextRender::createImageStack() {
     
     free(bitmaps);
     
-    vulkanImage = std::make_unique<Image>(device, layers);
-    
-    vulkanImage->createImage(
+    vulkanImage.createImage(
         bitmapSize, bitmapSize,
         VK_FORMAT_R8_SRGB,
         VK_IMAGE_TILING_OPTIMAL,
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         bitmapImage,
-        bitmapImageMemory);
+        bitmapImageMemory,
+        layers);
         
-    auto commandBuffer = vulkanImage->beginSingleTimeCommands();
+    auto commandBuffer = vulkanImage.beginSingleTimeCommands();
     
-    vulkanImage->transitionImageLayout(
+    vulkanImage.transitionImageLayout(
         commandBuffer,
         bitmapImage,
         VK_FORMAT_R8_SRGB,
         VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        layers);
     
-    vulkanImage->copyBufferToImage(
+    vulkanImage.copyBufferToImage(
         commandBuffer,
         stagingBuffer.getBuffer(),
         bitmapImage,
         bitmapSize,
-        bitmapSize);
+        bitmapSize,
+        layers);
     
-    vulkanImage->transitionImageLayout(
+    vulkanImage.transitionImageLayout(
         commandBuffer,
         bitmapImage,
         VK_FORMAT_R8_SRGB,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        layers);
         
-    vulkanImage->endSingleTimeCommands(commandBuffer);
+    vulkanImage.endSingleTimeCommands(commandBuffer);
         
-    bitmapImageView = vulkanImage->createImageView(bitmapImage, VK_FORMAT_R8_SRGB);
+    bitmapImageView = vulkanImage.createImageView(bitmapImage, VK_IMAGE_VIEW_TYPE_2D_ARRAY, VK_FORMAT_R8_SRGB, layers);
 }
 
 void TextRender::createSampler() {
@@ -196,10 +205,9 @@ void TextRender::createSampler() {
 
     samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    //samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     
-    samplerInfo.anisotropyEnable = VK_TRUE;
-    samplerInfo.maxAnisotropy = device.properties.limits.maxSamplerAnisotropy;
+    samplerInfo.anisotropyEnable = VK_FALSE;
     
     samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
     samplerInfo.unnormalizedCoordinates = VK_FALSE;

@@ -46,7 +46,7 @@ private:
 
     Device &device;
     SolidObject::Map &meshes;
-    std::unique_ptr<Image> vulkanImage;
+    Image vulkanImage{device};
     std::unordered_map<char, Character> characters;
 
     void loadFaces(const char firstChar, const char lastChar);
