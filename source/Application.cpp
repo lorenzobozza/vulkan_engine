@@ -35,6 +35,10 @@ struct GlobalUbo {
     glm::mat4 invViewMatrix{1.f};
 };
 
+struct TextUbo {
+    glm::mat4 projectionView{1.f};
+};
+
 Application::Application(const char* binaryPath) {
     // Shader binaries in the same folder as the application binary
     shaderPath = binaryPath;
@@ -47,71 +51,74 @@ Application::~Application() {}
 
 glm::vec3 rotate{.0f};
 
-void Application::pan_callback(GLFWwindow* window, double xoffset, double yoffset) {
-    rotate.x = -yoffset;
-    rotate.y = xoffset;
-}
-
 void Application::run() {
-    //glfwSetWindowOpacity(window.getGLFWwindow(), 1.f);
-    
-    // Cursor prototype
-    unsigned char pixels[8 * 8 * 4];
-    memset(pixels, 0xaf, sizeof(pixels));
- 
-    GLFWimage image;
-    image.width = 8;
-    image.height = 8;
-    image.pixels = pixels;
- 
-    //GLFWcursor* cursor = glfwCreateCursor(&image, 0, 0);
-    //glfwSetCursor(window.getGLFWwindow(), cursor);
-    glfwSetInputMode(window.getGLFWwindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-    
     // GAMELOOP TIMING
     auto currentTime = std::chrono::high_resolution_clock::now();
     std::vector<float> frameTimes;
     int cnt{0};
     auto startTime = currentTime;
     
+    // 3D + 2D CAMERAS
     Camera camera{};
-    
-    // Set camera projection based on aspect ratio of the viewport
+    Camera camera2D{};
     float aspect = renderer.getAspectRatio();
+    camera.setProjection.perspective(aspect, glm::radians(75.f), .01f, 100.f);
+    camera2D.setOrthographicProjection(-aspect, aspect, -1.f, 1.f, -10.f, 100.f);
     bool orth = false;
-    camera.setProjection.perspective(aspect, 1.f, .01f, 100.f);
-    
-    // Create transparent object for the camera
+
+    // Create object without model for the 3D camera position
     SolidObject cameraObj = SolidObject::createSolidObject();
     cameraObj.transform.translation = {.0f, -.4f, -2.f};
     
-    glfwSetScrollCallback(window.getGLFWwindow(), pan_callback);
+    TextRender font{device, textMeshes, "fonts/NeutralFace.otf"};
+    auto faces = font.getDescriptor();
     
-    
-    // Keyboard inputs
-    Keyboard cameraCtrl{};
-    
-    float fovy{60.f};
+    // Uniform Buffer Objects
+    std::vector<std::unique_ptr<Buffer>> uboBuffers(SwapChain::MAX_FRAMES_IN_FLIGHT);
+    for (int i = 0; i < uboBuffers.size(); i++) {
+        uboBuffers[i] = std::make_unique<Buffer>(
+            device,
+            sizeof(GlobalUbo),
+            1,
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+        );
+        uboBuffers[i]->map();
+    }
+    std::vector<std::unique_ptr<Buffer>> uboTextBuffers(SwapChain::MAX_FRAMES_IN_FLIGHT);
+    for (int i = 0; i < uboTextBuffers.size(); i++) {
+        uboTextBuffers[i] = std::make_unique<Buffer>(
+            device,
+            sizeof(TextUbo),
+            1,
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+        );
+        uboTextBuffers[i]->map();
+    }
     
     // 2D LAYER RENDERING
     std::unique_ptr<DescriptorPool> guiPool =
        DescriptorPool::Builder(device)
            .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
            .build();
     
     auto guiSetLayout =
         DescriptorSetLayout::Builder(device)
-            .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
+            .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .build();
             
-    TextRender font{device, textMeshes, "fonts/monaco.ttf"};
-    auto faces = font.getDescriptor();
+    
     
     std::vector<VkDescriptorSet> guiDescriptorSets(SwapChain::MAX_FRAMES_IN_FLIGHT);
     for (int i = 0; i < guiDescriptorSets.size(); i++) {
+        auto bufferInfo = uboTextBuffers[i]->descriptorInfo();
         DescriptorWriter(*guiSetLayout, *guiPool)
-            .writeImage(0, &faces)
+            .writeBuffer(0, &bufferInfo)
+            .writeImage(1, &faces)
             .build(guiDescriptorSets[i]);
     }
     
@@ -122,32 +129,24 @@ void Application::run() {
         shaderPath+"font"
     };
     
-    font.renderText("Vulkan Engine v0.5, MSAA x" + std::to_string(device.msaaSamples) + ", V-Sync: " + (renderer.isVSyncEnabled() ? "On" : "Off") , -.95f, -.9f, .1f, {.2f, .8f, 1.f});
+    font.renderText("Vulkan Engine v0.6 Beta, MSAA x" + std::to_string(device.msaaSamples) + ", V-Sync: " + (renderer.isVSyncEnabled() ? "On" : "Off") , -.7f*aspect, -.9f, .4f, {.2f, .8f, 1.f});
 
     // Load heavy assets on a separate thread
     std::thread([this]() {
-        std::string textureName = "Metal007_1K";
         //this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_A.tga"));
         //this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_N.tga", VK_FORMAT_R8G8B8A8_UNORM));
         //this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_M.tga"));
         //this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_R.tga"));
-        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/hdri/indoor.jpg"));
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/hdri/neon_photostudio_4k.png"));
         this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/ibl_brdf_lut.png", VK_FORMAT_R8G8_UNORM));
-        //this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/" + textureName + "_Color.png"));
-        //this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/" + textureName + "_NormalGL.png", VK_FORMAT_R8G8B8A8_UNORM));
-        //this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/" + textureName + "_Metalness.png"));
-        //this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/" + textureName + "_Roughness.png"));
         this->assetsLoaded = true;
     }).detach();
-    
 
-
-
-    font.renderText("-> Loading Assets...", -.95f, -.8f, .1f, { 1.f, .3f, 1.f});
-    auto loading = font.renderText("-", 0.f, 0.f, .25f, { 1.f, .2f, .2f});
+    font.renderText("Loading Vulkan Engine", .0f, .0f, 1.2f, { .7f, .0f, .0f});
+    font.renderText("Lorenzo Bozza's Works", .0f, .2f, .4f, { .8f, .8f, .8f});
 
     while (!assetsLoaded) {
-        glfwPollEvents();
+        SDL_PollEvent(&sdl_event);
         
         cnt = (cnt + 130) % 628;
         
@@ -155,8 +154,6 @@ void Application::run() {
         float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime -  currentTime).count();
         currentTime = newTime;
         frameTime = glm::min(frameTime, .05f);
-        
-        textMeshes.at(loading).transform.rotation.z = - cnt / 100.f;
 
         if (auto commandBuffer = renderer.beginFrame()) {
             int frameIndex = renderer.getFrameIndex();
@@ -165,10 +162,16 @@ void Application::run() {
                 frameIndex,
                 frameTime,
                 commandBuffer,
-                camera,
+                camera2D,
                 guiDescriptorSets[frameIndex],
                 textMeshes
             };
+            
+            //Update 2D
+            TextUbo ubo{};
+            ubo.projectionView = guiInfo.camera.getProjection();
+            uboTextBuffers[frameIndex]->writeToBuffer(&ubo);
+            uboTextBuffers[frameIndex]->flush();
             
             //Render
             renderer.beginSwapChainRenderPass(commandBuffer);
@@ -183,7 +186,7 @@ void Application::run() {
     vkDeviceWaitIdle(device.device());
     textMeshes.clear();
     
-    font.renderText("Textures: " + std::to_string(std::chrono::duration<float, std::chrono::seconds::period>(std::chrono::high_resolution_clock::now() - startTime).count()).substr(0, 5) + " s", -.95f, -.9f, .1f, { 1.f, .3f, 1.f});
+    font.renderText("Assets load time: " + std::to_string(std::chrono::duration<float, std::chrono::seconds::period>(std::chrono::high_resolution_clock::now() - startTime).count()).substr(0, 5) + " s", .0f * aspect, -.9f, .6f, { .5f, .0f, .0f});
     
     
     //HDRi Pre-Processing
@@ -192,28 +195,14 @@ void Application::run() {
     HDRi environmentMap{device, equitangular, {1024, 1024}, "equirectangular", 5};
     auto environment = environmentMap.descriptorInfo();
     
-    HDRi prefilteredMap{device, environment, {256, 256}, "prefiltering", 5};
+    HDRi prefilteredMap{device, environment, {480, 480}, "prefiltering", 5};
     auto prefiltered = prefilteredMap.descriptorInfo();
     
     HDRi irradianceMap{device, environment, {32, 32}, "irradiance"};
     auto irradiance = irradianceMap.descriptorInfo();
     
-    font.renderText(glfwRawMouseMotionSupported() ? "RAW MOUSE SUPPORTED" : "RAW MOUSE NOT SUPPORTED", -.95f, -.8f, .1f, { 1.f, .3f, 1.f});
-    
-    textureInfos.push_back(textures.at(0)->descriptorInfo());
+    textureInfos.push_back(textures.at(1)->descriptorInfo());// Just to keep it from crashing
     auto ibl_brdf_lut = textures.at(1)->descriptorInfo();
-
-    std::vector<std::unique_ptr<Buffer>> uboBuffers(SwapChain::MAX_FRAMES_IN_FLIGHT);
-    for (int i = 0; i < uboBuffers.size(); i++) {
-        uboBuffers[i] = std::make_unique<Buffer>(
-            device,
-            sizeof(GlobalUbo),
-            1,
-            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
-        );
-        uboBuffers[i]->map();
-    }
 
     // SKYBOX RENDERING
     std::unique_ptr<DescriptorPool> skyboxPool =
@@ -285,58 +274,44 @@ void Application::run() {
         globalSetLayout->getDescriptorSetLayout(),
         shaderPath+"shader"
     };
-
-    while(!window.shouldClose()) {
-        glfwPollEvents();
-        
+    
+    SDL_StartTextInput();
+    bool running = true;
+    while(running)
+    {
         cnt = (cnt + 4) % 628;
-        
         // Compute frame latency and store the value
         auto newTime = std::chrono::high_resolution_clock::now();
         float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime -  currentTime).count();
         currentTime = newTime;
         frameTimes.push_back(frameTime);
         frameTime = glm::min(frameTime, .05f); // Prevent movement glitches when resizing
-        
-        if(glfwGetKey(window.getGLFWwindow(), GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-            glfwSetWindowShouldClose(window.getGLFWwindow(), VK_TRUE);
-        }
-        
-        if(glfwGetKey(window.getGLFWwindow(), GLFW_KEY_O) == GLFW_PRESS) {
-            camera.setOrthographicProjection(-aspect, aspect, -1.f, 1.f, -10.f, 100.f);
-            orth = true;
-        }
-        
-        if(glfwGetKey(window.getGLFWwindow(), GLFW_KEY_P) == GLFW_PRESS) {
-            camera.setProjection.perspective();
-            orth = false;
-        }
-        
-        if(glfwGetKey(window.getGLFWwindow(), GLFW_KEY_F) == GLFW_PRESS) {
-            fovy = ((int)fovy + 1) % 60 + 60;
-            camera.setProjection[1].perspective(glm::radians(fovy));
-        }
-        
-        if(glfwGetKey(window.getGLFWwindow(), GLFW_KEY_T) == GLFW_PRESS) {
-            solidObjects.at(0).textureIndex ^= 1;
-        }
-        
-        if(glfwGetKey(window.getGLFWwindow(), GLFW_KEY_R) == GLFW_PRESS) {
-            if(glfwGetKey(window.getGLFWwindow(), GLFW_KEY_1) == GLFW_PRESS) {
-                solidObjects.at(0).roughness -= .01f;
-                if (solidObjects.at(0).roughness < 0.01f) { solidObjects.at(0).roughness = 0.01f; }
-            } else if (glfwGetKey(window.getGLFWwindow(), GLFW_KEY_2) == GLFW_PRESS) {
-                solidObjects.at(0).roughness += .01f;
-                if (solidObjects.at(0).roughness > 1) { solidObjects.at(0).roughness = 1.f; }
-            }
-        }
-        if(glfwGetKey(window.getGLFWwindow(), GLFW_KEY_M) == GLFW_PRESS) {
-            if(glfwGetKey(window.getGLFWwindow(), GLFW_KEY_1) == GLFW_PRESS) {
-                solidObjects.at(0).metalness -= .01f;
-                if (solidObjects.at(0).metalness < 0) { solidObjects.at(0).metalness = 0.f; }
-            } else if (glfwGetKey(window.getGLFWwindow(), GLFW_KEY_2) == GLFW_PRESS) {
-                solidObjects.at(0).metalness += .01f;
-                if (solidObjects.at(0).metalness > 1) { solidObjects.at(0).metalness = 1.f; }
+
+        while(SDL_PollEvent(&sdl_event))
+        {
+            switch (sdl_event.type) {
+                case SDL_QUIT:
+                    running = false;
+                    break;
+                case SDL_KEYDOWN:
+                    if(sdl_event.key.keysym.sym == SDLK_ESCAPE) {
+                        running = false;
+                    }
+                    break;
+                case SDL_CONTROLLERDEVICEADDED:
+                    SDL_GameControllerOpen(0);
+                    font.renderText(SDL_GameControllerNameForIndex(0), -.1f, -.95f, .1f);
+                    break;
+                case SDL_CONTROLLERDEVICEREMOVED:
+                    SDL_GameControllerClose(0);
+                    break;
+                case SDL_CONTROLLERBUTTONDOWN:
+                    running = false;
+                    break;
+                case SDL_MOUSEWHEEL:
+                    rotate.x = -.5f*sdl_event.wheel.preciseY;
+                    rotate.y = -.5f*sdl_event.wheel.preciseX;
+                    break;
             }
         }
         
@@ -358,16 +333,28 @@ void Application::run() {
         }
         
         // Polling keystrokes and adjusting the camera position/rotation
-        cameraCtrl.moveInPlaneXZ(window.getGLFWwindow(), frameTime, cameraObj);
         camera.setViewYXZ(cameraObj.transform.translation, cameraObj.transform.rotation);
+        //cameraCtrl.moveInPlaneXZ(window.getGLFWwindow(), frameTime, cameraObj);
         
+        solidObjects.at(0).transform.translation.x = .5f*glm::sin((float)cnt / 100.f);
+        solidObjects.at(0).transform.translation.z = .5f*glm::cos((float)cnt / 100.f);
         
-        //solidObjects.at(2).transform.rotation.y = glm::mod(solidObjects.at(2).transform.rotation.y + 0.02f, glm::two_pi<float>());
-        //solidObjects.at(2).transform.translation.y += .02f * glm::cos((float)cnt / 100.f);
-        
+        if (!(cnt % 314)) {
+            //std::cout << frameTimes.back() << " - " << frameTimes.front() << '\n';
+            float avg = 0;
+            for (int k = 0; k < frameTimes.size(); k++) {
+                avg += frameTimes[k];
+            }
+            avg = avg / frameTimes.size();
+            int fps = (int)(1.f / avg);
+            vkWaitForFences(device.device(), 1, renderer.getSwapChainImageFence(frameIndex), VK_TRUE, UINT64_MAX);
+            textMeshes.clear();
+            font.renderText(std::to_string(fps) + " FPS", .9f * aspect, -.9f, .7f);
+            frameTimes.clear();
+        }
         
         if (auto commandBuffer = renderer.beginFrame()) {
-            int frameIndex = renderer.getFrameIndex();
+            frameIndex = renderer.getFrameIndex();
             FrameInfo frameInfo{
                 frameIndex,
                 frameTime,
@@ -390,7 +377,7 @@ void Application::run() {
                 frameIndex,
                 frameTime,
                 commandBuffer,
-                camera,
+                camera2D,
                 guiDescriptorSets[frameIndex],
                 textMeshes
             };
@@ -407,46 +394,28 @@ void Application::run() {
             //Render
             renderer.beginSwapChainRenderPass(commandBuffer);
             
-            
             skyboxSystem.renderSolidObjects(skyboxInfo);
-
             renderSystem.renderSolidObjects(frameInfo);
-
             guiSystem.renderSolidObjects(guiInfo);
-
             
             renderer.endSwapChainRenderPass(commandBuffer);
             renderer.endFrame();
         }
-        
-        // Compute average of the last n frames
-        if ((cnt % 628) == 0) {
-            float avg = 0;
-            for (int k = 0; k < frameTimes.size(); k++) {
-                avg += frameTimes[k];
-            }
-            avg = avg / frameTimes.size();
-            int fps = (int)(1.f / avg);
-            //std::cout << "FPS(AVG): " << fps << '\n';
-            vkDeviceWaitIdle(device.device());
-            textMeshes.clear();
-            font.renderText(std::to_string(fps) + " fps", .82f, -.95f, .1f);
-            frameTimes.clear();
-        }
-        
     }
+
     vkDeviceWaitIdle(device.device());
 }
 
 void Application::loadSolidObjects() {
     auto sphere = SolidObject::createSolidObject();
-    sphere.model = Model::createModelFromFile(device, shaderPath+"cube.obj");
+    sphere.model = Model::createModelFromFile(device, shaderPath+"sphere.obj");
     
     sphere.color = {1.f, 1.f, 1.f};
     sphere.metalness = 1.f;
-    sphere.roughness = .01f;
+    sphere.roughness = .0f;
     sphere.transform.translation = {.0f, .0f, .0f};
-    sphere.transform.scale = {.5f, .5f, .5f};
+    sphere.transform.rotation.y = .0f;
+    sphere.transform.scale = {.25f, .25f, .25f};
     
     solidObjects.emplace(sphere.getId(), std::move(sphere));
     
@@ -462,31 +431,7 @@ void Application::loadSolidObjects() {
     volvo.transform.scale = {1.f, 1.f, 1.f};
     
     solidObjects.emplace(volvo.getId(), std::move(volvo));
-    
-    auto sphere2 = SolidObject::createSolidObject();
-    sphere2.model = Model::createModelFromFile(device, shaderPath+"pistol.obj");
-    
-    sphere2.color = {1.f, 1.f, 1.f};
-    sphere2.textureIndex = 0;
-    sphere2.metalness = 1.f;
-    sphere2.roughness = .25f;
-    sphere2.transform.translation = {.0f, -3.f, .0f};
-    sphere2.transform.scale = {2.f, 2.f, 2.f};
-    
-    solidObjects.emplace(sphere2.getId(), std::move(sphere2));
 
-    auto plane = SolidObject::createSolidObject();
-    plane.model = Model::createModelFromFile(device, shaderPath+"piano.obj");
-    
-    plane.color = {1.f, 1.f, 1.f};
-    plane.textureIndex = 1;
-    plane.transform.translation = {.0f, .0f, .0f};
-    plane.transform.scale = {3.f, 3.f, 3.f};
-    plane.transform.rotation = {.0f, .0f, .0f};
-    
-    //solidObjects.emplace(plane.getId(), std::move(plane));
-    */
-    
     auto light = SolidObject::createSolidObject();
     light.model = Model::createModelFromFile(device, shaderPath+"cube.obj");
     
@@ -497,12 +442,12 @@ void Application::loadSolidObjects() {
     light.transform.rotation = {.0f, .0f, .0f};
     
     solidObjects.emplace(light.getId(), std::move(light));
+    */
     
     auto cube = SolidObject::createSolidObject();
     cube.model = Model::createModelFromFile(device, shaderPath+"cube.obj");
     
     cube.color = {1.f, .2f, .1f};
-    cube.textureIndex = 0;
     cube.transform.translation = {.0f, .0f, .0f};
     cube.transform.scale = {1.f, 1.f, 1.f};
     cube.transform.rotation = {.0f, .0f, .0f};

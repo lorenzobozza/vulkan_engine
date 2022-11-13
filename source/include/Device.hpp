@@ -8,7 +8,7 @@
 #ifndef Device_hpp
 #define Device_hpp
 
-#include "Window.hpp"
+#include "SDLWindow.hpp"
 
 // std lib headers
 #include <string>
@@ -22,7 +22,7 @@ struct SwapChainSupportDetails {
   std::vector<VkPresentModeKHR> presentModes;
 };
 
-//TODO: Add at least one transfer queue and one compute queue
+//TODO: Add compute queue
 struct QueueFamilyIndices {
   uint32_t graphicsFamily;
   uint32_t graphicsQueueCount;
@@ -44,7 +44,7 @@ class Device {
   const bool enableValidationLayers = true;
 #endif
 
-  Device(Window &window);
+  Device(SDLWindow &window);
   ~Device();
 
   // Not copyable or movable
@@ -104,14 +104,14 @@ class Device {
   bool checkValidationLayerSupport();
   QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
   void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo);
-  void hasGflwRequiredInstanceExtensions();
+  void hasRequiredInstanceExtensions();
   bool checkDeviceExtensionSupport(VkPhysicalDevice device);
   SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
 
   VkInstance instance;
   VkDebugUtilsMessengerEXT debugMessenger;
   VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-  Window &window;
+  SDLWindow &window;
   VkCommandPool commandPool;
   QueueFamilyIndices indices;
 

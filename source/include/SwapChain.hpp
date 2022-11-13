@@ -33,6 +33,7 @@ class SwapChain {
   VkRenderPass getRenderPass() { return renderPass; }
   VkImage getImage(int index) { return swapChainImages[index]; }
   VkImageView getImageView(int index) { return swapChainImageViews[index]; }
+  VkFence *getCurrentImageFence(int imageIndex) { return &imagesInFlight[imageIndex]; }
   size_t imageCount() { return swapChainImages.size(); }
   VkFormat getSwapChainImageFormat() { return swapChainImageFormat; }
   VkExtent2D getSwapChainExtent() { return swapChainExtent; }

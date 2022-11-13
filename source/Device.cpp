@@ -52,10 +52,9 @@ void DestroyDebugUtilsMessengerEXT(
   }
 }
 
-// class member functions
-Device::Device(Window &window) : window{window} {
+Device::Device(SDLWindow &window) : window{window} {
   createInstance();
-  setupDebugMessenger();
+  //setupDebugMessenger(); //TODO: FIX
   createSurface();
   pickPhysicalDevice();
   createLogicalDevice();
@@ -106,12 +105,12 @@ void Device::createInstance() {
     createInfo.enabledLayerCount = 0;
     createInfo.pNext = nullptr;
   }
+  
+  hasRequiredInstanceExtensions();
 
   if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
     throw std::runtime_error("failed to create instance!");
   }
-
-  hasGflwRequiredInstanceExtensions();
 }
 
 VkSampleCountFlagBits Device::getMaxUsableSampleCount() {
@@ -304,22 +303,26 @@ bool Device::checkValidationLayerSupport() {
 }
 
 std::vector<const char *> Device::getRequiredExtensions() {
-  uint32_t glfwExtensionCount = 0;
-  const char **glfwExtensions;
-  glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-  std::vector<const char *> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
-
-  if (enableValidationLayers) {
-    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+  uint32_t sdlExtensionCount;
+  if (!SDL_Vulkan_GetInstanceExtensions(window.getWindow(), &sdlExtensionCount, nullptr)) {
+    throw std::runtime_error("Failed to get SDL extension count!");
   }
   
-  extensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+  std::vector<const char*> extensions = {
+    VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
+    VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
+  };
+  size_t addedExtensionCount = extensions.size();
+  extensions.resize(addedExtensionCount + sdlExtensionCount);
+  
+  if (SDL_Vulkan_GetInstanceExtensions(window.getWindow(), &sdlExtensionCount, extensions.data() + addedExtensionCount) != SDL_TRUE) {
+    throw std::runtime_error("Failed to get SDL extensions!");
+  }
 
   return extensions;
 }
 
-void Device::hasGflwRequiredInstanceExtensions() {
+void Device::hasRequiredInstanceExtensions() {
   uint32_t extensionCount = 0;
   vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
   std::vector<VkExtensionProperties> extensions(extensionCount);

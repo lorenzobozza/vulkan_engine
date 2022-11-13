@@ -11,7 +11,7 @@
 #include <cassert>
 #include <stdexcept>
 
-Renderer::Renderer(Window &passWindow, Device &passDevice) : window{passWindow}, device{passDevice} {
+Renderer::Renderer(SDLWindow &passWindow, Device &passDevice) : window{passWindow}, device{passDevice} {
     recreateSwapChain();
     createCommandBuffers();
 }
@@ -24,7 +24,7 @@ void Renderer::recreateSwapChain() {
     auto extent = window.getExtent();
     while (extent.width == 0 || extent.height == 0) {
         extent = window.getExtent();
-        glfwWaitEvents();
+        //glfwWaitEvents();
     }
     vkDeviceWaitIdle(device.device());
     
@@ -101,8 +101,8 @@ void Renderer::endFrame() {
     }
     
     auto result = swapChain->submitCommandBuffers(&commandBuffer, &currentImageIndex);
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || window.wasWindowResized()) {
-        window.resetWindowResizeFlag();
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR/* || window.wasWindowResized()*/) {
+        //window.resetWindowResizeFlag();
         recreateSwapChain();
     } else if (result != VK_SUCCESS) {
         throw std::runtime_error("Failed to acquire swap chain image");

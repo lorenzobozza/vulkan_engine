@@ -481,11 +481,10 @@ VkPresentModeKHR SwapChain::chooseSwapPresentMode(const std::vector<VkPresentMod
           if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
             std::cout << "Present mode: Mailbox" << std::endl;
             return availablePresentMode;
-          } else if (availablePresentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
-              std::cout << "Present mode: Immediate" << std::endl;
-              return availablePresentMode;
           }
         }
+        std::cout << "Present mode: Immediate" << std::endl;
+        return VK_PRESENT_MODE_IMMEDIATE_KHR;
     }
 
     std::cout << "Present mode: V-Sync" << std::endl;
