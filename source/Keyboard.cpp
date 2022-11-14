@@ -5,8 +5,7 @@
 //  Created by Lorenzo Bozza on 10/11/21.
 //
 
-#include "include/Keyboard.hpp"
-
+/*
 void Keyboard::moveInPlaneXZ(GLFWwindow * window, float dt, SolidObject &solidObject) {
     glm::vec3 rotate{0};
     if (glfwGetKey(window, keys.lookRight) == GLFW_PRESS) rotate.y += 1.f;
@@ -38,3 +37,4 @@ void Keyboard::moveInPlaneXZ(GLFWwindow * window, float dt, SolidObject &solidOb
         solidObject.transform.translation += moveSpeed * dt * glm::normalize(moveDir);
     }
 }
+*/

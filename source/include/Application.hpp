@@ -62,7 +62,7 @@ private:
     SDL_Event sdl_event;
     int frameIndex{0};
     
-    static void pan_callback(GLFWwindow* window, double xoffset, double yoffset);
+    //static void pan_callback(GLFWwindow* window, double xoffset, double yoffset);
     
     std::string shaderPath;
     

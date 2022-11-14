@@ -8,9 +8,8 @@
 #ifndef Keyboard_hpp
 #define Keyboard_hpp
 
-#include "Window.hpp"
 #include "SolidObject.hpp"
-
+/*
  class Keyboard {
  public:
     struct KeyMappings {
@@ -32,5 +31,5 @@
     float moveSpeed{3.f};
     float lookSpeed{1.5f};
  };
-
+*/
 #endif /* Keyboard_hpp */

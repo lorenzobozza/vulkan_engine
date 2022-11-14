@@ -33,27 +33,27 @@ else()
 endif()
 
 
-# 2. Set GLFW_PATH in .env.cmake to target specific glfw
-if (DEFINED GLFW_PATH)
-  message(STATUS "Using specified GLFW path: ${GLFW_PATH}")
-  set(GLFW_INCLUDE_DIRS "${GLFW_PATH}/include")
+# 2. Set SDL2_PATH in .env.cmake to target specific sdl2
+if (DEFINED SDL2_PATH)
+  message(STATUS "Using specified SDL2 path: ${SDL2_PATH}")
+  set(SDL2_INCLUDE_DIRS "${SDL2_PATH}/include")
   if (MSVC)
-    set(GLFW_LIB "${GLFW_PATH}/windows/lib-vc2019") # 2.1 Update lib-vc2019 to use same version as your visual studio
+    set(SDL2_LIB "${SDL2_PATH}/windows/lib-vc2019") # 2.1 Update lib-vc2019 to use same version as your visual studio
   elseif (CMAKE_GENERATOR STREQUAL "MinGW Makefiles")
     message(STATUS "USING MINGW")
-    set(GLFW_LIB "${GLFW_PATH}/lib-mingw-w64") # 2.1 make sure matches glfw mingw subdirectory
+    set(SDL2_LIB "${SDL2_PATH}/lib-mingw-w64") # 2.1 make sure matches SDL2 mingw subdirectory
   else()
-    set(GLFW_LIB "${GLFW_PATH}/macOS/lib")
+    set(SDL2_LIB "${SDL2_PATH}/macOS/lib")
   endif()
 else()
-  find_package(glfw3 3.3 REQUIRED)
-  set(GLFW_LIB glfw)
-  message(STATUS "Found GLFW")
+  find_package(sdl2 2.24 REQUIRED)
+  set(SDL2_LIB sdl2)
+  message(STATUS "Found SDL2")
 endif()
-if (NOT GLFW_LIB)
-	message(FATAL_ERROR "Could not find glfw library!")
+if (NOT SDL2_LIB)
+	message(FATAL_ERROR "Could not find SDL2 library!")
 else()
-	message(STATUS "Using glfw lib at: ${GLFW_LIB}")
+	message(STATUS "Using SDL2 lib at: ${SDL2_LIB}")
 endif()
 
 include_directories(external)
@@ -84,18 +84,18 @@ if (WIN32)
     ${PROJECT_SOURCE_DIR}/source/include
     ${PROJECT_SOURCE_DIR}/source/lib
     ${Vulkan_INCLUDE_DIRS}
-    ${GLFW_INCLUDE_DIRS}
+    ${SDL2_INCLUDE_DIRS}
     ${FTYPE_PATH}/include
     ${UTIL_PATH}
     )
 
   target_link_directories(${PROJECT_NAME} PUBLIC
     ${Vulkan_LIBRARIES}/windows/lib
-    ${GLFW_LIB}
+    ${SDL2_LIB}
     ${FTYPE_PATH}/windows/lib
   )
 
-  target_link_libraries(${PROJECT_NAME} glfw3 freetype vulkan-1)
+  target_link_libraries(${PROJECT_NAME} sdl2 freetype vulkan-1)
 elseif (UNIX)
     message(STATUS "CREATING BUILD FOR UNIX")
     target_include_directories(${PROJECT_NAME} PUBLIC
@@ -103,7 +103,7 @@ elseif (UNIX)
       ${PROJECT_SOURCE_DIR}/source/include
       ${PROJECT_SOURCE_DIR}/source/lib
       ${Vulkan_INCLUDE_DIRS}
-      ${GLFW_INCLUDE_DIRS}
+      ${SDL2_INCLUDE_DIRS}
       ${FTYPE_PATH}/include
       ${UTIL_PATH}
     )
@@ -111,9 +111,9 @@ elseif (UNIX)
     if (APPLE)
       target_link_directories(${PROJECT_NAME} PUBLIC
         ${Vulkan_LIBRARIES}/macOS/lib
-        ${GLFW_LIB}
+        ${SDL2_LIB}
         ${FTYPE_PATH}/macOS/lib
       )
-      target_link_libraries(${PROJECT_NAME} libglfw3.dylib libfreetype.6.dylib libvulkan.1.2.189.dylib)
+      target_link_libraries(${PROJECT_NAME} libSDL2-2.0.0.dylib libfreetype.6.dylib libvulkan.1.2.189.dylib)
     endif()
 endif()
