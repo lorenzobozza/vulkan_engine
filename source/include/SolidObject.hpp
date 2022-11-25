@@ -43,10 +43,11 @@ public:
         return SolidObject{currentId++};
     }
     
-    SolidObject(const SolidObject &) = delete;
+    // TODO: Find better method without object copy
+    //SolidObject(const SolidObject &) = delete;
     SolidObject &operator=(const SolidObject &) = delete;
-    SolidObject(SolidObject &&) = default;
-    SolidObject &operator=(SolidObject &&) = default;
+    //SolidObject(SolidObject &&) = default;
+    //SolidObject &operator=(SolidObject &&) = default;
     
     id_t getId() { return id; }
     

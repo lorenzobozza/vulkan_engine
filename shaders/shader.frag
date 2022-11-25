@@ -28,7 +28,7 @@ layout(binding = 0) uniform GlobalUbo {
 layout(binding = 1) uniform samplerCube irradianceMap;
 layout(binding = 2) uniform samplerCube prefilterMap;
 layout(binding = 3) uniform sampler2D brdfLUT;
-layout(binding = 4) uniform sampler2D gBuffer[];
+layout(binding = 4) uniform sampler2D PBRMaterial[];
 
 layout(push_constant) uniform Push {
     mat4 modelMatrix;
@@ -45,11 +45,11 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
 void main() {
     float texScale = 1.0;
     const int texOffset = 4 * push.textureIndex;
-    // G-Buffer
-    vec3 albedo = (push.textureIndex < 0) ? vert.color : texture(gBuffer[0 + texOffset], vert.texcoord * texScale).rgb;
-    vec3 normal = (push.textureIndex < 0) ? vec3(0.0, 0.0, 1.0) : normalize(texture(gBuffer[1 + texOffset], vert.texcoord * texScale).rgb * 2.0 - 1.0);
-    float metalness = (push.textureIndex < 0) ? push.metalness : texture(gBuffer[2 + texOffset], vert.texcoord * texScale).r;
-    float roughness = (push.textureIndex < 0) ? push.roughness : 5.0 * texture(gBuffer[3 + texOffset], vert.texcoord * texScale).r;
+    // PBR Material Stack
+    vec3 albedo = (push.textureIndex < 0) ? vert.color : texture(PBRMaterial[0 + texOffset], vert.texcoord * texScale).rgb;
+    vec3 normal = (push.textureIndex < 0) ? vec3(0.0, 0.0, 1.0) : normalize(texture(PBRMaterial[1 + texOffset], vert.texcoord * texScale).rgb * 2.0 - 1.0);
+    float metalness = (push.textureIndex < 0) ? push.metalness : texture(PBRMaterial[2 + texOffset], vert.texcoord * texScale).r;
+    float roughness = (push.textureIndex < 0) ? push.roughness : 5.0 * texture(PBRMaterial[3 + texOffset], vert.texcoord * texScale).r;
     
     mat3 invTBN = inverse(vert.TBN);
     vec3 N = invTBN * normal;
@@ -104,10 +104,6 @@ void main() {
     vec3 ambient = kD * diffuse + specular;
     
     vec3 pbr = ambient + Lo;
-    
-    // Reinhard tone mapping
-    pbr = pbr / (pbr + vec3(1.0));
-    //pbr = vec3(1.0) - exp(-pbr * .5);
     
     outColor = vec4(pbr, 1.0);
 }

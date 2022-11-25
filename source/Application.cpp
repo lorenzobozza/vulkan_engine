@@ -30,7 +30,7 @@ struct GlobalUbo {
     glm::mat4 projectionView{1.f};
     glm::vec4 ambientLightColor{1.f, 1.f, 1.f, .4f};
     glm::vec3 lightPosition{.0f,-5.f,-1.f};
-    alignas(16) glm::vec4 lightColor{1.f, 1.f, .7f, 200.f};
+    alignas(16) glm::vec4 lightColor{1.f, 1.f, 1.f, 200.f};
     glm::mat4 viewMatrix{1.f};
     glm::mat4 invViewMatrix{1.f};
 };
@@ -43,8 +43,6 @@ Application::Application(const char* binaryPath) {
     // Shader binaries in the same folder as the application binary
     shaderPath = binaryPath;
     while(shaderPath.back() != '/' && !shaderPath.empty()) shaderPath.pop_back();
-    
-    loadSolidObjects();
 }
 
 Application::~Application() {}
@@ -70,7 +68,7 @@ void Application::run() {
     SolidObject cameraObj = SolidObject::createSolidObject();
     cameraObj.transform.translation = {.0f, -.4f, -2.f};
     
-    TextRender font{device, textMeshes, "fonts/NeutralFace.otf"};
+    TextRender font{device, textMeshes, "fonts/Disket-Mono-Regular.ttf"};
     auto faces = font.getDescriptor();
     
     // Uniform Buffer Objects
@@ -129,23 +127,29 @@ void Application::run() {
         shaderPath+"font"
     };
     
-    font.renderText("Vulkan Engine v0.6 Beta, MSAA x" + std::to_string(device.msaaSamples) + ", V-Sync: " + (renderer.isVSyncEnabled() ? "On" : "Off") , -.7f*aspect, -.9f, .4f, {.2f, .8f, 1.f});
 
     // Load heavy assets on a separate thread
     std::thread([this]() {
-        //this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_A.tga"));
-        //this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_N.tga", VK_FORMAT_R8G8B8A8_UNORM));
-        //this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_M.tga"));
-        //this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_R.tga"));
-        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/hdri/neon_photostudio_4k.png"));
+        this->load_phase = 1;
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Marble_C.png"));
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/flat_normal.png", VK_FORMAT_R8G8B8A8_UNORM));
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Marble_M.png"));
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Marble_M.png"));
+        this->load_phase = 2;
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/hdri/neon_photostudio_8k.hdr"));
         this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/ibl_brdf_lut.png", VK_FORMAT_R8G8_UNORM));
+        this->load_phase = 3;
         this->assetsLoaded = true;
     }).detach();
-
+    
+    // Loading Screen Rendering
+    font.renderText("Vulkan Engine v0.6 Beta, MSAA x" + std::to_string(device.msaaSamples) + ", V-Sync: " + (renderer.isVSyncEnabled() ? "On" : "Off") , -.65f*aspect, -.9f, .4f, {.2f, .8f, 1.f});
     font.renderText("Loading Vulkan Engine", .0f, .0f, 1.2f, { .7f, .0f, .0f});
+    textHolder.insert(textMeshes.begin(), textMeshes.end());
     font.renderText("Lorenzo Bozza's Works", .0f, .2f, .4f, { .8f, .8f, .8f});
 
-    while (!assetsLoaded) {
+    bool nextIsLast = false;
+    while (!assetsLoaded || load_phase > 0 || nextIsLast) {
         SDL_PollEvent(&sdl_event);
         
         cnt = (cnt + 130) % 628;
@@ -156,7 +160,7 @@ void Application::run() {
         frameTime = glm::min(frameTime, .05f);
 
         if (auto commandBuffer = renderer.beginFrame()) {
-            int frameIndex = renderer.getFrameIndex();
+            frameIndex = renderer.getFrameIndex();
             
             FrameInfo guiInfo{
                 frameIndex,
@@ -180,9 +184,38 @@ void Application::run() {
 
             renderer.endSwapChainRenderPass(commandBuffer);
             renderer.endFrame();
+            
+            if(nextIsLast) { break; }
+            switch(load_phase) {
+                case 1:
+                    vkWaitForFences(device.device(), 1, renderer.getSwapChainImageFence(frameIndex), VK_TRUE, UINT64_MAX);
+                    textMeshes.clear();
+                    textMeshes.insert(textHolder.begin(), textHolder.end());
+                    font.renderText("Loading Materials...", .0f, .2f, .4f, { .8f, .8f, .8f});
+                    load_phase = 0;
+                    break;
+                case 2:
+                    vkWaitForFences(device.device(), 1, renderer.getSwapChainImageFence(frameIndex), VK_TRUE, UINT64_MAX);
+                    textMeshes.clear();
+                    textMeshes.insert(textHolder.begin(), textHolder.end());
+                    font.renderText("Loading Environment...", .0f, .2f, .4f, { .8f, .8f, .8f});
+                    load_phase = 0;
+                    break;
+                case 3:
+                    vkWaitForFences(device.device(), 1, renderer.getSwapChainImageFence(frameIndex), VK_TRUE, UINT64_MAX);
+                    textMeshes.clear();
+                    textMeshes.insert(textHolder.begin(), textHolder.end());
+                    font.renderText("Loading Geometries...", .0f, .2f, .4f, { .8f, .8f, .8f});
+                    load_phase = 0;
+                    nextIsLast = true;
+                    break;
+                default:
+                    break;
+            }
         }
     }
     
+    loadSolidObjects();
     vkDeviceWaitIdle(device.device());
     textMeshes.clear();
     
@@ -190,9 +223,9 @@ void Application::run() {
     
     
     //HDRi Pre-Processing
-    auto equitangular = textures.at(0)->descriptorInfo();
+    auto equitangular = textures.at(4)->descriptorInfo();
     
-    HDRi environmentMap{device, equitangular, {1024, 1024}, "equirectangular", 5};
+    HDRi environmentMap{device, equitangular, {2048, 2048}, "equirectangular", 5};
     auto environment = environmentMap.descriptorInfo();
     
     HDRi prefilteredMap{device, environment, {480, 480}, "prefiltering", 5};
@@ -200,9 +233,6 @@ void Application::run() {
     
     HDRi irradianceMap{device, environment, {32, 32}, "irradiance"};
     auto irradiance = irradianceMap.descriptorInfo();
-    
-    textureInfos.push_back(textures.at(1)->descriptorInfo());// Just to keep it from crashing
-    auto ibl_brdf_lut = textures.at(1)->descriptorInfo();
 
     // SKYBOX RENDERING
     std::unique_ptr<DescriptorPool> skyboxPool =
@@ -233,6 +263,13 @@ void Application::run() {
         skyboxSetLayout->getDescriptorSetLayout(),
         shaderPath+"skybox"
     };
+    
+    // PBR Textures
+    textureInfos.push_back(textures.at(0)->descriptorInfo());
+    textureInfos.push_back(textures.at(1)->descriptorInfo());
+    textureInfos.push_back(textures.at(2)->descriptorInfo());
+    textureInfos.push_back(textures.at(3)->descriptorInfo());
+    auto ibl_brdf_lut = textures.at(5)->descriptorInfo();
     
     // GLOBAL RENDER SYSTEM
     globalPool =
@@ -279,7 +316,7 @@ void Application::run() {
     bool running = true;
     while(running)
     {
-        cnt = (cnt + 4) % 628;
+        cnt = ++cnt % 628;
         // Compute frame latency and store the value
         auto newTime = std::chrono::high_resolution_clock::now();
         float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime -  currentTime).count();
@@ -335,9 +372,6 @@ void Application::run() {
         // Polling keystrokes and adjusting the camera position/rotation
         camera.setViewYXZ(cameraObj.transform.translation, cameraObj.transform.rotation);
         //cameraCtrl.moveInPlaneXZ(window.getGLFWwindow(), frameTime, cameraObj);
-        
-        solidObjects.at(0).transform.translation.x = .5f*glm::sin((float)cnt / 100.f);
-        solidObjects.at(0).transform.translation.z = .5f*glm::cos((float)cnt / 100.f);
         
         if (!(cnt % 314)) {
             //std::cout << frameTimes.back() << " - " << frameTimes.front() << '\n';
@@ -411,11 +445,12 @@ void Application::loadSolidObjects() {
     sphere.model = Model::createModelFromFile(device, shaderPath+"sphere.obj");
     
     sphere.color = {1.f, 1.f, 1.f};
-    sphere.metalness = 1.f;
-    sphere.roughness = .0f;
+    sphere.textureIndex = 0;
+    sphere.metalness = .0f;
+    sphere.roughness = 1.f;
     sphere.transform.translation = {.0f, .0f, .0f};
     sphere.transform.rotation.y = .0f;
-    sphere.transform.scale = {.25f, .25f, .25f};
+    sphere.transform.scale = {1.f, 1.f, 1.f};
     
     solidObjects.emplace(sphere.getId(), std::move(sphere));
     

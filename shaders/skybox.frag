@@ -19,7 +19,5 @@ layout(binding = 1) uniform samplerCube environmentMap;
 void main() {
     vec3 envColor = texture(environmentMap, fragPos).rgb;
     
-    envColor = envColor / (envColor + vec3(1.0));
-    
     outColor = vec4(envColor, 1.0);
 }

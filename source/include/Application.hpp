@@ -57,10 +57,13 @@ private:
     std::unique_ptr<DescriptorPool> globalPool{};
     SolidObject::Map solidObjects;
     SolidObject::Map textMeshes;
+    SolidObject::Map textHolder;
     SolidObject::Map env;
     
     SDL_Event sdl_event;
     int frameIndex{0};
+    
+    uint8_t load_phase{0};
     
     //static void pan_callback(GLFWwindow* window, double xoffset, double yoffset);
     

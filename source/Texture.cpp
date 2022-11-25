@@ -11,6 +11,10 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb-master/stb_image.h>
 
+//#define TINYEXR_USE_MINIZ 0
+//#define TINYEXR_USE_STB_ZLIB 1
+//#define TINYEXR_IMPLEMENTATION
+//#include <tinyexr/tinyexr.h>
 
 Texture::Texture(Device &dev, Image &image, std::string filePath, VkFormat format)
     : device{dev}, image{image}, textureFilePath{filePath}, viewType{VK_IMAGE_VIEW_TYPE_2D}, format{format} {
