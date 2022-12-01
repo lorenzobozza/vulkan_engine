@@ -1,11 +1,15 @@
 include(./.env.cmake OPTIONAL RESULT_VARIABLE LOCAL_ENV)
-message(STATUS "Local .env.cmake: ${LOCAL_ENV}")
+if( DEFINED LOCAL_ENV)
+  message(STATUS "Found local .env.cmake at: ${LOCAL_ENV}")
+endif()
 
 cmake_minimum_required(VERSION 3.11.0)
 
 set(NAME vulkan_engine)
 
-message(STATUS "using ${CMAKE_GENERATOR}")
+message(STATUS "Using ${CMAKE_GENERATOR}")
+
+# If using MinGW Makefile, set compiler paths as given
 if (CMAKE_GENERATOR STREQUAL "MinGW Makefiles")
     if (NOT MINGW_PATH) 
       message(FATAL_ERROR "MINGW_PATH not set in .env.cmake")
@@ -15,49 +19,80 @@ if (CMAKE_GENERATOR STREQUAL "MinGW Makefiles")
     set(CMAKE_CXX_COMPILER  ${MINGW_PATH}/bin/g++.exe)
 endif()
 
-project(${NAME} VERSION 0.1)
+project(${NAME} VERSION 0.6)
 
-# 1. Set VULKAN_SDK_PATH in .env.cmake to target specific vulkan version
+# Set VULKAN_SDK_PATH in .env.cmake or cmake call to target specific Vulkan version
 if (DEFINED VULKAN_SDK_PATH)
-  set(Vulkan_INCLUDE_DIRS "${VULKAN_SDK_PATH}/include") # 1.1 Make sure this include path is correct
-  set(Vulkan_LIBRARIES "${VULKAN_SDK_PATH}") # 1.2 Make sure lib path is correct
+  set(Vulkan_INCLUDE_DIRS "${VULKAN_SDK_PATH}/include")
+  if (MSVC)
+    set(Vulkan_LIBRARIES "${VULKAN_SDK_PATH}/windows/lib")
+  elseif (CMAKE_GENERATOR STREQUAL "MinGW Makefiles")
+    set(Vulkan_LIBRARIES "${VULKAN_SDK_PATH}/windows/lib")
+  else()
+    set(Vulkan_LIBRARIES "${VULKAN_SDK_PATH}/macOS/lib")
+  endif()
   set(Vulkan_FOUND "True")
 else()
   find_package(Vulkan REQUIRED) # throws error if could not find Vulkan
   message(STATUS "Found Vulkan: $ENV{VULKAN_SDK}")
 endif()
+
 if (NOT Vulkan_FOUND)
 	message(FATAL_ERROR "Could not find Vulkan library!")
 else()
-	message(STATUS "Using vulkan lib at: ${Vulkan_LIBRARIES}")
+	message(STATUS "Using Vulkan lib at: ${Vulkan_LIBRARIES}")
 endif()
 
 
-# 2. Set SDL2_PATH in .env.cmake to target specific sdl2
+# Set SDL2_PATH in .env.cmake or cmake call to target specific SDL2 version
 if (DEFINED SDL2_PATH)
-  message(STATUS "Using specified SDL2 path: ${SDL2_PATH}")
-  set(SDL2_INCLUDE_DIRS "${SDL2_PATH}/include")
   if (MSVC)
-    set(SDL2_LIB "${SDL2_PATH}/windows/lib-vc2019") # 2.1 Update lib-vc2019 to use same version as your visual studio
+    set(SDL2_INCLUDE_DIRS "${SDL2_PATH}/windows/include")
+    set(SDL2_LIB "${SDL2_PATH}/windows/lib-vc2019")
+    file(GLOB SDL2_DLL "${SDL2_PATH}/windows/lib-vc2019/*.dll")
   elseif (CMAKE_GENERATOR STREQUAL "MinGW Makefiles")
-    message(STATUS "USING MINGW")
-    set(SDL2_LIB "${SDL2_PATH}/lib-mingw-w64") # 2.1 make sure matches SDL2 mingw subdirectory
+    set(SDL2_INCLUDE_DIRS "${SDL2_PATH}/windows/include")
+    set(SDL2_LIB "${SDL2_PATH}/windows/lib-mingw-w64")
+    file(GLOB SDL2_DLL "${SDL2_PATH}/windows/lib-mingw-w64/*.dll")
   else()
+    set(SDL2_INCLUDE_DIRS "${SDL2_PATH}/macOS/include")
     set(SDL2_LIB "${SDL2_PATH}/macOS/lib")
   endif()
 else()
-  find_package(sdl2 2.24 REQUIRED)
-  set(SDL2_LIB sdl2)
+  find_package(SDL2 2.24 REQUIRED) # throws error if could not find SDL2
+  set(SDL2_LIB SDL2)
   message(STATUS "Found SDL2")
 endif()
+
 if (NOT SDL2_LIB)
 	message(FATAL_ERROR "Could not find SDL2 library!")
 else()
 	message(STATUS "Using SDL2 lib at: ${SDL2_LIB}")
 endif()
 
-include_directories(external)
+# Set FTYPE_PATH in .env.cmake or cmake call to target specific FREETYPE version
+if (DEFINED FTYPE_PATH)
+  set(FTYPE_INCLUDE_DIRS "${FTYPE_PATH}/include")
+  if (MSVC)
+    set(FTYPE_LIB "${FTYPE_PATH}/windows/lib")
+  elseif (CMAKE_GENERATOR STREQUAL "MinGW Makefiles")
+    set(FTYPE_LIB "${FTYPE_PATH}/windows/lib")
+  else()
+    set(FTYPE_LIB "${FTYPE_PATH}/macOS/lib")
+  endif()
+else()
+  find_package(freetype REQUIRED) # throws error if could not find Freetype
+  set(FTYPE_LIB freetype)
+  message(STATUS "Found Freetype")
+endif()
 
+if (NOT FTYPE_LIB)
+	message(FATAL_ERROR "Could not find Freetype library!")
+else()
+	message(STATUS "Using Freetype lib at: ${FTYPE_LIB}")
+endif()
+
+include_directories(external)
 
 file(GLOB_RECURSE SOURCES ${PROJECT_SOURCE_DIR}/source/*.cpp)
 
@@ -66,6 +101,21 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 
 #set_property(TARGET ${PROJECT_NAME} PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/build")
+
+target_include_directories(${PROJECT_NAME} PUBLIC
+    ${PROJECT_SOURCE_DIR}/source
+    ${PROJECT_SOURCE_DIR}/source/include
+    ${Vulkan_INCLUDE_DIRS}
+    ${SDL2_INCLUDE_DIRS}
+    ${FTYPE_INCLUDE_DIRS}
+    ${UTIL_PATH}
+  )
+
+target_link_directories(${PROJECT_NAME} PUBLIC
+  ${Vulkan_LIBRARIES}
+  ${SDL2_LIB}
+  ${FTYPE_LIB}
+)
 
 if (WIN32)
   message(STATUS "CREATING BUILD FOR WINDOWS")
@@ -79,41 +129,16 @@ if (WIN32)
     )
   endif()
 
-  target_include_directories(${PROJECT_NAME} PUBLIC
-    ${PROJECT_SOURCE_DIR}/source
-    ${PROJECT_SOURCE_DIR}/source/include
-    ${PROJECT_SOURCE_DIR}/source/lib
-    ${Vulkan_INCLUDE_DIRS}
-    ${SDL2_INCLUDE_DIRS}
-    ${FTYPE_PATH}/include
-    ${UTIL_PATH}
-    )
+  target_link_libraries(${PROJECT_NAME} SDL2 SDL2_image freetype vulkan-1)
+  
+  message(STATUS "COPYING DLLs")
+  file(COPY ${SDL2_DLL} DESTINATION "./Release")
 
-  target_link_directories(${PROJECT_NAME} PUBLIC
-    ${Vulkan_LIBRARIES}/windows/lib
-    ${SDL2_LIB}
-    ${FTYPE_PATH}/windows/lib
-  )
-
-  target_link_libraries(${PROJECT_NAME} sdl2 freetype vulkan-1)
 elseif (UNIX)
     message(STATUS "CREATING BUILD FOR UNIX")
-    target_include_directories(${PROJECT_NAME} PUBLIC
-      ${PROJECT_SOURCE_DIR}/source
-      ${PROJECT_SOURCE_DIR}/source/include
-      ${PROJECT_SOURCE_DIR}/source/lib
-      ${Vulkan_INCLUDE_DIRS}
-      ${SDL2_INCLUDE_DIRS}
-      ${FTYPE_PATH}/include
-      ${UTIL_PATH}
-    )
 
     if (APPLE)
-      target_link_directories(${PROJECT_NAME} PUBLIC
-        ${Vulkan_LIBRARIES}/macOS/lib
-        ${SDL2_LIB}
-        ${FTYPE_PATH}/macOS/lib
-      )
       target_link_libraries(${PROJECT_NAME} libSDL2-2.0.0.dylib libSDL2_image-2.0.0.dylib libfreetype.6.dylib libvulkan.1.2.189.dylib)
     endif()
+
 endif()
