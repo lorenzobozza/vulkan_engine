@@ -24,7 +24,7 @@ public:
     VkDescriptorImageInfo descriptorInfo();
     
 private:
-    static constexpr VkFormat FB_FORMAT = VK_FORMAT_R16G16B16A16_SFLOAT;
+    static constexpr VkFormat FB_FORMAT = VK_FORMAT_R32G32B32A32_SFLOAT;
     
     struct FrameBufferAttachment {
 		VkImage image;

@@ -49,32 +49,42 @@ void Texture::createTextureImage() {
     uint8_t depth;
     switch (format) {
         case VK_FORMAT_R8G8B8A8_SRGB:
-            depth = 4;
+            depth = STBI_rgb_alpha;
             break;
             
         case VK_FORMAT_R8G8B8A8_UNORM:
-            depth = 4;
+            depth = STBI_rgb_alpha;
             break;
             
         case VK_FORMAT_R8G8B8_UNORM:
-            depth = 3;
+            depth = STBI_rgb;
             break;
             
         case VK_FORMAT_R8G8_UNORM:
-            depth = 2;
+            depth = STBI_grey_alpha;
             break;
-
-        case VK_FORMAT_R16G16B16A16_SFLOAT:
-            depth = 8;
+            
+        case VK_FORMAT_R32G32B32A32_SFLOAT:
+            depth = STBI_rgb_alpha;
             break;
             
         default:
-            depth = 4;
+            depth = STBI_rgb_alpha;
             break;
     }
     
     int texWidth, texHeight, texChannels;
-    stbi_uc* pixels = stbi_load(textureFilePath.c_str(), &texWidth, &texHeight, &texChannels, depth);
+    
+    void* pixels;
+    if(stbi_is_hdr(textureFilePath.c_str())) {
+        float* data = stbi_loadf(textureFilePath.c_str(), &texWidth, &texHeight, &texChannels, depth);
+        depth = 4 * sizeof(float);
+        pixels = (void*)data;
+    } else {
+        stbi_uc* data = stbi_load(textureFilePath.c_str(), &texWidth, &texHeight, &texChannels, depth);
+        depth = 4 * sizeof(stbi_uc);
+        pixels = (void*)data;
+    }
 
     VkDeviceSize imageSize = texWidth * texHeight * depth;
     
@@ -91,7 +101,7 @@ void Texture::createTextureImage() {
     };
     
     stagingBuffer.map();
-    stagingBuffer.writeToBuffer((void *)pixels);
+    stagingBuffer.writeToBuffer(pixels);
     
     stbi_image_free(pixels);
     

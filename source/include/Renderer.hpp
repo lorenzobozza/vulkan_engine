@@ -11,6 +11,9 @@
 #include "SDLWindow.hpp"
 #include "Device.hpp"
 #include "SwapChain.hpp"
+#include "Descriptors.hpp"
+#include "Pipeline.hpp"
+#include "SolidObject.hpp"
 
 //std
 #include <memory>
@@ -27,7 +30,9 @@ public:
     Renderer(const Renderer &) = delete;
     Renderer &operator=(const Renderer &) = delete;
     
-    VkRenderPass getSwapChainRenderPass() const { return swapChain->getRenderPass(); }
+    VkRenderPass getOffscreenRenderPass() const { return swapChain->getOffscreenRenderPass(); }
+    VkRenderPass getSwapChainRenderPass() const { return swapChain->getCompositionRenderPass(); }
+    VkDescriptorImageInfo getOffscreenImageInfo() { return swapChain->getOffscreenDescriptorInfo(); }
     float getAspectRatio() const { return swapChain->extentAspectRatio(); }
     bool isFrameInProgress() const { return  isFrameStarted; }
     
@@ -52,6 +57,8 @@ public:
     void endFrame();
     void beginSwapChainRenderPass(VkCommandBuffer commandBuffer);
     void endSwapChainRenderPass(VkCommandBuffer commandBuffer);
+    void beginOffscreenRenderPass(VkCommandBuffer commandBuffer);
+    void endOffscreenRenderPass(VkCommandBuffer commandBuffer);
     
 private:
     void recreateSwapChain();

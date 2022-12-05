@@ -97,9 +97,6 @@ void Pipeline::createGraphicsPipeline(const std::string &vertFilepath, const std
     if(vkCreateGraphicsPipelines(device.device(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create graphics pipeline");
     }
-    
-    std::cout << "Vertex shader Code size: " << vertCode.size() << '\n';
-    std::cout << "Fragment shader Code size: " << fragCode.size() << '\n';
 }
 
 void Pipeline::createShaderModule(const std::vector<char> &code, VkShaderModule *shaderModule) {
