@@ -24,7 +24,8 @@ RenderSystem::RenderSystem(
     Device& passDevice,
     VkRenderPass renderPass,
     VkDescriptorSetLayout globalSetLayout,
-    std::string dynamicShaderPath) : device{passDevice}, shaderPath{dynamicShaderPath} {
+    std::string dynamicShaderPath,
+    VkSampleCountFlagBits samples) : device{passDevice}, shaderPath{dynamicShaderPath}, samples{samples} {
   createPipelineLayout(globalSetLayout);
   createPipeline(renderPass);
 }
@@ -65,7 +66,7 @@ void RenderSystem::createPipeline(VkRenderPass renderPass) {
   Pipeline::defaultPipelineConfigInfo(pipelineConfig);
   pipelineConfig.renderPass = renderPass;
   pipelineConfig.pipelineLayout = pipelineLayout;
-  pipelineConfig.multisampleInfo.rasterizationSamples = device.msaaSamples;
+  pipelineConfig.multisampleInfo.rasterizationSamples = samples;
   pipelineConfig.multisampleInfo.sampleShadingEnable = VK_TRUE;
   pipelineConfig.multisampleInfo.minSampleShading = .2f;
   pipeline = std::make_unique<Pipeline>(

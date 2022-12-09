@@ -26,7 +26,8 @@ class RenderSystem {
     Device &passDevice,
     VkRenderPass renderPass,
     VkDescriptorSetLayout globalSetLayout,
-    std::string dynamicShaderPath);
+    std::string dynamicShaderPath,
+    VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT);
   ~RenderSystem();
 
   RenderSystem(const RenderSystem &) = delete;
@@ -39,12 +40,12 @@ class RenderSystem {
   void createPipeline(VkRenderPass renderPass);
 
 protected:
-  Device &device;
+    Device &device;
 
-  std::unique_ptr<Pipeline> pipeline;
-  VkPipelineLayout pipelineLayout;
-
-  std::string shaderPath;
+    std::unique_ptr<Pipeline> pipeline;
+    VkPipelineLayout pipelineLayout;
+    VkSampleCountFlagBits samples;
+    std::string shaderPath;
 };
 
 #endif /* RenderSystem_hpp */

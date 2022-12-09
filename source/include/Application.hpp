@@ -69,7 +69,7 @@ private:
     
     std::string shaderPath;
     
-    SolidObject::id_t someId;
+    SolidObject::id_t obj[2];
 };
 
 #endif /* Application_hpp */

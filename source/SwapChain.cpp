@@ -161,10 +161,6 @@ VkResult SwapChain::submitCommandBuffers(
 
 void SwapChain::createSwapChain() {
   SwapChainSupportDetails swapChainSupport = device.getSwapChainSupport();
-  
-    for (auto surface : swapChainSupport.formats) {
-        std::cout << surface.colorSpace << " - " << surface.format << '\n';
-    }
 
   VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
   VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);

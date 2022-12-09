@@ -26,7 +26,7 @@ layout(binding = 0) uniform GlobalUbo {
 } ubo;
 
 layout(binding = 1) uniform samplerCube irradianceMap;
-layout(binding = 2) uniform samplerCube prefilterMap;
+layout(binding = 2) uniform samplerCube prefilteredMap;
 layout(binding = 3) uniform sampler2D brdfLUT;
 layout(binding = 4) uniform sampler2D PBRMaterial[];
 
@@ -37,23 +37,59 @@ layout(push_constant) uniform Push {
     float roughness;
 } push;
 
-vec3 fresnelSchlick(float cosTheta, vec3 F0);
-vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness);
-float DistributionGGX(vec3 N, vec3 H, float roughness);
-float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
+vec3 prefilteredReflection(vec3 R, float roughness)
+{
+	const float MAX_REFLECTION_LOD = 9.0;
+	float lod = roughness * MAX_REFLECTION_LOD;
+	float lodf = floor(lod);
+	float lodc = ceil(lod);
+	vec3 a = textureLod(prefilteredMap, R, lodf).rgb;
+	vec3 b = textureLod(prefilteredMap, R, lodc).rgb;
+	return mix(a, b, lod - lodf);
+}
 
-//vec2 IntegrateBRDF(float NdotV, float roughness);
+// Normal Distribution function --------------------------------------
+float D_GGX(float dotNH, float roughness)
+{
+	float alpha = roughness * roughness;
+	float alpha2 = alpha * alpha;
+	float denom = dotNH * dotNH * (alpha2 - 1.0) + 1.0;
+	return (alpha2)/(PI * denom*denom);
+}
+
+// Geometric Shadowing function --------------------------------------
+float G_SchlicksmithGGX(float dotNL, float dotNV, float roughness)
+{
+	float r = (roughness + 1.0);
+	float k = (r*r) / 8.0;
+	float GL = dotNL / (dotNL * (1.0 - k) + k);
+	float GV = dotNV / (dotNV * (1.0 - k) + k);
+	return GL * GV;
+}
+
+// Fresnel function ----------------------------------------------------
+vec3 F_Schlick(float cosTheta, vec3 F0)
+{
+	return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
+// Fresnel Roughness function ----------------------------------------------------
+vec3 F_SchlickR(float cosTheta, vec3 F0, float roughness)
+{
+	return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
+}
 
 void main() {
     float texScale = 1.0;
-    const int texOffset = 4 * push.textureIndex;
+    const int texOffset = 5 * push.textureIndex;
     // PBR Material Stack
-    vec3 albedo = (push.textureIndex < 0) ? vert.color : texture(PBRMaterial[0 + texOffset], vert.texcoord * texScale).rgb;
+    vec3 albedo = (push.textureIndex < 0) ? vec3(0.0,0.6,0.0) : texture(PBRMaterial[0 + texOffset], vert.texcoord * texScale).rgb;
     vec3 normal = (push.textureIndex < 0) ? vec3(0.0, 0.0, 1.0) : normalize(texture(PBRMaterial[1 + texOffset], vert.texcoord * texScale).rgb * 2.0 - 1.0);
     float metalness = (push.textureIndex < 0) ? push.metalness : texture(PBRMaterial[2 + texOffset], vert.texcoord * texScale).r;
-    float roughness = (push.textureIndex < 0) ? push.roughness : 5.0 * texture(PBRMaterial[3 + texOffset], vert.texcoord * texScale).r;
+    float roughness = (push.textureIndex < 0) ? push.roughness : texture(PBRMaterial[3 + texOffset], vert.texcoord * texScale).r;
+    float occlusion = (push.textureIndex < 0) ? 1.0 : texture(PBRMaterial[4 + texOffset], vert.texcoord * texScale).r;
     
-    mat3 invTBN = inverse(vert.TBN); // Convert to transpose
+    mat3 invTBN = transpose(vert.TBN);
     vec3 N = invTBN * normal;
     vec3 tangentLightPos = vert.TBN * ubo.lightPosition;
 
@@ -64,189 +100,56 @@ void main() {
     vec3 R = reflect(-viewDir, N);
 
     // Lighting directions in tangent space
-    vec3 lightDir = normalize(tangentLightPos - vert.tangentPos);
-    vec3 halfDir = normalize(lightDir + tangentViewDir);
+    vec3 halfDir = normalize(tangentLightDir + tangentViewDir);
     float lightDist = length(tangentLightPos - vert.tangentPos);
     float attenuation = ubo.lightColor.w / (lightDist * lightDist);
     vec3 radiance = ubo.lightColor.xyz * attenuation;
+    
 
-    //Physically Based Rendering (Metalness-Roughness Workflow)
+//Physically Based Rendering (Metalness-Roughness Workflow)
     vec3 F0 = vec3(0.04);
     F0 = mix(F0, albedo, metalness);
-    vec3  F   = fresnelSchlick(max(dot(halfDir, tangentViewDir), 0.0), F0);
-    float NDF = DistributionGGX(normal, halfDir, roughness);
-    float G   = GeometrySmith(normal, tangentViewDir, tangentLightDir, roughness);
     
-    vec3 kS = F;
-    vec3 kD = vec3(1.0) - kS;
-    kD *= 1.0 - metalness;
+    // Specular Light contribution
+    vec3 Lo = vec3(0.0);
+	float dotNH = clamp(dot(normal, halfDir), 0.0, 1.0);
+	float dotNV = clamp(dot(normal, tangentViewDir), 0.0, 1.0);
+	float dotNL = clamp(dot(normal, tangentLightDir), 0.0, 1.0);
+	if (dotNL > 0.0) {
+		// D = Normal distribution (Distribution of the microfacets)
+		float D = D_GGX(dotNH, roughness);
+		// G = Geometric shadowing term (Microfacets shadowing)
+		float G = G_SchlicksmithGGX(dotNL, dotNV, roughness);
+		// F = Fresnel factor (Reflectance depending on angle of incidence)
+		vec3 F = F_Schlick(dotNV, F0);
+		vec3 spec = D * F * G / (4.0 * dotNL * dotNV + 0.001);
+		vec3 kD = (vec3(1.0) - F) * (1.0 - metalness);
+		Lo = (kD * albedo / PI + spec) * dotNL * radiance;
+	}
     
-    vec3 numerator    = NDF * G * F;
-    float denominator = 4.0 * max(dot(normal, tangentViewDir), 0.0) * max(dot(normal, tangentLightDir), 0.0)  + 0.0001;
-    vec3 specular     = numerator / denominator;
-    
-    float NdotL = max(dot(normal, tangentLightDir), 0.0);
-    vec3 Lo = (kD * albedo / PI + specular) * radiance * NdotL;
-    
-    
-    vec2 brdf  = texture(brdfLUT, vec2(max(dot(normal, tangentViewDir), 0.0), roughness)).rg;
-    brdf = vec2(1.0,0.0);
-    //vec2 brdf = IntegrateBRDF(max(dot(normal, tangentViewDir), 0.0), 1.0);
-    
-    // NON TANGENT SPACE
-    kS = fresnelSchlickRoughness(max(dot(N, viewDir), 0.0), F0, roughness);
-    kD = vec3(1.0) - kS;
-    kD *= 1.0 - metalness;
-    
+// IBL Part (Non-Tangent Space)
+    vec3 reflection = prefilteredReflection(R, roughness);
     vec3 irradiance = texture(irradianceMap, N).rgb;
-    vec3 diffuse      = irradiance * albedo;
-
-    const float MAX_REFLECTION_LOD = 4.0;
-    vec3 prefilteredColor = textureLod(prefilterMap, R,  roughness * MAX_REFLECTION_LOD).rgb;
-    specular = prefilteredColor * (kS * brdf.x + brdf.y);
+    vec2 brdf  = texture(brdfLUT, vec2(max(dot(normal, tangentViewDir), 0.0), roughness)).rg;
+    
+    vec3 F = F_SchlickR(max(dot(N, viewDir), 0.0), F0, roughness);
+    
+    // Diffuse irradiance
+    vec3 diffuse = irradiance * albedo;
+    
+    // Specular reflectance
+    vec3 specular = reflection * (F * brdf.x + brdf.y);
+    
+    // Ambient
+    vec3 kD = 1.0 - F;
+    kD *= 1.0 - metalness;
     vec3 ambient = kD * diffuse + specular;
     
+// Ambient + Light
     vec3 pbr = ambient + Lo;
+    
+// Apply occlusion map
+    pbr = mix(pbr, pbr * occlusion, 1.0);
     
     outColor = vec4(pbr, 1.0);
 }
-
-
-
-vec3 fresnelSchlick(float cosTheta, vec3 F0) {
-    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
-}
-vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness) {
-    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
-}
-float DistributionGGX(vec3 N, vec3 H, float roughness) {
-    float a      = roughness * roughness;
-    float a2     = a * a;
-    float NdotH  = max(dot(N, H), 0.0);
-    float NdotH2 = NdotH * NdotH;
-	
-    float num   = a2;
-    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
-    denom = PI * denom * denom;
-	
-    return num / denom;
-}
-
-float GeometrySchlickGGX(float NdotV, float roughness) {
-    float r = (roughness + 1.0);
-    float k = (r * r) / 8.0;
-
-    float num   = NdotV;
-    float denom = NdotV * (1.0 - k) + k;
-	
-    return num / denom;
-}
-float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
-    float NdotV = max(dot(N, V), 0.0);
-    float NdotL = max(dot(N, L), 0.0);
-    float ggx2  = GeometrySchlickGGX(NdotV, roughness);
-    float ggx1  = GeometrySchlickGGX(NdotL, roughness);
-	
-    return ggx1 * ggx2;
-}
-
-/*
-// Based on http://byteblacksmith.com/improvements-to-the-canonical-one-liner-glsl-rand-for-opengl-es-2-0/
-float random(vec2 co)
-{
-	float a = 12.9898;
-	float b = 78.233;
-	float c = 43758.5453;
-	float dt= dot(co.xy ,vec2(a,b));
-	float sn= mod(dt,3.14);
-	return fract(sin(sn) * c);
-}
-vec2 Hammersley(uint i, uint N)
-{
-	// Radical inverse based on http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
-	uint bits = (i << 16u) | (i >> 16u);
-	bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
-	bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
-	bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
-	bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
-	float rdi = float(bits) * 2.3283064365386963e-10;
-	return vec2(float(i) /float(N), rdi);
-}
-
-// Based on http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_slides.pdf
-vec3 ImportanceSampleGGX(vec2 Xi, float roughness, vec3 normal)
-{
-	// Maps a 2D point to a hemisphere with spread based on roughness
-	float alpha = roughness * roughness;
-	float phi = 2.0 * PI * Xi.x + random(normal.xz) * 0.1;
-	float cosTheta = sqrt((1.0 - Xi.y) / (1.0 + (alpha*alpha - 1.0) * Xi.y));
-	float sinTheta = sqrt(1.0 - cosTheta * cosTheta);
-	vec3 H = vec3(sinTheta * cos(phi), sinTheta * sin(phi), cosTheta);
-
-	// Tangent space
-	vec3 up = vec3(0.0, 1.0, 0.0);
-	vec3 tangentX = normalize(cross(up, normal));
-	vec3 tangentY = normalize(cross(normal, tangentX));
-
-	// Convert to world Space
-	return normalize(tangentX * H.x + tangentY * H.y + normal * H.z);
-}
-
-vec2 IntegrateBRDF(float NdotV, float roughness)
-{
-    vec3 V;
-    V.x = sqrt(1.0 - NdotV*NdotV);
-    V.y = 0.0;
-    V.z = NdotV;
-
-    float A = 0.0;
-    float B = 0.0;
-
-    vec3 N = vec3(0.0, 0.0, 1.0);
-
-    const uint SAMPLE_COUNT = 1024u;
-    for(uint i = 0u; i < SAMPLE_COUNT; ++i)
-    {
-        vec2 Xi = Hammersley(i, SAMPLE_COUNT);
-        vec3 H  = ImportanceSampleGGX(Xi, roughness, N);
-        vec3 L  = normalize(2.0 * dot(V, H) * H - V);
-
-        float NdotL = max(L.z, 0.0);
-        float NdotH = max(H.z, 0.0);
-        float VdotH = max(dot(V, H), 0.0);
-
-        if(NdotL > 0.0)
-        {
-            float G = GeometrySmith(N, V, L, roughness);
-            float G_Vis = (G * VdotH) / (NdotH * NdotV);
-            float Fc = pow(1.0 - VdotH, 5.0);
-
-            A += (1.0 - Fc) * G_Vis;
-            B += Fc * G_Vis;
-        }
-    }
-    A /= float(SAMPLE_COUNT);
-    B /= float(SAMPLE_COUNT);
-    return vec2(A, B);
-}
-*/
-//Specular Workflow
-/*  // Ambient lighting
-    vec3 ambientLight = color * ubo.ambientLightColor.xyz * ubo.ambientLightColor.w;
-
-    // Diffuse lighting
-    vec3 diffuseLight = color * radiance * max(dot(lightDir, normal),0.0);
-    
-    // Specular lighting
-    float spec = 0.0;
-    const float kShininess = 16.0;
-    if(obj.blinn) {
-       const float kEnergyConservation = ( 8.0 + kShininess ) / ( 8.0 * PI );
-       spec = kEnergyConservation * pow(max(dot(normal, halfDir), 0.0), kShininess);
-    } else {
-       const float kEnergyConservation = ( 2.0 + kShininess ) / ( 2.0 * PI );
-       spec = kEnergyConservation * pow(max(dot(viewDir, reflectDir), 0.0), kShininess);
-    }
-    vec3 specularLight = radiance * spec;
-    
-    //outColor = vec4(ambientLight + diffuseLight + specularLight, 1.0);*/

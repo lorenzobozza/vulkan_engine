@@ -338,7 +338,7 @@ void Device::hasRequiredInstanceExtensions() {
   for (const auto &required : requiredExtensions) {
     //std::cout << "\t" << required << std::endl;
     if (available.find(required) == available.end()) {
-      throw std::runtime_error("Missing required glfw extension");
+      throw std::runtime_error("Missing required sdl2 extension");
     }
   }
 }

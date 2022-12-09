@@ -48,8 +48,9 @@ public:
     
     VkImage getImage(int index) { return swapChain->getImage(index); }
     VkExtent2D getSwapChainExtent() { return swapChain->getSwapChainExtent(); }
-    
     VkFence *getSwapChainImageFence(int imageIndex) { return swapChain->getCurrentImageFence(imageIndex); }
+    
+    VkDescriptorImageInfo* getBrdfLutInfo() { return &brdfImageInfo; }
 
     bool isVSyncEnabled() { return swapChain->isVSyncEnabled(); }
     
@@ -64,11 +65,19 @@ private:
     void recreateSwapChain();
     void createCommandBuffers();
     void freeCommandBuffers();
+    
+    void integrateBrdfLut();
 
     SDLWindow &window;
     Device &device;
     std::unique_ptr<SwapChain> swapChain;
     std::vector<VkCommandBuffer> commandBuffers;
+    
+    VkImage brdfImage;
+    VkDeviceMemory brdfMem;
+    VkImageView brdfView;
+    VkSampler brdfSampler;
+    VkDescriptorImageInfo brdfImageInfo;
     
     uint32_t currentImageIndex;
     int currentFrameIndex{0};

@@ -11,10 +11,6 @@ layout(location = 0) out vec3 fragColor;
 layout(location = 1) out vec3 fragPosWorld;
 layout(location = 2) out vec2 fragUv;
 
-layout(binding = 0) uniform TextUbo {
-    mat4 projectionViewMatrix;
-} ubo;
-
 layout(push_constant) uniform Push {
     mat4 modelMatrix;
     int textureIndex;
@@ -25,7 +21,7 @@ layout(push_constant) uniform Push {
 void main() {
     vec4 positionWorld = push.modelMatrix * vec4(position, 1.0);
     
-    gl_Position = ubo.projectionViewMatrix * positionWorld;
+    gl_Position = positionWorld;
     
     fragPosWorld = positionWorld.xyz;
     fragColor = color;
