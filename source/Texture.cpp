@@ -71,12 +71,20 @@ void Texture::createTextureImage() {
             
         case VK_FORMAT_R32G32B32A32_SFLOAT:
             depth = STBI_rgb_alpha;
+            #ifdef __aarch64__
             bitsPerPixel = depth * sizeof(float32_t);
+            #else
+            bitsPerPixel = depth * sizeof(float);
+            #endif
             break;
             
         case VK_FORMAT_R16G16B16A16_SFLOAT:
             depth = STBI_rgb_alpha;
+            #ifdef __aarch64__
             bitsPerPixel = depth * sizeof(float16_t);
+            #else
+            bitsPerPixel = depth * (sizeof(float) / 2);
+            #endif
             break;
             
         default:
