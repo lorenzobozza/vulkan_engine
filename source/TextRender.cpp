@@ -25,7 +25,7 @@ TextRender::~TextRender() {
     vkFreeMemory(device.device(), bitmapImageMemory, nullptr);
 }
 
-unsigned int TextRender::renderText(std::string text, float x, float y, float scale, glm::vec3 color) {
+unsigned int TextRender::renderText(std::string text, float x, float y, float scale, glm::vec3 color, float aspect) {
     float startingXpos = x;
     float maxHeight{0};
     std::vector<unsigned int> boxes;
@@ -36,10 +36,10 @@ unsigned int TextRender::renderText(std::string text, float x, float y, float sc
         if (*c != 32) {
             Character ch = characters[*c];
 
-            float xpos = /*x*/ + (ch.Bearing.x / 100.f) * scale;
-            float ypos = /*y*/ - (ch.Bearing.y / 100.f) * scale;
+            float xpos = + (ch.Bearing.x / 100.f) * scale * (1.f / aspect);
+            float ypos = - (ch.Bearing.y / 100.f) * scale;
 
-            float w = (ch.Size.x / 100.f) * scale;
+            float w = (ch.Size.x / 100.f) * scale * (1.f / aspect);
             float h = (ch.Size.y / 100.f) * scale;
             
             Model::Data rectMesh{};
@@ -62,11 +62,12 @@ unsigned int TextRender::renderText(std::string text, float x, float y, float sc
             
             if(ypos < maxHeight) { maxHeight = ypos; } //
 
-            x += (ch.Advance >> 6) / 100.f * scale; // bitshift by 6 to get value in pixels (2^6 = 64)
+            x += (ch.Advance >> 6) / 100.f * scale * (1.f / aspect);; // bitshift by 6 to get value in pixels (2^6 = 64)
         } else {
-            x += 15 / 35.f * scale;
+            x += 15 / 35.f * scale * (1.f / aspect);
         }
     }
+    // Center text to given coordinates
     for (auto box : boxes) {
         meshes.at(box).transform.translation += glm::vec3(-.5f*(x - startingXpos), .5f*maxHeight, .0f);
     }

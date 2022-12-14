@@ -64,12 +64,7 @@ private:
     int frameIndex{0};
     
     uint8_t load_phase{0};
-    
-    //static void pan_callback(GLFWwindow* window, double xoffset, double yoffset);
-    
-    std::string shaderPath;
-    
-    SolidObject::id_t someId;
+    std::string binaryDir;
 };
 
 #endif /* Application_hpp */

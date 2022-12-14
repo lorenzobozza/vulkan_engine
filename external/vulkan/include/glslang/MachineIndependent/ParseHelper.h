@@ -241,7 +241,7 @@ protected:
     // override this to set the language-specific name
     virtual const char* getAtomicCounterBlockName() const { return ""; }
     virtual void setAtomicCounterBlockDefaults(TType&) const {}
-    virtual void setInvariant(const TSourceLoc& loc, const char* builtin) {}
+    virtual void setInvariant(const TSourceLoc&, const char*) {}
     virtual void finalizeAtomicCounterBlockLayout(TVariable&) {}
     bool isAtomicCounterBlock(const TSymbol& symbol) {
         const TVariable* var = symbol.getAsVariable();
@@ -438,12 +438,12 @@ public:
     const TFunction* findFunction400(const TSourceLoc& loc, const TFunction& call, bool& builtIn);
     const TFunction* findFunctionExplicitTypes(const TSourceLoc& loc, const TFunction& call, bool& builtIn);
     void declareTypeDefaults(const TSourceLoc&, const TPublicType&);
-    TIntermNode* declareVariable(const TSourceLoc&, TString& identifier, const TPublicType&, TArraySizes* typeArray = 0, TIntermTyped* initializer = 0);
+    TIntermNode* declareVariable(const TSourceLoc&, TString& identifier, const TPublicType&, TArraySizes* typeArray = nullptr, TIntermTyped* initializer = nullptr);
     TIntermTyped* addConstructor(const TSourceLoc&, TIntermNode*, const TType&);
     TIntermTyped* constructAggregate(TIntermNode*, const TType&, int, const TSourceLoc&);
     TIntermTyped* constructBuiltIn(const TType&, TOperator, TIntermTyped*, const TSourceLoc&, bool subset);
     void inheritMemoryQualifiers(const TQualifier& from, TQualifier& to);
-    void declareBlock(const TSourceLoc&, TTypeList& typeList, const TString* instanceName = 0, TArraySizes* arraySizes = 0);
+    void declareBlock(const TSourceLoc&, TTypeList& typeList, const TString* instanceName = nullptr, TArraySizes* arraySizes = nullptr);
     void blockStorageRemap(const TSourceLoc&, const TString*, TQualifier&);
     void blockStageIoCheck(const TSourceLoc&, const TQualifier&);
     void blockQualifierCheck(const TSourceLoc&, const TQualifier&, bool instanceName);
@@ -472,7 +472,7 @@ public:
     // Determine loop control from attributes
     void handleLoopAttributes(const TAttributes& attributes, TIntermNode*);
     // Function attributes
-    void handleFunctionAttributes(const TSourceLoc&, const TAttributes&, TFunction*);
+    void handleFunctionAttributes(const TSourceLoc&, const TAttributes&);
 
     // GL_EXT_spirv_intrinsics
     TSpirvRequirement* makeSpirvRequirement(const TSourceLoc& loc, const TString& name,
@@ -480,7 +480,6 @@ public:
     TSpirvRequirement* mergeSpirvRequirements(const TSourceLoc& loc, TSpirvRequirement* spirvReq1,
                                                 TSpirvRequirement* spirvReq2);
     TSpirvTypeParameters* makeSpirvTypeParameters(const TSourceLoc& loc, const TIntermConstantUnion* constant);
-    TSpirvTypeParameters* makeSpirvTypeParameters(const TPublicType& type);
     TSpirvTypeParameters* mergeSpirvTypeParameters(TSpirvTypeParameters* spirvTypeParams1,
                                                    TSpirvTypeParameters* spirvTypeParams2);
     TSpirvInstruction* makeSpirvInstruction(const TSourceLoc& loc, const TString& name, const TString& value);

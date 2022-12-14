@@ -138,7 +138,7 @@ elseif (UNIX)
     message(STATUS "CREATING BUILD FOR UNIX")
 
     if (APPLE)
-      target_link_libraries(${PROJECT_NAME} libSDL2-2.0.0.dylib libSDL2_image-2.0.0.dylib libfreetype.6.dylib libvulkan.1.2.189.dylib)
+      target_link_libraries(${PROJECT_NAME} libSDL2-2.0.0.dylib libSDL2_image-2.0.0.dylib libfreetype.6.dylib libvulkan.1.3.236.dylib)
     endif()
 
 endif()

@@ -47,36 +47,64 @@ VkDescriptorImageInfo Texture::descriptorInfo() {
 
 void Texture::createTextureImage() {
     uint8_t depth;
+    size_t bitsPerPixel;
     switch (format) {
         case VK_FORMAT_R8G8B8A8_SRGB:
-            depth = 4;
+            depth = STBI_rgb_alpha;
+            bitsPerPixel = depth * sizeof(int8_t);
             break;
             
         case VK_FORMAT_R8G8B8A8_UNORM:
-            depth = 4;
+            depth = STBI_rgb_alpha;
+            bitsPerPixel = depth * sizeof(int8_t);
             break;
             
         case VK_FORMAT_R8G8B8_UNORM:
-            depth = 3;
+            depth = STBI_rgb;
+            bitsPerPixel = depth * sizeof(int8_t);
             break;
             
         case VK_FORMAT_R8G8_UNORM:
-            depth = 2;
+            depth = STBI_grey_alpha;
+            bitsPerPixel = depth * sizeof(int8_t);
             break;
-
+            
+        case VK_FORMAT_R32G32B32A32_SFLOAT:
+            depth = STBI_rgb_alpha;
+            #ifdef __aarch64__
+            bitsPerPixel = depth * sizeof(float32_t);
+            #else
+            bitsPerPixel = depth * sizeof(float);
+            #endif
+            break;
+            
         case VK_FORMAT_R16G16B16A16_SFLOAT:
-            depth = 8;
+            depth = STBI_rgb_alpha;
+            #ifdef __aarch64__
+            bitsPerPixel = depth * sizeof(float16_t);
+            #else
+            bitsPerPixel = depth * (sizeof(float) / 2);
+            #endif
             break;
             
         default:
-            depth = 4;
+            depth = STBI_rgb_alpha;
+            bitsPerPixel = depth * sizeof(int8_t);
             break;
     }
     
     int texWidth, texHeight, texChannels;
-    stbi_uc* pixels = stbi_load(textureFilePath.c_str(), &texWidth, &texHeight, &texChannels, depth);
+    
+    void* pixels;
+    if(stbi_is_hdr(textureFilePath.c_str())) {
+        float* data = stbi_loadf(textureFilePath.c_str(), &texWidth, &texHeight, &texChannels, depth);
+        pixels = (void*)data;
+    } else {
+        stbi_uc* data = stbi_load(textureFilePath.c_str(), &texWidth, &texHeight, &texChannels, depth);
+        pixels = (void*)data;
+    }
 
-    VkDeviceSize imageSize = texWidth * texHeight * depth;
+    VkDeviceSize imageSize = texWidth * texHeight * bitsPerPixel;
     
     if (!pixels) {
         throw std::runtime_error("failed to load texture image!");
@@ -91,7 +119,7 @@ void Texture::createTextureImage() {
     };
     
     stagingBuffer.map();
-    stagingBuffer.writeToBuffer((void *)pixels);
+    stagingBuffer.writeToBuffer(pixels);
     
     stbi_image_free(pixels);
     

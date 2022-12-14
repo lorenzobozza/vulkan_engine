@@ -7,25 +7,6 @@ layout(location = 0) in vec2 fragUv;
 
 layout(location = 0) out vec2 outColor;
 
-layout(binding = 0) uniform CubeUbo {
-    mat4 projectionViewMatrix;
-    mat4 viewMatrix;
-    float roughness;
-} ubo;
-
-float RadicalInverse_VdC(uint bits);
-vec2 Hammersley(uint i, uint N);
-vec3 ImportanceSampleGGX(vec2 Xi, vec3 N, float roughness);
-float GeometrySchlickGGX(float NdotV, float roughness);
-float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
-vec2 IntegrateBRDF(float NdotV, float roughness);
-
-void main()
-{
-    vec2 integratedBRDF = IntegrateBRDF(fragUv.x, fragUv.y);
-    outColor = integratedBRDF;
-}
-
 // ----------------------------------------------------------------------------
 // http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
 // efficient VanDerCorpus calculation.
@@ -127,4 +108,9 @@ vec2 IntegrateBRDF(float NdotV, float roughness)
     A /= float(SAMPLE_COUNT);
     B /= float(SAMPLE_COUNT);
     return vec2(A, B);
+}
+
+void main()
+{
+    outColor = IntegrateBRDF(fragUv.x, fragUv.y);
 }

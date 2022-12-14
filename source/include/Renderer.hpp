@@ -11,6 +11,9 @@
 #include "SDLWindow.hpp"
 #include "Device.hpp"
 #include "SwapChain.hpp"
+#include "Descriptors.hpp"
+#include "Pipeline.hpp"
+#include "SolidObject.hpp"
 
 //std
 #include <memory>
@@ -27,7 +30,9 @@ public:
     Renderer(const Renderer &) = delete;
     Renderer &operator=(const Renderer &) = delete;
     
-    VkRenderPass getSwapChainRenderPass() const { return swapChain->getRenderPass(); }
+    VkRenderPass getOffscreenRenderPass() const { return swapChain->getOffscreenRenderPass(); }
+    VkRenderPass getSwapChainRenderPass() const { return swapChain->getCompositionRenderPass(); }
+    VkDescriptorImageInfo getOffscreenImageInfo() { return swapChain->getOffscreenDescriptorInfo(); }
     float getAspectRatio() const { return swapChain->extentAspectRatio(); }
     bool isFrameInProgress() const { return  isFrameStarted; }
     
@@ -43,8 +48,9 @@ public:
     
     VkImage getImage(int index) { return swapChain->getImage(index); }
     VkExtent2D getSwapChainExtent() { return swapChain->getSwapChainExtent(); }
-    
     VkFence *getSwapChainImageFence(int imageIndex) { return swapChain->getCurrentImageFence(imageIndex); }
+    
+    VkDescriptorImageInfo* getBrdfLutInfo() { return &brdfImageInfo; }
 
     bool isVSyncEnabled() { return swapChain->isVSyncEnabled(); }
     
@@ -52,16 +58,26 @@ public:
     void endFrame();
     void beginSwapChainRenderPass(VkCommandBuffer commandBuffer);
     void endSwapChainRenderPass(VkCommandBuffer commandBuffer);
+    void beginOffscreenRenderPass(VkCommandBuffer commandBuffer);
+    void endOffscreenRenderPass(VkCommandBuffer commandBuffer);
     
 private:
     void recreateSwapChain();
     void createCommandBuffers();
     void freeCommandBuffers();
+    
+    void integrateBrdfLut();
 
     SDLWindow &window;
     Device &device;
     std::unique_ptr<SwapChain> swapChain;
     std::vector<VkCommandBuffer> commandBuffers;
+    
+    VkImage brdfImage;
+    VkDeviceMemory brdfMem;
+    VkImageView brdfView;
+    VkSampler brdfSampler;
+    VkDescriptorImageInfo brdfImageInfo;
     
     uint32_t currentImageIndex;
     int currentFrameIndex{0};
