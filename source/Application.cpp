@@ -36,10 +36,8 @@ struct GlobalUbo {
     glm::mat4 invViewMatrix{1.f};
 };
 
-Application::Application(const char* binaryPath) {
-    // Shader binaries in the same folder as the application binary
-    shaderPath = binaryPath;
-    while(shaderPath.back() != '/' && !shaderPath.empty()) shaderPath.pop_back();
+Application::Application(const char* binaryPath) : binaryDir{binaryPath} {
+    while(binaryDir.back() != '/' && !binaryDir.empty()) binaryDir.pop_back();
 }
 
 Application::~Application() {}
@@ -47,33 +45,6 @@ Application::~Application() {}
 glm::vec3 rotate{.0f};
 
 void Application::run() {
-
-    // Composition Renderpass
-    std::unique_ptr<DescriptorPool> compositionPool =
-       DescriptorPool::Builder(device)
-           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .build();
-    
-    auto compositionSetLayout =
-        DescriptorSetLayout::Builder(device)
-            .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .build();
-    
-    std::vector<VkDescriptorSet>compositionDescriptorSets(SwapChain::MAX_FRAMES_IN_FLIGHT);
-    for (int i = 0; i < compositionDescriptorSets.size(); i++) {
-        auto descriptorInfo = renderer.getOffscreenImageInfo();
-        DescriptorWriter(*compositionSetLayout, *compositionPool)
-            .writeImage(0, &descriptorInfo)
-            .build(compositionDescriptorSets[i]);
-    }
-    
-    CompositionPipeline composition{
-        device,
-        renderer.getSwapChainRenderPass(),
-        compositionSetLayout->getDescriptorSetLayout(),
-        shaderPath+"composition"
-    };
 
     // GAMELOOP TIMING
     auto currentTime = std::chrono::high_resolution_clock::now();
@@ -113,7 +84,34 @@ void Application::run() {
         device,
         renderer.getSwapChainRenderPass(),
         guiSetLayout->getDescriptorSetLayout(),
-        shaderPath+"font"
+        binaryDir+"font"
+    };
+    
+    // Composition Pipeline
+    std::unique_ptr<DescriptorPool> compositionPool =
+       DescriptorPool::Builder(device)
+           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .build();
+    
+    auto compositionSetLayout =
+        DescriptorSetLayout::Builder(device)
+            .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .build();
+    
+    std::vector<VkDescriptorSet>compositionDescriptorSets(SwapChain::MAX_FRAMES_IN_FLIGHT);
+    for (int i = 0; i < compositionDescriptorSets.size(); i++) {
+        auto descriptorInfo = renderer.getOffscreenImageInfo();
+        DescriptorWriter(*compositionSetLayout, *compositionPool)
+            .writeImage(0, &descriptorInfo)
+            .build(compositionDescriptorSets[i]);
+    }
+    
+    CompositionPipeline composition{
+        device,
+        renderer.getSwapChainRenderPass(),
+        compositionSetLayout->getDescriptorSetLayout(),
+        binaryDir+"composition"
     };
 
     // Load heavy assets on a separate thread
@@ -205,11 +203,11 @@ void Application::run() {
             }
         }
     }
-    
-    loadSolidObjects();
     vkDeviceWaitIdle(device.device());
     textMeshes.clear();
     
+    loadSolidObjects();
+
     //HDRi Pre-Processing
     auto equitangular = textures.at(10)->descriptorInfo();
     
@@ -260,11 +258,11 @@ void Application::run() {
         device,
         renderer.getOffscreenRenderPass(),
         skyboxSetLayout->getDescriptorSetLayout(),
-        shaderPath+"skybox",
+        binaryDir+"skybox",
         device.msaaSamples
     };
     
-    // PBR Textures
+    // Load Descriptors for PBR Textures
     for (int i = 0; i < 10; i++) {
         textureInfos.push_back(textures.at(i)->descriptorInfo());
     }
@@ -304,11 +302,13 @@ void Application::run() {
         device,
         renderer.getOffscreenRenderPass(),
         globalSetLayout->getDescriptorSetLayout(),
-        shaderPath+"shader",
+        binaryDir+"shader",
         device.msaaSamples
     };
     
     bool running = true;
+    auto counter1Hz = std::chrono::high_resolution_clock::now();
+    bool mouseLeft = false;
     while(running)
     {
         cnt = ++cnt % 628;
@@ -340,9 +340,17 @@ void Application::run() {
                 case SDL_CONTROLLERBUTTONDOWN:
                     running = false;
                     break;
-                case SDL_MOUSEWHEEL:
-                    rotate.x = -.5f*sdl_event.wheel.preciseY;
-                    rotate.y = -.5f*sdl_event.wheel.preciseX;
+                case SDL_MOUSEBUTTONDOWN:
+                    mouseLeft = true;
+                    break;
+                case SDL_MOUSEBUTTONUP:
+                    mouseLeft = false;
+                    break;
+                case SDL_MOUSEMOTION:
+                    if (mouseLeft) {
+                        rotate.x = .05f*sdl_event.motion.yrel;
+                        rotate.y = -.05f*sdl_event.motion.xrel;
+                    }
                     break;
             }
         }
@@ -368,20 +376,16 @@ void Application::run() {
         camera.setViewYXZ(cameraObj.transform.translation, cameraObj.transform.rotation);
         //cameraCtrl.moveInPlaneXZ(window.getGLFWwindow(), frameTime, cameraObj);
         
-        solidObjects.at(obj[0]).transform.translation.y = glm::sin(cnt / 50.f) * .2f;
-        solidObjects.at(obj[0]).transform.rotation.y = cnt / 100.f;
-        
-        if (!(cnt % 314)) {
+        if (std::chrono::duration<float, std::chrono::seconds::period>(newTime -  counter1Hz).count() > 1.f) {
+            counter1Hz = newTime;
             //std::cout << frameTimes.back() << " - " << frameTimes.front() << '\n';
             float avg = 0;
-            for (int k = 0; k < frameTimes.size(); k++) {
-                avg += frameTimes[k];
-            }
+            for (int k = 0; k < frameTimes.size(); k++) { avg += frameTimes[k]; }
             avg = avg / frameTimes.size();
-            int fps = (int)(1.f / avg);
             vkWaitForFences(device.device(), 1, renderer.getSwapChainImageFence(frameIndex), VK_TRUE, UINT64_MAX);
             textMeshes.clear();
-            font.renderText(std::to_string(fps) + " FPS", .9f, -.9f, .7f, {1.f, 1.f, 1.f}, aspect);
+            font.renderText(std::to_string((int)(1.f / avg)) + " FPS", .9f, -.9f, .7f, {1.f, 1.f, 1.f}, aspect);
+            font.renderText(std::to_string(avg * 1000.f).substr(0, 4) + " MS", .9f, -.8f, .7f, {1.f, 1.f, 1.f}, aspect);
             frameTimes.clear();
         }
         
@@ -443,29 +447,27 @@ void Application::run() {
 
 void Application::loadSolidObjects() {
     auto sphere = SolidObject::createSolidObject();
-    sphere.model = Model::createModelFromFile(device, shaderPath+"Cerberus.obj");
+    sphere.model = Model::createModelFromFile(device, binaryDir+"Cerberus.obj");
     sphere.textureIndex = 0;
-    sphere.transform.translation = {.6f, .2f, .0f};
-    sphere.transform.rotation.y = 3.85f;
+    sphere.transform.translation = {.65f, .1f, -.9f};
+    sphere.transform.rotation.y = 3.9f;
     sphere.transform.rotation.x = .04f;
-    sphere.transform.scale = {1.8f, 1.8f, 1.8f};
+    sphere.transform.scale = {1.f, 1.f, 1.f};
     solidObjects.emplace(sphere.getId(), std::move(sphere));
-    obj[0] = sphere.getId();
     
     auto block = SolidObject::createSolidObject();
-    block.model = Model::createModelFromFile(device, shaderPath+"plane.obj");
+    block.model = Model::createModelFromFile(device, binaryDir+"plane.obj");
     block.textureIndex = 1;
-    block.transform.translation = {1.0f, 1.0f, .0f};
-    block.transform.scale = {1.f, 1.f, 1.f};
-    block.transform.rotation = {.0f, .6f, .0f};
+    block.transform.translation = {.0f, 1.0f, .0f};
+    block.transform.scale = {.4f, .4f, .4f};
+    block.transform.rotation = {.0f, .0f, .0f};
     solidObjects.emplace(block.getId(), std::move(block));
     
     // Cubemap 3D canvas
     auto cube = SolidObject::createSolidObject();
-    cube.model = Model::createModelFromFile(device, shaderPath+"cube.obj");
+    cube.model = Model::createModelFromFile(device, binaryDir+"cube.obj");
     cube.transform.translation = {.0f, .0f, .0f};
     cube.transform.scale = {1.f, 1.f, 1.f};
     cube.transform.rotation = {.0f, .0f, .0f};
     env.emplace(cube.getId(), std::move(cube));
 }
-

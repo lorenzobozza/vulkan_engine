@@ -83,7 +83,7 @@ void main() {
     float texScale = 1.0;
     const int texOffset = 5 * push.textureIndex;
     // PBR Material Stack
-    vec3 albedo = (push.textureIndex < 0) ? vec3(0.0,0.6,0.0) : texture(PBRMaterial[0 + texOffset], vert.texcoord * texScale).rgb;
+    vec3 albedo = (push.textureIndex < 0) ? vec3(1.0,1.0,1.0) : texture(PBRMaterial[0 + texOffset], vert.texcoord * texScale).rgb;
     vec3 normal = (push.textureIndex < 0) ? vec3(0.0, 0.0, 1.0) : normalize(texture(PBRMaterial[1 + texOffset], vert.texcoord * texScale).rgb * 2.0 - 1.0);
     float metalness = (push.textureIndex < 0) ? push.metalness : texture(PBRMaterial[2 + texOffset], vert.texcoord * texScale).r;
     float roughness = (push.textureIndex < 0) ? push.roughness : texture(PBRMaterial[3 + texOffset], vert.texcoord * texScale).r;

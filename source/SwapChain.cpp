@@ -216,7 +216,7 @@ void SwapChain::createSwapChain() {
   swapChainImages.resize(imageCount);
   vkGetSwapchainImagesKHR(device.device(), swapChain, &imageCount, swapChainImages.data());
 
-    offscreenImageFormat = VK_FORMAT_R32G32B32A32_SFLOAT;
+    offscreenImageFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
     swapChainImageFormat = surfaceFormat.format;
     swapChainExtent = extent;
 }
