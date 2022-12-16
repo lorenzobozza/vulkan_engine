@@ -9,6 +9,7 @@
 #include "include/RenderSystem.hpp"
 #include "include/CompositionPipeline.hpp"
 #include "include/Buffer.hpp"
+#include "UI.hpp"
 
 //libs
 #define GLM_FORCE_RADIANS
@@ -113,6 +114,30 @@ void Application::run() {
         compositionSetLayout->getDescriptorSetLayout(),
         binaryDir+"composition"
     };
+    
+    UI imgui(device);
+    
+    auto imguiDescriptorInfo = imgui.loadFontTexture();
+    
+    std::unique_ptr<DescriptorPool> imguiPool =
+       DescriptorPool::Builder(device)
+           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .build();
+    
+    auto imguiSetLayout =
+        DescriptorSetLayout::Builder(device)
+            .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .build();
+
+    std::vector<VkDescriptorSet>imguiDescriptorSets(SwapChain::MAX_FRAMES_IN_FLIGHT);
+    for (int i = 0; i < imguiDescriptorSets.size(); i++) {
+        DescriptorWriter(*imguiSetLayout, *imguiPool)
+            .writeImage(0, &imguiDescriptorInfo)
+            .build(imguiDescriptorSets[i]);
+    }
+    
+    imgui.createPipeline(imguiSetLayout->getDescriptorSetLayout(), renderer.getSwapChainRenderPass(), binaryDir+"imgui");
 
     // Load heavy assets on a separate thread
     std::thread([this]() {
@@ -305,7 +330,7 @@ void Application::run() {
         binaryDir+"shader",
         device.msaaSamples
     };
-    
+    ImGuiIO& io = ImGui::GetIO();
     bool running = true;
     auto counter1Hz = std::chrono::high_resolution_clock::now();
     bool mouseLeft = false;
@@ -341,12 +366,15 @@ void Application::run() {
                     running = false;
                     break;
                 case SDL_MOUSEBUTTONDOWN:
+                    io.MouseDown[0] = sdl_event.button.state;
                     mouseLeft = true;
                     break;
                 case SDL_MOUSEBUTTONUP:
+                    io.MouseDown[0] = sdl_event.button.state;
                     mouseLeft = false;
                     break;
                 case SDL_MOUSEMOTION:
+                    io.AddMousePosEvent(sdl_event.motion.x, sdl_event.motion.y);
                     if (mouseLeft) {
                         rotate.x = .05f*sdl_event.motion.yrel;
                         rotate.y = -.05f*sdl_event.motion.xrel;
@@ -388,6 +416,13 @@ void Application::run() {
             font.renderText(std::to_string(avg * 1000.f).substr(0, 4) + " MS", .9f, -.8f, .7f, {1.f, 1.f, 1.f}, aspect);
             frameTimes.clear();
         }
+        
+        int height,width;
+        SDL_GetWindowSize(window.getWindow(), &width, &height);
+        io.DisplaySize = {(float)width, (float)height};
+        imgui.newFrame();
+        vkDeviceWaitIdle(device.device());
+        imgui.updateBuffers();
         
         if (auto commandBuffer = renderer.beginFrame()) {
             frameIndex = renderer.getFrameIndex();
@@ -436,6 +471,7 @@ void Application::run() {
             renderer.beginSwapChainRenderPass(commandBuffer);
             composition.renderSceneToSwapChain(commandBuffer, compositionDescriptorSets[frameIndex]);
             guiSystem.renderSolidObjects(guiInfo);
+            imgui.draw(commandBuffer, imguiDescriptorSets[frameIndex]);
             renderer.endSwapChainRenderPass(commandBuffer);
             
             renderer.endFrame();

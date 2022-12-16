@@ -109,6 +109,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     ${SDL2_INCLUDE_DIRS}
     ${FTYPE_INCLUDE_DIRS}
     ${UTIL_PATH}
+    ${IMGUI_PATH}
   )
 
 target_link_directories(${PROJECT_NAME} PUBLIC
