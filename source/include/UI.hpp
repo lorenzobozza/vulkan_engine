@@ -9,15 +9,16 @@
 #define UI_hpp
 
 #include "imgui.h"
-#include "include/Device.hpp"
-#include "include/Buffer.hpp"
-#include "include/Pipeline.hpp"
-#include "include/Descriptors.hpp"
-#include "include/Image.hpp"
+#include "Application.hpp"
+#include "Device.hpp"
+#include "Buffer.hpp"
+#include "Pipeline.hpp"
+#include "Descriptors.hpp"
+#include "Image.hpp"
 
 class UI {
 public:
-    UI(Device &device);
+    UI(Device &device, VkRenderPass renderPass, std::string dynamicShaderPath);
     ~UI();
     
     struct PushConstBlock {
@@ -25,16 +26,15 @@ public:
 		glm::vec2 translate;
 	} pushConstBlock;
     
-    void createPipeline(VkDescriptorSetLayout descriptorSetLayout, VkRenderPass renderPass, std::string dynamicShaderPath);
-    void draw(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet);
-    void newFrame();
+    void newFrame(Application *app);
     void updateBuffers();
-    
-    
-    VkDescriptorImageInfo loadFontTexture();
+    void draw(VkCommandBuffer commandBuffer, int frameIndex);
 
 private:
     std::vector<char> readFile(const std::string &filepath);
+    void loadFontTexture();
+    void createDescriptors();
+    void createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath);
 
     Device &device;
     Image vulkanImage{device};
@@ -52,6 +52,11 @@ private:
     VkDeviceMemory fontMem;
     VkImageView fontView;
     VkSampler fontSampler;
+    
+    VkDescriptorImageInfo fontDescriptorInfo;
+    std::unique_ptr<DescriptorPool> imguiPool;
+    std::unique_ptr<DescriptorSetLayout> imguiSetLayout;
+    std::vector<VkDescriptorSet> *imguiDescriptorSets;
 };
 
 #endif /* UI_hpp */

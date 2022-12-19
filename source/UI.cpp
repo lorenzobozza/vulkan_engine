@@ -5,23 +5,33 @@
 //  Created by Lorenzo Bozza on 15/12/22.
 //
 
-#include "UI.hpp"
+#include "include/UI.hpp"
+
+#include <SDL2/SDL.h>
 
 #include <iostream>
 #include <fstream>
 
-UI::UI(Device &device) : device{device} {
+UI::UI(Device &device, VkRenderPass renderPass, std::string dynamicShaderPath) : device{device} {
     ImGui::CreateContext();
+    
+    loadFontTexture();
+    createDescriptors();
+    createPipeline(renderPass, dynamicShaderPath);
+    
     ImGui::StyleColorsDark();
     
     ImGuiStyle& style = ImGui::GetStyle();
     style.FrameBorderSize = 0.0f;
     style.WindowBorderSize = 0.0f;
-    style.Colors[ImGuiCol_TitleBg] = ImVec4(1.0f, 0.0f, 0.0f, 0.6f);
-    style.Colors[ImGuiCol_TitleBgActive] = ImVec4(1.0f, 0.0f, 0.0f, 0.8f);
-    style.Colors[ImGuiCol_MenuBarBg] = ImVec4(1.0f, 0.0f, 0.0f, 0.4f);
-    style.Colors[ImGuiCol_Header] = ImVec4(1.0f, 0.0f, 0.0f, 0.4f);
+    style.Colors[ImGuiCol_TitleBg] = ImVec4(0.2f, 0.0f, 0.4f, 0.6f);
+    style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.2f, 0.0f, 0.4f, 0.8f);
+    style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.2f, 0.0f, 0.4f, 0.4f);
+    style.Colors[ImGuiCol_Header] = ImVec4(0.2f, 0.0f, 0.4f, 0.4f);
     style.Colors[ImGuiCol_CheckMark] = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
+    
+    style.WindowRounding = 10.f;
+    style.FrameRounding = 5.f;
 }
 
 UI::~UI() {
@@ -36,17 +46,19 @@ UI::~UI() {
     vkFreeMemory(device.device(), fontMem, nullptr);
 }
 
-void UI::createPipeline(VkDescriptorSetLayout descriptorSetLayout, VkRenderPass renderPass, std::string dynamicShaderPath) {
+void UI::createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath) {
     VkPushConstantRange pushConstantRanges[1];
 
     pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     pushConstantRanges[0].offset = 0;
     pushConstantRanges[0].size = sizeof(UI::PushConstBlock);
     
+    auto imguiDescriptorSetLayout = imguiSetLayout->getDescriptorSetLayout();
+    
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+    pipelineLayoutInfo.pSetLayouts = &imguiDescriptorSetLayout;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges;
     if (vkCreatePipelineLayout(device.device(), &pipelineLayoutInfo, nullptr, &imguiPipelineLayout) != VK_SUCCESS) {
@@ -134,21 +146,45 @@ void UI::createPipeline(VkDescriptorSetLayout descriptorSetLayout, VkRenderPass 
     }
 }
 
-void UI::newFrame() {
+void UI::createDescriptors() {
+    imguiPool =
+       DescriptorPool::Builder(device)
+           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .build();
+    
+    imguiSetLayout =
+        DescriptorSetLayout::Builder(device)
+            .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .build();
+
+    imguiDescriptorSets = new std::vector<VkDescriptorSet>(SwapChain::MAX_FRAMES_IN_FLIGHT);
+    for (int i = 0; i < imguiDescriptorSets->size(); i++) {
+        DescriptorWriter(*imguiSetLayout, *imguiPool)
+            .writeImage(0, &fontDescriptorInfo)
+            .build(imguiDescriptorSets->at(i));
+    }
+}
+
+void UI::newFrame(Application *app) {
     ImGui::NewFrame();
 
     // Init imGui windows and elements
 
     // SRS - Set initial position of default Debug window (note: Debug window sets its own initial size, use ImGuiSetCond_Always to override)
     ImGui::SetWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
-    ImGui::SetWindowSize(ImVec2(300, 300), ImGuiCond_Always);
+    ImGui::SetWindowSize(ImVec2(300, 300), ImGuiCond_Once);
     ImGui::TextUnformatted("Vulkan Engine");
-    ImGui::TextUnformatted(device.properties.deviceName);
+    //ImGui::TextUnformatted(device.properties.deviceName);
     
     //SRS - Display Vulkan API version and device driver information if available (otherwise blank)
     ImGui::Text("Vulkan API %i.%i.%i", VK_API_VERSION_MAJOR(device.properties.apiVersion), VK_API_VERSION_MINOR(device.properties.apiVersion), VK_API_VERSION_PATCH(device.properties.apiVersion));
     ImGui::Text("%i", device.properties.driverVersion);
 
+    //ImGui::SliderFloat("Luminance [cd/m^2]", slider, 0.0f, 1.0f);
+    
+    app->renderImguiContent();
+    
     /*
     // Update frame time display
     if (updateFrameGraph) {
@@ -203,6 +239,7 @@ void UI::updateBuffers() {
 
     // Vertex buffer
     if ((vertexBuffer.getBuffer() == VK_NULL_HANDLE) || (vertexCount != imDrawData->TotalVtxCount)) {
+        vkDeviceWaitIdle(device.device());
         vertexBuffer.unmap();
         vertexBuffer.destroy();
         vertexBuffer.createBuffer(vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
@@ -212,6 +249,7 @@ void UI::updateBuffers() {
 
     // Index buffer
     if ((indexBuffer.getBuffer() == VK_NULL_HANDLE) || (indexCount < imDrawData->TotalIdxCount)) {
+        vkDeviceWaitIdle(device.device());
         indexBuffer.unmap();
         indexBuffer.destroy();
         indexBuffer.createBuffer(indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
@@ -237,10 +275,10 @@ void UI::updateBuffers() {
 }
 
 
-void UI::draw(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet) {
+void UI::draw(VkCommandBuffer commandBuffer, int frameIndex) {
     ImGuiIO& io = ImGui::GetIO();
 
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imguiPipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imguiPipelineLayout, 0, 1, &imguiDescriptorSets->at(frameIndex), 0, nullptr);
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imguiPipeline);
     
     VkViewport viewport {
@@ -288,12 +326,12 @@ void UI::draw(VkCommandBuffer commandBuffer, VkDescriptorSet descriptorSet) {
     }
 }
 
-VkDescriptorImageInfo UI::loadFontTexture() {
+void UI::loadFontTexture() {
     unsigned char* fontData;
     int texWidth, texHeight;
     
     ImGuiIO &io = ImGui::GetIO();
-    io.Fonts->AddFontFromFileTTF("fonts/Disket-Mono-Regular.ttf", 24.0f);
+    io.Fonts->AddFontFromFileTTF("fonts/monaco.ttf", 24.0f);
     io.Fonts->GetTexDataAsRGBA32(&fontData, &texWidth, &texHeight);
 
     if (!fontData) {
@@ -356,7 +394,7 @@ VkDescriptorImageInfo UI::loadFontTexture() {
         throw std::runtime_error("failed to create brdf sampler!");
     }
     
-    return VkDescriptorImageInfo {
+    fontDescriptorInfo = VkDescriptorImageInfo {
         fontSampler,
         fontView,
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL

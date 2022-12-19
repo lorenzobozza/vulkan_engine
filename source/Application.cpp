@@ -8,8 +8,8 @@
 #include "include/Application.hpp"
 #include "include/RenderSystem.hpp"
 #include "include/CompositionPipeline.hpp"
+#include "include/UI.hpp"
 #include "include/Buffer.hpp"
-#include "UI.hpp"
 
 //libs
 #define GLM_FORCE_RADIANS
@@ -53,7 +53,7 @@ void Application::run() {
     int cnt{0};
     auto startTime = currentTime;
     
-    // 3D + 2D CAMERAS
+    // 3D CAMERA
     Camera camera{};
     float aspect = renderer.getAspectRatio();
     camera.setProjection.perspective(aspect, glm::radians(75.f), .01f, 100.f);
@@ -87,57 +87,15 @@ void Application::run() {
         guiSetLayout->getDescriptorSetLayout(),
         binaryDir+"font"
     };
-    
-    // Composition Pipeline
-    std::unique_ptr<DescriptorPool> compositionPool =
-       DescriptorPool::Builder(device)
-           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .build();
-    
-    auto compositionSetLayout =
-        DescriptorSetLayout::Builder(device)
-            .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .build();
-    
-    std::vector<VkDescriptorSet>compositionDescriptorSets(SwapChain::MAX_FRAMES_IN_FLIGHT);
-    for (int i = 0; i < compositionDescriptorSets.size(); i++) {
-        auto descriptorInfo = renderer.getOffscreenImageInfo();
-        DescriptorWriter(*compositionSetLayout, *compositionPool)
-            .writeImage(0, &descriptorInfo)
-            .build(compositionDescriptorSets[i]);
-    }
-    
-    CompositionPipeline composition{
+
+    CompositionPipeline postProcessing{
         device,
         renderer.getSwapChainRenderPass(),
-        compositionSetLayout->getDescriptorSetLayout(),
+        renderer.getPostProcessingDescriptorSetLayout(),
         binaryDir+"composition"
     };
     
-    UI imgui(device);
-    
-    auto imguiDescriptorInfo = imgui.loadFontTexture();
-    
-    std::unique_ptr<DescriptorPool> imguiPool =
-       DescriptorPool::Builder(device)
-           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .build();
-    
-    auto imguiSetLayout =
-        DescriptorSetLayout::Builder(device)
-            .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .build();
-
-    std::vector<VkDescriptorSet>imguiDescriptorSets(SwapChain::MAX_FRAMES_IN_FLIGHT);
-    for (int i = 0; i < imguiDescriptorSets.size(); i++) {
-        DescriptorWriter(*imguiSetLayout, *imguiPool)
-            .writeImage(0, &imguiDescriptorInfo)
-            .build(imguiDescriptorSets[i]);
-    }
-    
-    imgui.createPipeline(imguiSetLayout->getDescriptorSetLayout(), renderer.getSwapChainRenderPass(), binaryDir+"imgui");
+    UI imgui(device, renderer.getSwapChainRenderPass(), binaryDir+"imgui");
 
     // Load heavy assets on a separate thread
     std::thread([this]() {
@@ -193,7 +151,7 @@ void Application::run() {
             renderer.endOffscreenRenderPass(commandBuffer);
             
             renderer.beginSwapChainRenderPass(commandBuffer);
-            composition.renderSceneToSwapChain(commandBuffer, compositionDescriptorSets[frameIndex]);
+            postProcessing.renderSceneToSwapChain(commandBuffer, renderer.getPostProcessingDescriptorSets()->at(frameIndex));
             guiSystem.renderSolidObjects(guiInfo);
             renderer.endSwapChainRenderPass(commandBuffer);
             
@@ -279,13 +237,13 @@ void Application::run() {
         .writeImage(1, &environment)
         .build(skyboxDescriptorSet);
     
-    RenderSystem skyboxSystem{
+    skyboxSystem = std::make_unique<RenderSystem>(
         device,
         renderer.getOffscreenRenderPass(),
         skyboxSetLayout->getDescriptorSetLayout(),
         binaryDir+"skybox",
         device.msaaSamples
-    };
+    );
     
     // Load Descriptors for PBR Textures
     for (int i = 0; i < 10; i++) {
@@ -323,16 +281,25 @@ void Application::run() {
         .writeImage(4, textureInfos.data())
         .build(globalDescriptorSet);
     
-    RenderSystem renderSystem{
+    renderSystem = std::make_unique<RenderSystem>(
         device,
         renderer.getOffscreenRenderPass(),
         globalSetLayout->getDescriptorSetLayout(),
         binaryDir+"shader",
         device.msaaSamples
-    };
+    );
+    
+    SDL_Vulkan_GetDrawableSize(window.getWindow(), &surfaceExtent.width, &surfaceExtent.height);
+    SDL_GetWindowSize(window.getWindow(), &windowExtent.width, &windowExtent.height);
+    
     ImGuiIO& io = ImGui::GetIO();
+    io.DisplaySize = {(float)surfaceExtent.width, (float)surfaceExtent.height};
+    
+    float dpi_scale_fact = surfaceExtent.width / windowExtent.width;
+    
     bool running = true;
     auto counter1Hz = std::chrono::high_resolution_clock::now();
+    //auto imgui_time = std::chrono::high_resolution_clock::now();
     bool mouseLeft = false;
     while(running)
     {
@@ -374,8 +341,11 @@ void Application::run() {
                     mouseLeft = false;
                     break;
                 case SDL_MOUSEMOTION:
-                    io.AddMousePosEvent(sdl_event.motion.x, sdl_event.motion.y);
-                    if (mouseLeft) {
+                    int wx, wy, mx, my;
+                    SDL_GetWindowPosition(window.getWindow(), &wx, &wy);
+                    SDL_GetGlobalMouseState(&mx, &my);
+                    io.AddMousePosEvent((mx - wx) * dpi_scale_fact, (my - wy) * dpi_scale_fact);
+                    if (mouseLeft && !ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow)) {
                         rotate.x = .05f*sdl_event.motion.yrel;
                         rotate.y = -.05f*sdl_event.motion.xrel;
                     }
@@ -411,17 +381,15 @@ void Application::run() {
             for (int k = 0; k < frameTimes.size(); k++) { avg += frameTimes[k]; }
             avg = avg / frameTimes.size();
             vkWaitForFences(device.device(), 1, renderer.getSwapChainImageFence(frameIndex), VK_TRUE, UINT64_MAX);
+            //imgui_time = std::chrono::high_resolution_clock::now();
             textMeshes.clear();
             font.renderText(std::to_string((int)(1.f / avg)) + " FPS", .9f, -.9f, .7f, {1.f, 1.f, 1.f}, aspect);
+            //std::cout << std::chrono::duration<float, std::chrono::milliseconds::period>(std::chrono::high_resolution_clock::now() -  imgui_time).count() << '\n';
             font.renderText(std::to_string(avg * 1000.f).substr(0, 4) + " MS", .9f, -.8f, .7f, {1.f, 1.f, 1.f}, aspect);
             frameTimes.clear();
         }
-        
-        int height,width;
-        SDL_GetWindowSize(window.getWindow(), &width, &height);
-        io.DisplaySize = {(float)width, (float)height};
-        imgui.newFrame();
-        vkDeviceWaitIdle(device.device());
+
+        imgui.newFrame(this);
         imgui.updateBuffers();
         
         if (auto commandBuffer = renderer.beginFrame()) {
@@ -464,14 +432,14 @@ void Application::run() {
             
             //RenderPass
             renderer.beginOffscreenRenderPass(commandBuffer);
-            skyboxSystem.renderSolidObjects(skyboxInfo);
-            renderSystem.renderSolidObjects(frameInfo);
+            skyboxSystem->renderSolidObjects(skyboxInfo);
+            renderSystem->renderSolidObjects(frameInfo);
             renderer.endOffscreenRenderPass(commandBuffer);
             
             renderer.beginSwapChainRenderPass(commandBuffer);
-            composition.renderSceneToSwapChain(commandBuffer, compositionDescriptorSets[frameIndex]);
+            postProcessing.renderSceneToSwapChain(commandBuffer, renderer.getPostProcessingDescriptorSets()->at(frameIndex));
             guiSystem.renderSolidObjects(guiInfo);
-            imgui.draw(commandBuffer, imguiDescriptorSets[frameIndex]);
+            imgui.draw(commandBuffer, frameIndex);
             renderer.endSwapChainRenderPass(commandBuffer);
             
             renderer.endFrame();
@@ -490,6 +458,7 @@ void Application::loadSolidObjects() {
     sphere.transform.rotation.x = .04f;
     sphere.transform.scale = {1.f, 1.f, 1.f};
     solidObjects.emplace(sphere.getId(), std::move(sphere));
+    obj = sphere.getId();
     
     auto block = SolidObject::createSolidObject();
     block.model = Model::createModelFromFile(device, binaryDir+"plane.obj");
@@ -506,4 +475,39 @@ void Application::loadSolidObjects() {
     cube.transform.scale = {1.f, 1.f, 1.f};
     cube.transform.rotation = {.0f, .0f, .0f};
     env.emplace(cube.getId(), std::move(cube));
+}
+
+void Application::renderImguiContent() {
+    ImGui::TextUnformatted(device.properties.deviceName);
+    ImGui::SetNextWindowPos(ImVec2(20, 360), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_FirstUseEver);
+    ImGui::Begin("Settings", nullptr, ImGuiWindowFlags_NoTitleBar);
+    static bool vsync = SwapChain::enableVSync;
+    ImGui::Checkbox("VSync: ", &vsync);
+    if (SwapChain::enableVSync != vsync) {
+        SwapChain::enableVSync = vsync;
+        renderer.recreateSwapChain();
+    }
+    ImGui::NewLine();
+    static int msaa = device.msaaSamples;
+    ImGui::Text("Anti-Aliasing:");
+    ImGui::RadioButton("No AA", &msaa, 1);
+    for (int i = 2; i <= device.maxSampleCount; i *= 2) {
+        ImGui::RadioButton(("MSAA "+std::to_string(i)+"X").c_str(), &msaa, i);
+    }
+    if (msaa != device.msaaSamples) {
+        device.msaaSamples = (VkSampleCountFlagBits)msaa;
+        renderer.recreateOffscreenFlag = true;
+        renderer.recreateSwapChain();
+        renderSystem->recreatePipeline(renderer.getOffscreenRenderPass(), device.msaaSamples);
+        skyboxSystem->recreatePipeline(renderer.getOffscreenRenderPass(), device.msaaSamples);
+    }
+    ImGui::NewLine();
+    float ddpi;
+    SDL_GetDisplayDPI(0, &ddpi, nullptr, nullptr);
+    ImGui::Text("Window size: %i x %i", WIDTH, HEIGHT);
+    ImGui::Text("Vulkan surface: %i x %i", surfaceExtent.width, surfaceExtent.height);
+    ImGui::Text("Actual window: %i x %i", windowExtent.width, windowExtent.height);
+    ImGui::Text("Display0 DPI: %i", (int)ddpi);
+    ImGui::End();
 }

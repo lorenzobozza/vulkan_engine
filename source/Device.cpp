@@ -141,6 +141,7 @@ void Device::pickPhysicalDevice() {
     if (isDeviceSuitable(device)) {
       physicalDevice = device;
       msaaSamples = getMaxUsableSampleCount();
+      maxSampleCount = msaaSamples;
       break;
     }
   }

@@ -39,6 +39,7 @@ public:
     
     void run();
     void simulate();
+    void renderImguiContent();
     
     static int sum(int a) { return a + a; }
     
@@ -49,6 +50,8 @@ private:
     Device device{window};
     Renderer renderer{window, device};
     Image vulkanImage{device};
+    std::unique_ptr<RenderSystem> renderSystem;
+    std::unique_ptr<RenderSystem> skyboxSystem;
     
     std::vector< std::unique_ptr<Texture> > textures{};
     std::vector<VkDescriptorImageInfo> textureInfos{};
@@ -65,6 +68,13 @@ private:
     
     uint8_t load_phase{0};
     std::string binaryDir;
+    
+    struct{
+        int width;
+        int height;
+    } surfaceExtent, windowExtent;
+    
+    id_t obj;
 };
 
 #endif /* Application_hpp */

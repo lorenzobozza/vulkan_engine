@@ -32,7 +32,8 @@ class RenderSystem {
 
   RenderSystem(const RenderSystem &) = delete;
   RenderSystem &operator=(const RenderSystem &) = delete;
-
+  
+  void recreatePipeline(VkRenderPass renderPass, VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT);
   virtual void renderSolidObjects(FrameInfo &frameInfo);
 
  private:
@@ -44,7 +45,7 @@ protected:
 
     std::unique_ptr<Pipeline> pipeline;
     VkPipelineLayout pipelineLayout;
-    VkSampleCountFlagBits samples;
+    VkSampleCountFlagBits sampleCount;
     std::string shaderPath;
 };
 

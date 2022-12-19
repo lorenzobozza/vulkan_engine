@@ -21,6 +21,8 @@
 class SwapChain {
  public:
   static constexpr int MAX_FRAMES_IN_FLIGHT = 2;
+  
+  static bool enableVSync;
 
   SwapChain(Device &deviceRef, VkExtent2D windowExtent);
   SwapChain(Device &deviceRef, VkExtent2D windowExtent, std::shared_ptr<SwapChain> previous);
@@ -29,9 +31,6 @@ class SwapChain {
   SwapChain(const SwapChain &) = delete;
   SwapChain &operator=(const SwapChain &) = delete;
 
-  VkRenderPass getOffscreenRenderPass() { return offscreen.renderPass; }
-  VkFramebuffer getOffscreenFrameBuffer() { return offscreen.frameBuffer; }
-  VkDescriptorImageInfo getOffscreenDescriptorInfo();
   VkRenderPass getCompositionRenderPass() { return compositionRenderPass; }
   VkFramebuffer getSwapChainFrameBuffer(int index) { return swapChainFramebuffers[index]; }
   VkImage getImage(int index) { return swapChainImages[index]; }
@@ -39,7 +38,6 @@ class SwapChain {
   VkFence *getCurrentImageFence(int imageIndex) { return &imagesInFlight[imageIndex]; }
   size_t imageCount() { return swapChainImages.size(); }
   VkFormat getSwapChainImageFormat() { return swapChainImageFormat; }
-  VkFormat getOffscreenImageFormat() { return offscreenImageFormat; }
   VkExtent2D getSwapChainExtent() { return swapChainExtent; }
   bool isVSyncEnabled() { return enableVSync; }
   uint32_t width() { return swapChainExtent.width; }
@@ -53,28 +51,22 @@ class SwapChain {
   VkResult acquireNextImage(uint32_t *imageIndex);
   VkResult submitCommandBuffers(const VkCommandBuffer *buffers, uint32_t *imageIndex);
 
+/*
     bool compareSwapFormats(const SwapChain &swap_chain) const {
         return swap_chain.offscreenDepthFormat == offscreenDepthFormat &&
             swap_chain.offscreenImageFormat == offscreenImageFormat;
     } //MAYBE relative to final swapchain format
+*/
 
  private:
     void init();
     void createSwapChain();
     void createImageViews();
-    void createColorResources();
-    void createDepthResources();
-    void createMultisamplingResources();
     void createDepthStencilResources();
-    void createOffscreenRenderPass();
-    void createOffscreenFramebuffer();
-    void createOffscreenSampler();
     void createCompositionRenderPass();
     void createSwapChainFramebuffers();
     void createSyncObjects();
     
-    bool enableVSync = true;
-
     // Helper functions
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(
       const std::vector<VkSurfaceFormatKHR> &availableFormats);
@@ -87,24 +79,14 @@ class SwapChain {
 		VkDeviceMemory mem;
 		VkImageView view;
 	};
-    struct OffscreenPass {
-		int32_t width, height;
-		VkFramebuffer frameBuffer;
-		FrameBufferAttachment color, depth, multisampling;
-		VkRenderPass renderPass;
-		VkSampler sampler;
-		VkDescriptorImageInfo descriptor;
-	} offscreen;
+    FrameBufferAttachment depthStencil;
  
-    VkFormat offscreenImageFormat;
-    VkFormat offscreenDepthFormat;
     VkFormat swapChainImageFormat;
     VkExtent2D swapChainExtent;
  
     std::vector<VkFramebuffer> swapChainFramebuffers;
     VkRenderPass compositionRenderPass;
     
-    FrameBufferAttachment depthStencil;
     std::vector<VkImage> swapChainImages;
     std::vector<VkImageView> swapChainImageViews;
 

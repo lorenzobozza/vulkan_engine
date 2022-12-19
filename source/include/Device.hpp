@@ -88,6 +88,7 @@ class Device {
 
   VkPhysicalDeviceProperties properties;
   VkSampleCountFlagBits msaaSamples;
+  VkSampleCountFlagBits maxSampleCount;
 
  private:
   void createInstance();
