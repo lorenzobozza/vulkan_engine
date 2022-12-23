@@ -49,12 +49,24 @@ Buffer::Buffer(Device& device) : device{device} {}
  
 Buffer::~Buffer() {
   unmap();
-  destroy();
+  vkDestroyBuffer(device.device(), buffer, nullptr);
+  vkDestroyBuffer(device.device(), oldBuffer, nullptr);
+  vkDestroyBuffer(device.device(), safeToDestroyBuffer, nullptr);
+  vkFreeMemory(device.device(), memory, nullptr);
+  vkFreeMemory(device.device(), oldMemory, nullptr);
+  vkFreeMemory(device.device(), safeToDestroyMemory, nullptr);
 }
 
 void Buffer::destroy() {
-    vkDestroyBuffer(device.device(), buffer, nullptr);
-    vkFreeMemory(device.device(), memory, nullptr);
+    vkDestroyBuffer(device.device(), safeToDestroyBuffer, nullptr);
+    safeToDestroyBuffer = oldBuffer;
+    oldBuffer = buffer;
+    buffer = VK_NULL_HANDLE;
+    
+    vkFreeMemory(device.device(), safeToDestroyMemory, nullptr);
+    safeToDestroyMemory = oldMemory;
+    oldMemory = memory;
+    memory = VK_NULL_HANDLE;
 }
 
 void Buffer::createBuffer(VkDeviceSize bufferSize, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags) {

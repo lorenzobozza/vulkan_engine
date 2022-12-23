@@ -12,6 +12,11 @@
 #include <cassert>
 #include <stdexcept>
 
+struct PushConstantData {
+  float peak_brightness{};
+  float gamma{};
+};
+
 CompositionPipeline::CompositionPipeline(
     Device& passDevice,
     VkRenderPass renderPass,
@@ -26,13 +31,20 @@ CompositionPipeline::~CompositionPipeline() {
 }
 
 void CompositionPipeline::createPipelineLayout(VkDescriptorSetLayout compositionSetLayout) {
+    VkPushConstantRange pushConstantRange;
+
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(PushConstantData);
+    
     std::vector<VkDescriptorSetLayout> descriptorSetLayouts{compositionSetLayout};
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
     pipelineLayoutInfo.pSetLayouts = &compositionSetLayout;
-    pipelineLayoutInfo.pushConstantRangeCount = 0;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
     if (vkCreatePipelineLayout(device.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create pipeline layout!");
     }
@@ -81,6 +93,18 @@ void CompositionPipeline::renderSceneToSwapChain(VkCommandBuffer commandBuffer, 
         0,
         nullptr
     );
+    
+    PushConstantData push{};
+    push.peak_brightness = peak_brightness;
+    push.gamma = gamma;
+    
+    vkCmdPushConstants(
+        commandBuffer,
+        pipelineLayout,
+        VK_SHADER_STAGE_FRAGMENT_BIT,
+        0,
+        sizeof(PushConstantData),
+        &push);
     
     quad->bind(commandBuffer);
     quad->draw(commandBuffer);

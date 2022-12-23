@@ -31,6 +31,9 @@ class CompositionPipeline {
   CompositionPipeline &operator=(const CompositionPipeline &) = delete;
 
   virtual void renderSceneToSwapChain(VkCommandBuffer commandBuffer, VkDescriptorSet &descriptorSets);
+  
+  float peak_brightness = 400.f;
+  float gamma = 2.2f;
 
  private:
   void createPipelineLayout(VkDescriptorSetLayout globalSetLayout);

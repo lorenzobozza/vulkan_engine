@@ -7,7 +7,6 @@
 
 #include "include/Application.hpp"
 #include "include/RenderSystem.hpp"
-#include "include/CompositionPipeline.hpp"
 #include "include/UI.hpp"
 #include "include/Buffer.hpp"
 
@@ -49,7 +48,6 @@ void Application::run() {
 
     // GAMELOOP TIMING
     auto currentTime = std::chrono::high_resolution_clock::now();
-    std::vector<float> frameTimes;
     int cnt{0};
     auto startTime = currentTime;
     
@@ -88,12 +86,12 @@ void Application::run() {
         binaryDir+"font"
     };
 
-    CompositionPipeline postProcessing{
+    postProcessing = std::make_unique<CompositionPipeline>(
         device,
         renderer.getSwapChainRenderPass(),
         renderer.getPostProcessingDescriptorSetLayout(),
         binaryDir+"composition"
-    };
+    );
     
     UI imgui(device, renderer.getSwapChainRenderPass(), binaryDir+"imgui");
 
@@ -118,7 +116,7 @@ void Application::run() {
     }).detach();
     
     // Loading Screen Rendering
-    font.renderText("Vulkan Engine v0.7 Beta, MSAA x" + std::to_string(device.msaaSamples) + ", V-Sync: " + (renderer.isVSyncEnabled() ? "On" : "Off") , -.65f, -.9f, .4f, {.2f, .8f, 1.f}, aspect);
+    font.renderText("Vulkan Engine v0.7 Beta, MSAA up to " + std::to_string(device.msaaSamples) + "X, V-Sync: " + (renderer.isVSyncEnabled() ? "On" : "Off") , -.65f, -.9f, .4f, {.2f, .8f, 1.f}, aspect);
     font.renderText("Loading Vulkan Engine", .0f, .0f, 1.2f, { .7f, .0f, .0f}, aspect);
     textHolder.insert(textMeshes.begin(), textMeshes.end());
     font.renderText("Lorenzo Bozza's Works", .0f, .2f, .4f, { .8f, .8f, .8f}, aspect);
@@ -126,8 +124,6 @@ void Application::run() {
     bool nextIsLast = false;
     while (!assetsLoaded || load_phase > 0 || nextIsLast) {
         SDL_PollEvent(&sdl_event);
-        
-        cnt = (cnt + 130) % 628;
         
         auto newTime = std::chrono::high_resolution_clock::now();
         float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime -  currentTime).count();
@@ -151,7 +147,7 @@ void Application::run() {
             renderer.endOffscreenRenderPass(commandBuffer);
             
             renderer.beginSwapChainRenderPass(commandBuffer);
-            postProcessing.renderSceneToSwapChain(commandBuffer, renderer.getPostProcessingDescriptorSets()->at(frameIndex));
+            postProcessing->renderSceneToSwapChain(commandBuffer, renderer.getPostProcessingDescriptorSets()->at(frameIndex));
             guiSystem.renderSolidObjects(guiInfo);
             renderer.endSwapChainRenderPass(commandBuffer);
             
@@ -203,7 +199,7 @@ void Application::run() {
     HDRi irradianceMap{device, environment, {32, 32}, "irradiance"};
     auto irradiance = irradianceMap.descriptorInfo();
     
-    font.renderText("Assets load time: " + std::to_string(std::chrono::duration<float, std::chrono::seconds::period>(std::chrono::high_resolution_clock::now() - startTime).count()).substr(0, 5) + " s", .0f, -.9f, .6f, { .5f, .0f, .0f}, aspect);
+    font.renderText("Assets took " + std::to_string(std::chrono::duration<float, std::chrono::seconds::period>(std::chrono::high_resolution_clock::now() - startTime).count()).substr(0, 4) + " seconds to load", .0f, -.9f, .6f, { .8f, .8f, .8f}, aspect);
     
     // Uniform Buffer Object (GlobalUbo)
     std::unique_ptr<Buffer> uboBuffer;
@@ -217,7 +213,7 @@ void Application::run() {
     uboBuffer->map();
     auto bufferInfo = uboBuffer->descriptorInfo();
 
-    // SKYBOX RENDERING
+    // SKYBOX RENDERING DESCRIPTORS AND PIPELINE
     std::unique_ptr<DescriptorPool> skyboxPool =
        DescriptorPool::Builder(device)
            .setMaxSets(1)
@@ -250,7 +246,7 @@ void Application::run() {
         textureInfos.push_back(textures.at(i)->descriptorInfo());
     }
     
-    // GLOBAL RENDER SYSTEM
+    // GLOBAL RENDER SYSTEM DESCRIPTORS AND PIPELINE
     globalPool =
        DescriptorPool::Builder(device)
            .setMaxSets(1)
@@ -291,15 +287,26 @@ void Application::run() {
     
     SDL_Vulkan_GetDrawableSize(window.getWindow(), &surfaceExtent.width, &surfaceExtent.height);
     SDL_GetWindowSize(window.getWindow(), &windowExtent.width, &windowExtent.height);
-    
+    float dpi_scale_fact = surfaceExtent.width / windowExtent.width;
     ImGuiIO& io = ImGui::GetIO();
     io.DisplaySize = {(float)surfaceExtent.width, (float)surfaceExtent.height};
-    
-    float dpi_scale_fact = surfaceExtent.width / windowExtent.width;
+    io.FontGlobalScale = dpi_scale_fact;
+    {
+        ImGuiStyle& style = ImGui::GetStyle();
+        style.FrameBorderSize = 0.0f;
+        style.WindowBorderSize = 0.0f;
+        style.Colors[ImGuiCol_TitleBg] = ImVec4(0.2f, 0.0f, 0.4f, 0.6f);
+        style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.2f, 0.0f, 0.4f, 0.8f);
+        style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.2f, 0.0f, 0.4f, 0.4f);
+        style.Colors[ImGuiCol_Header] = ImVec4(0.2f, 0.0f, 0.4f, 0.4f);
+        style.Colors[ImGuiCol_CheckMark] = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
+        style.WindowRounding = 10.f;
+        style.FrameRounding = 5.f;
+        style.ScaleAllSizes(dpi_scale_fact);
+    }
     
     bool running = true;
-    auto counter1Hz = std::chrono::high_resolution_clock::now();
-    //auto imgui_time = std::chrono::high_resolution_clock::now();
+    auto counter4Hz = std::chrono::high_resolution_clock::now();
     bool mouseLeft = false;
     while(running)
     {
@@ -309,7 +316,21 @@ void Application::run() {
         float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime -  currentTime).count();
         currentTime = newTime;
         frameTimes.push_back(frameTime);
+        if (frameTimes.size() > 50) {
+            frameTimes.erase(frameTimes.begin());
+        }
         frameTime = glm::min(frameTime, .05f); // Prevent movement glitches when resizing
+        if (std::chrono::duration<float, std::chrono::seconds::period>(newTime -  counter4Hz).count() > .25f) {
+            counter4Hz = newTime;
+            float avg = 0;
+            for (int k = 0; k < frameTimes.size(); k++) { avg += frameTimes[k]; }
+            avg = avg / frameTimes.size();
+            avg = 1.f / avg;
+            framesPerSecond.push_back(avg);
+            if (framesPerSecond.size() > 75) {
+                framesPerSecond.erase(framesPerSecond.begin());
+            }
+        }
 
         while(SDL_PollEvent(&sdl_event))
         {
@@ -373,22 +394,8 @@ void Application::run() {
         // Polling keystrokes and adjusting the camera position/rotation
         camera.setViewYXZ(cameraObj.transform.translation, cameraObj.transform.rotation);
         //cameraCtrl.moveInPlaneXZ(window.getGLFWwindow(), frameTime, cameraObj);
-        
-        if (std::chrono::duration<float, std::chrono::seconds::period>(newTime -  counter1Hz).count() > 1.f) {
-            counter1Hz = newTime;
-            //std::cout << frameTimes.back() << " - " << frameTimes.front() << '\n';
-            float avg = 0;
-            for (int k = 0; k < frameTimes.size(); k++) { avg += frameTimes[k]; }
-            avg = avg / frameTimes.size();
-            vkWaitForFences(device.device(), 1, renderer.getSwapChainImageFence(frameIndex), VK_TRUE, UINT64_MAX);
-            //imgui_time = std::chrono::high_resolution_clock::now();
-            textMeshes.clear();
-            font.renderText(std::to_string((int)(1.f / avg)) + " FPS", .9f, -.9f, .7f, {1.f, 1.f, 1.f}, aspect);
-            //std::cout << std::chrono::duration<float, std::chrono::milliseconds::period>(std::chrono::high_resolution_clock::now() -  imgui_time).count() << '\n';
-            font.renderText(std::to_string(avg * 1000.f).substr(0, 4) + " MS", .9f, -.8f, .7f, {1.f, 1.f, 1.f}, aspect);
-            frameTimes.clear();
-        }
 
+        // Update ImGui Buffer
         imgui.newFrame(this);
         imgui.updateBuffers();
         
@@ -437,7 +444,7 @@ void Application::run() {
             renderer.endOffscreenRenderPass(commandBuffer);
             
             renderer.beginSwapChainRenderPass(commandBuffer);
-            postProcessing.renderSceneToSwapChain(commandBuffer, renderer.getPostProcessingDescriptorSets()->at(frameIndex));
+            postProcessing->renderSceneToSwapChain(commandBuffer, renderer.getPostProcessingDescriptorSets()->at(frameIndex));
             guiSystem.renderSolidObjects(guiInfo);
             imgui.draw(commandBuffer, frameIndex);
             renderer.endSwapChainRenderPass(commandBuffer);
@@ -461,11 +468,11 @@ void Application::loadSolidObjects() {
     obj = sphere.getId();
     
     auto block = SolidObject::createSolidObject();
-    block.model = Model::createModelFromFile(device, binaryDir+"plane.obj");
-    block.textureIndex = 1;
-    block.transform.translation = {.0f, 1.0f, .0f};
-    block.transform.scale = {.4f, .4f, .4f};
-    block.transform.rotation = {.0f, .0f, .0f};
+    block.model = Model::createModelFromFile(device, binaryDir+"sponza.obj");
+    block.textureIndex = -1;
+    block.transform.translation = {.0f, 1.f, .0f};
+    block.transform.scale = {.01f, .01f, .01f};
+    block.transform.rotation = {3.14f, 1.57f, .0f};
     solidObjects.emplace(block.getId(), std::move(block));
     
     // Cubemap 3D canvas
@@ -479,11 +486,19 @@ void Application::loadSolidObjects() {
 
 void Application::renderImguiContent() {
     ImGui::TextUnformatted(device.properties.deviceName);
+    
     ImGui::SetNextWindowPos(ImVec2(20, 360), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiCond_FirstUseEver);
     ImGui::Begin("Settings", nullptr, ImGuiWindowFlags_NoTitleBar);
+    
+    std::string label = std::to_string((int)framesPerSecond.rbegin()[0]) + " FPS";
+    ImGui::PlotLines(label.c_str(), framesPerSecond.data(), (int)framesPerSecond.size(), 0, NULL, 0, FLT_MAX, {0, 100});
+    ImGui::NewLine();
+    ImGui::SliderFloat("Peak Brightness", &postProcessing->peak_brightness, 80.f, 1000.f);
+    ImGui::SliderFloat("Gamma Correction", &postProcessing->gamma, 1.f, 3.f);
+    ImGui::NewLine();
     static bool vsync = SwapChain::enableVSync;
-    ImGui::Checkbox("VSync: ", &vsync);
+    ImGui::Checkbox(vsync ? "VSync Enabled" : "VSync Disabled", &vsync);
     if (SwapChain::enableVSync != vsync) {
         SwapChain::enableVSync = vsync;
         renderer.recreateSwapChain();
@@ -506,8 +521,9 @@ void Application::renderImguiContent() {
     float ddpi;
     SDL_GetDisplayDPI(0, &ddpi, nullptr, nullptr);
     ImGui::Text("Window size: %i x %i", WIDTH, HEIGHT);
-    ImGui::Text("Vulkan surface: %i x %i", surfaceExtent.width, surfaceExtent.height);
     ImGui::Text("Actual window: %i x %i", windowExtent.width, windowExtent.height);
-    ImGui::Text("Display0 DPI: %i", (int)ddpi);
+    ImGui::Text("Vulkan surface: %i x %i", surfaceExtent.width, surfaceExtent.height);
+    ImGui::Text("Display DPI: %i", (int)ddpi);
+
     ImGui::End();
 }

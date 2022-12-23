@@ -20,18 +20,6 @@ UI::UI(Device &device, VkRenderPass renderPass, std::string dynamicShaderPath) :
     createPipeline(renderPass, dynamicShaderPath);
     
     ImGui::StyleColorsDark();
-    
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.FrameBorderSize = 0.0f;
-    style.WindowBorderSize = 0.0f;
-    style.Colors[ImGuiCol_TitleBg] = ImVec4(0.2f, 0.0f, 0.4f, 0.6f);
-    style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.2f, 0.0f, 0.4f, 0.8f);
-    style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.2f, 0.0f, 0.4f, 0.4f);
-    style.Colors[ImGuiCol_Header] = ImVec4(0.2f, 0.0f, 0.4f, 0.4f);
-    style.Colors[ImGuiCol_CheckMark] = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
-    
-    style.WindowRounding = 10.f;
-    style.FrameRounding = 5.f;
 }
 
 UI::~UI() {
@@ -180,45 +168,11 @@ void UI::newFrame(Application *app) {
     //SRS - Display Vulkan API version and device driver information if available (otherwise blank)
     ImGui::Text("Vulkan API %i.%i.%i", VK_API_VERSION_MAJOR(device.properties.apiVersion), VK_API_VERSION_MINOR(device.properties.apiVersion), VK_API_VERSION_PATCH(device.properties.apiVersion));
     ImGui::Text("%i", device.properties.driverVersion);
-
-    //ImGui::SliderFloat("Luminance [cd/m^2]", slider, 0.0f, 1.0f);
     
     app->renderImguiContent();
-    
-    /*
-    // Update frame time display
-    if (updateFrameGraph) {
-        std::rotate(uiSettings.frameTimes.begin(), uiSettings.frameTimes.begin() + 1, uiSettings.frameTimes.end());
-        float frameTime = 1000.0f / (example->frameTimer * 1000.0f);
-        uiSettings.frameTimes.back() = frameTime;
-        if (frameTime < uiSettings.frameTimeMin) {
-            uiSettings.frameTimeMin = frameTime;
-        }
-        if (frameTime > uiSettings.frameTimeMax) {
-            uiSettings.frameTimeMax = frameTime;
-        }
-    }
-
-    ImGui::PlotLines("Frame Times", &uiSettings.frameTimes[0], 50, 0, "", uiSettings.frameTimeMin, uiSettings.frameTimeMax, ImVec2(0, 80));
-
-    ImGui::Text("Camera");
-    ImGui::InputFloat3("position", &example->camera.position.x, 2);
-    ImGui::InputFloat3("rotation", &example->camera.rotation.x, 2);
-
-    // SRS - Set initial position and size of Example settings window
-    ImGui::SetNextWindowPos(ImVec2(20 * example->UIOverlay.scale, 360 * example->UIOverlay.scale), ImGuiSetCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(300 * example->UIOverlay.scale, 200 * example->UIOverlay.scale), ImGuiSetCond_FirstUseEver);
-    ImGui::Begin("Example settings");
-    ImGui::Checkbox("Render models", &uiSettings.displayModels);
-    ImGui::Checkbox("Display logos", &uiSettings.displayLogos);
-    ImGui::Checkbox("Display background", &uiSettings.displayBackground);
-    ImGui::Checkbox("Animate light", &uiSettings.animateLight);
-    ImGui::SliderFloat("Light speed", &uiSettings.lightSpeed, 0.1f, 1.0f);
-    ImGui::End();
-    */
 
     //SRS - ShowDemoWindow() sets its own initial position and size, cannot override here
-    ImGui::ShowDemoWindow();
+    //ImGui::ShowDemoWindow();
 
     // Render to generate draw buffers
     ImGui::Render();
@@ -239,7 +193,6 @@ void UI::updateBuffers() {
 
     // Vertex buffer
     if ((vertexBuffer.getBuffer() == VK_NULL_HANDLE) || (vertexCount != imDrawData->TotalVtxCount)) {
-        vkDeviceWaitIdle(device.device());
         vertexBuffer.unmap();
         vertexBuffer.destroy();
         vertexBuffer.createBuffer(vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
@@ -249,7 +202,6 @@ void UI::updateBuffers() {
 
     // Index buffer
     if ((indexBuffer.getBuffer() == VK_NULL_HANDLE) || (indexCount < imDrawData->TotalIdxCount)) {
-        vkDeviceWaitIdle(device.device());
         indexBuffer.unmap();
         indexBuffer.destroy();
         indexBuffer.createBuffer(indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);

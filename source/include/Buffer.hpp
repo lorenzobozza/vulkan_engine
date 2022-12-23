@@ -56,7 +56,11 @@ class Buffer {
   Device& device;
   void* mapped = nullptr;
   VkBuffer buffer = VK_NULL_HANDLE;
+  VkBuffer oldBuffer = VK_NULL_HANDLE;
+  VkBuffer safeToDestroyBuffer = VK_NULL_HANDLE;
   VkDeviceMemory memory = VK_NULL_HANDLE;
+  VkDeviceMemory oldMemory = VK_NULL_HANDLE;
+  VkDeviceMemory safeToDestroyMemory = VK_NULL_HANDLE;
  
   VkDeviceSize bufferSize;
   uint32_t instanceCount;

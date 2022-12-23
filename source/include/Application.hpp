@@ -19,6 +19,7 @@
 #include "Texture.hpp"
 #include "TextRender.hpp"
 #include "HDRi.hpp"
+#include "CompositionPipeline.hpp"
 
 //std
 #include <memory>
@@ -52,6 +53,7 @@ private:
     Image vulkanImage{device};
     std::unique_ptr<RenderSystem> renderSystem;
     std::unique_ptr<RenderSystem> skyboxSystem;
+    std::unique_ptr<CompositionPipeline> postProcessing;
     
     std::vector< std::unique_ptr<Texture> > textures{};
     std::vector<VkDescriptorImageInfo> textureInfos{};
@@ -65,6 +67,8 @@ private:
     
     SDL_Event sdl_event;
     int frameIndex{0};
+    std::vector<float> frameTimes;
+    std::vector<float> framesPerSecond{0};
     
     uint8_t load_phase{0};
     std::string binaryDir;
