@@ -13,6 +13,14 @@
 #include <fstream>
 
 UI::UI(Device &device, VkRenderPass renderPass, std::string dynamicShaderPath) : device{device} {
+    vertexBuffers = new std::vector<std::unique_ptr<Buffer>>(SwapChain::MAX_FRAMES_IN_FLIGHT);
+    indexBuffers = new std::vector<std::unique_ptr<Buffer>>(SwapChain::MAX_FRAMES_IN_FLIGHT);
+    
+    for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+        vertexBuffers->at(i) = std::make_unique<Buffer>(device);
+        indexBuffers->at(i) = std::make_unique<Buffer>(device);
+    }
+
     ImGui::CreateContext();
     
     loadFontTexture();
@@ -32,6 +40,13 @@ UI::~UI() {
     vkDestroyImageView(device.device(), fontView, nullptr);
     vkDestroyImage(device.device(), fontImage, nullptr);
     vkFreeMemory(device.device(), fontMem, nullptr);
+    
+    for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+        vertexBuffers->at(i).reset();
+        indexBuffers->at(i).reset();
+    }
+    vertexBuffers = nullptr;
+    indexBuffers = nullptr;
 }
 
 void UI::createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath) {
@@ -178,7 +193,7 @@ void UI::newFrame(Application *app) {
     ImGui::Render();
 }
 
-void UI::updateBuffers() {
+void UI::updateBuffers(int frameIndex) {
     ImDrawData* imDrawData = ImGui::GetDrawData();
 
     // Note: Alignment is done inside buffer creation
@@ -192,26 +207,26 @@ void UI::updateBuffers() {
     // Update buffers only if vertex or index count has been changed compared to current buffer size
 
     // Vertex buffer
-    if ((vertexBuffer.getBuffer() == VK_NULL_HANDLE) || (vertexCount != imDrawData->TotalVtxCount)) {
-        vertexBuffer.unmap();
-        vertexBuffer.destroy();
-        vertexBuffer.createBuffer(vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-        vertexCount = imDrawData->TotalVtxCount;
-        vertexBuffer.map();
+    if ((vertexBuffers->at(frameIndex)->getBuffer() == VK_NULL_HANDLE) || (vertexCount[frameIndex] != imDrawData->TotalVtxCount)) {
+        vertexBuffers->at(frameIndex)->unmap();
+        vertexBuffers->at(frameIndex)->destroy();
+        vertexBuffers->at(frameIndex)->createBuffer(vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+        vertexCount[frameIndex] = imDrawData->TotalVtxCount;
+        vertexBuffers->at(frameIndex)->map();
     }
 
     // Index buffer
-    if ((indexBuffer.getBuffer() == VK_NULL_HANDLE) || (indexCount < imDrawData->TotalIdxCount)) {
-        indexBuffer.unmap();
-        indexBuffer.destroy();
-        indexBuffer.createBuffer(indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-        indexCount = imDrawData->TotalIdxCount;
-        indexBuffer.map();
+    if ((indexBuffers->at(frameIndex)->getBuffer() == VK_NULL_HANDLE) || (indexCount[frameIndex] < imDrawData->TotalIdxCount)) {
+        indexBuffers->at(frameIndex)->unmap();
+        indexBuffers->at(frameIndex)->destroy();
+        indexBuffers->at(frameIndex)->createBuffer(indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+        indexCount[frameIndex] = imDrawData->TotalIdxCount;
+        indexBuffers->at(frameIndex)->map();
     }
     
     // Upload data
-    ImDrawVert* vtxDst = (ImDrawVert*)vertexBuffer.getMappedMemory();
-    ImDrawIdx* idxDst = (ImDrawIdx*)indexBuffer.getMappedMemory();
+    ImDrawVert* vtxDst = (ImDrawVert*)vertexBuffers->at(frameIndex)->getMappedMemory();
+    ImDrawIdx* idxDst = (ImDrawIdx*)indexBuffers->at(frameIndex)->getMappedMemory();
 
     for (int n = 0; n < imDrawData->CmdListsCount; n++) {
         const ImDrawList* cmd_list = imDrawData->CmdLists[n];
@@ -222,8 +237,8 @@ void UI::updateBuffers() {
     }
 
     // Flush to make writes visible to GPU
-    vertexBuffer.flush();
-    indexBuffer.flush();
+    vertexBuffers->at(frameIndex)->flush();
+    indexBuffers->at(frameIndex)->flush();
 }
 
 
@@ -253,10 +268,10 @@ void UI::draw(VkCommandBuffer commandBuffer, int frameIndex) {
     int32_t indexOffset = 0;
 
     if (imDrawData->CmdListsCount > 0) {
-        VkBuffer buffers[] = {vertexBuffer.getBuffer()};
+        VkBuffer buffers[] = {vertexBuffers->at(frameIndex)->getBuffer()};
         VkDeviceSize offsets[] = {0};
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, buffers, offsets);
-        vkCmdBindIndexBuffer(commandBuffer, indexBuffer.getBuffer(), 0, VK_INDEX_TYPE_UINT16);
+        vkCmdBindIndexBuffer(commandBuffer, indexBuffers->at(frameIndex)->getBuffer(), 0, VK_INDEX_TYPE_UINT16);
 
         for (int32_t i = 0; i < imDrawData->CmdListsCount; i++)
         {

@@ -27,7 +27,7 @@ public:
 	} pushConstBlock;
     
     void newFrame(Application *app);
-    void updateBuffers();
+    void updateBuffers(int frameIndex);
     void draw(VkCommandBuffer commandBuffer, int frameIndex);
 
 private:
@@ -44,9 +44,9 @@ private:
     VkShaderModule vertShaderModule;
     VkShaderModule fragShaderModule;
     
-    Buffer vertexBuffer{device};
-    Buffer indexBuffer{device};
-    int vertexCount, indexCount;
+    std::vector<std::unique_ptr<Buffer>> *vertexBuffers;
+    std::vector<std::unique_ptr<Buffer>> *indexBuffers;
+    int vertexCount[SwapChain::MAX_FRAMES_IN_FLIGHT], indexCount[SwapChain::MAX_FRAMES_IN_FLIGHT];
     
     VkImage fontImage;
     VkDeviceMemory fontMem;

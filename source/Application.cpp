@@ -58,7 +58,7 @@ void Application::run() {
     bool orth = false;
     // Create object without model for the 3D camera position
     SolidObject cameraObj = SolidObject::createSolidObject();
-    cameraObj.transform.translation = {.0f, .0f, -2.f};
+    cameraObj.transform.translation = {.0f, -2.f, -2.f};
     
     TextRender font{device, textMeshes, "fonts/Disket-Mono-Regular.ttf"};
     auto faces = font.getDescriptor();
@@ -100,15 +100,9 @@ void Application::run() {
         this->load_phase = 1;
         this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_A.tga"));
         this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_N.tga", VK_FORMAT_R8G8B8A8_UNORM));
-        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_M.tga"));
-        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_R.tga"));
-        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_AO.tga"));
-        
-        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Waffle_A.png"));
-        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Waffle_N.png", VK_FORMAT_R8G8B8A8_UNORM));
-        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Waffle_M.png"));
-        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Waffle_R.png"));
-        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Waffle_AO.png"));
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_M.tga", VK_FORMAT_R8G8B8A8_UNORM));
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_R.tga", VK_FORMAT_R8G8B8A8_UNORM));
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_AO.tga", VK_FORMAT_R8G8B8A8_UNORM));
         this->load_phase = 2;
         this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/hdri/spiaggia_di_mondello_4k.hdr", VK_FORMAT_R32G32B32A32_SFLOAT));
         this->load_phase = 3;
@@ -188,7 +182,7 @@ void Application::run() {
     loadSolidObjects();
 
     //HDRi Pre-Processing
-    auto equitangular = textures.at(10)->descriptorInfo();
+    auto equitangular = textures.at(5)->descriptorInfo();
     
     HDRi environmentMap{device, equitangular, {1024, 1024}, "equirectangular", 9};
     auto environment = environmentMap.descriptorInfo();
@@ -201,24 +195,25 @@ void Application::run() {
     
     font.renderText("Assets took " + std::to_string(std::chrono::duration<float, std::chrono::seconds::period>(std::chrono::high_resolution_clock::now() - startTime).count()).substr(0, 4) + " seconds to load", .0f, -.9f, .6f, { .8f, .8f, .8f}, aspect);
     
-    // Uniform Buffer Object (GlobalUbo)
-    std::unique_ptr<Buffer> uboBuffer;
-    uboBuffer = std::make_unique<Buffer>(
-        device,
-        sizeof(GlobalUbo),
-        1,
-        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
-    );
-    uboBuffer->map();
-    auto bufferInfo = uboBuffer->descriptorInfo();
+    // Uniform Buffer Objects (GlobalUbo)
+    std::vector<std::unique_ptr<Buffer>> uboBuffers(SwapChain::MAX_FRAMES_IN_FLIGHT);
+     for (int i = 0; i < uboBuffers.size(); i++) {
+         uboBuffers[i] = std::make_unique<Buffer>(
+            device,
+            sizeof(GlobalUbo),
+            1,
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+        );
+        uboBuffers[i]->map();
+    }
 
     // SKYBOX RENDERING DESCRIPTORS AND PIPELINE
     std::unique_ptr<DescriptorPool> skyboxPool =
        DescriptorPool::Builder(device)
-           .setMaxSets(1)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1)
+           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
            .build();
     
     auto skyboxSetLayout =
@@ -226,13 +221,16 @@ void Application::run() {
             .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
             .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .build();
-    
-    VkDescriptorSet skyboxDescriptorSet;
-    DescriptorWriter(*skyboxSetLayout, *skyboxPool)
-        .writeBuffer(0, &bufferInfo)
-        .writeImage(1, &environment)
-        .build(skyboxDescriptorSet);
-    
+            
+    std::vector<VkDescriptorSet> skyboxDescriptorSets(SwapChain::MAX_FRAMES_IN_FLIGHT);
+     for (int i = 0; i < skyboxDescriptorSets.size(); i++) {
+         auto bufferInfo = uboBuffers[i]->descriptorInfo();
+         DescriptorWriter(*skyboxSetLayout, *skyboxPool)
+             .writeBuffer(0, &bufferInfo)
+             .writeImage(1, &environment)
+             .build(skyboxDescriptorSets[i]);
+     }
+
     skyboxSystem = std::make_unique<RenderSystem>(
         device,
         renderer.getOffscreenRenderPass(),
@@ -242,19 +240,19 @@ void Application::run() {
     );
     
     // Load Descriptors for PBR Textures
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 5; i++) {
         textureInfos.push_back(textures.at(i)->descriptorInfo());
     }
     
     // GLOBAL RENDER SYSTEM DESCRIPTORS AND PIPELINE
     globalPool =
        DescriptorPool::Builder(device)
-           .setMaxSets(1)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, (uint32_t)textureInfos.size())
+           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, (uint32_t)textureInfos.size() * SwapChain::MAX_FRAMES_IN_FLIGHT)
            .build();
 
     auto globalSetLayout =
@@ -267,15 +265,18 @@ void Application::run() {
                 VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
                 (uint32_t)textureInfos.size())
             .build();
-
-    VkDescriptorSet globalDescriptorSet;
-    DescriptorWriter(*globalSetLayout, *globalPool)
-        .writeBuffer(0, &bufferInfo)
-        .writeImage(1, &irradiance) // Irradiance
-        .writeImage(2, &prefiltered)  // Reflection
-        .writeImage(3, renderer.getBrdfLutInfo())
-        .writeImage(4, textureInfos.data())
-        .build(globalDescriptorSet);
+            
+    std::vector<VkDescriptorSet> globalDescriptorSets(SwapChain::MAX_FRAMES_IN_FLIGHT);
+     for (int i = 0; i < globalDescriptorSets.size(); i++) {
+         auto bufferInfo = uboBuffers[i]->descriptorInfo();
+         DescriptorWriter(*globalSetLayout, *globalPool)
+            .writeBuffer(0, &bufferInfo)
+            .writeImage(1, &irradiance) // Irradiance
+            .writeImage(2, &prefiltered)  // Reflection
+            .writeImage(3, renderer.getBrdfLutInfo())
+            .writeImage(4, textureInfos.data())
+            .build(globalDescriptorSets[i]);
+     }
     
     renderSystem = std::make_unique<RenderSystem>(
         device,
@@ -397,7 +398,6 @@ void Application::run() {
 
         // Update ImGui Buffer
         imgui.newFrame(this);
-        imgui.updateBuffers();
         
         if (auto commandBuffer = renderer.beginFrame()) {
             frameIndex = renderer.getFrameIndex();
@@ -406,7 +406,7 @@ void Application::run() {
                 frameTime,
                 commandBuffer,
                 camera,
-                globalDescriptorSet,
+                globalDescriptorSets[frameIndex],
                 solidObjects
             };
             
@@ -415,7 +415,7 @@ void Application::run() {
                 frameTime,
                 commandBuffer,
                 camera,
-                skyboxDescriptorSet,
+                skyboxDescriptorSets[frameIndex],
                 env
             };
             
@@ -434,8 +434,10 @@ void Application::run() {
             ubo.viewMatrix = frameInfo.camera.getView();
             ubo.invViewMatrix = frameInfo.camera.getInverseView();
             //ubo.lightPosition = pos;
-            uboBuffer->writeToBuffer(&ubo);
-            uboBuffer->flush();
+            uboBuffers[frameIndex]->writeToBuffer(&ubo);
+            uboBuffers[frameIndex]->flush();
+            
+            imgui.updateBuffers(frameIndex);
             
             //RenderPass
             renderer.beginOffscreenRenderPass(commandBuffer);
@@ -466,13 +468,13 @@ void Application::loadSolidObjects() {
     sphere.transform.scale = {1.f, 1.f, 1.f};
     solidObjects.emplace(sphere.getId(), std::move(sphere));
     obj = sphere.getId();
-    
+
     auto block = SolidObject::createSolidObject();
-    block.model = Model::createModelFromFile(device, binaryDir+"sponza.obj");
+    block.model = Model::createModelFromFile(device, binaryDir+"plane.obj");
     block.textureIndex = -1;
     block.transform.translation = {.0f, 1.f, .0f};
-    block.transform.scale = {.01f, .01f, .01f};
-    block.transform.rotation = {3.14f, 1.57f, .0f};
+    //block.transform.scale = {.01f, .01f, .01f};
+    //block.transform.rotation = {3.14f, 1.57f, .0f};
     solidObjects.emplace(block.getId(), std::move(block));
     
     // Cubemap 3D canvas
@@ -487,15 +489,17 @@ void Application::loadSolidObjects() {
 void Application::renderImguiContent() {
     ImGui::TextUnformatted(device.properties.deviceName);
     
-    ImGui::SetNextWindowPos(ImVec2(20, 360), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(200, 200), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(20, 500), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(500, 1000), ImGuiCond_FirstUseEver);
     ImGui::Begin("Settings", nullptr, ImGuiWindowFlags_NoTitleBar);
     
     std::string label = std::to_string((int)framesPerSecond.rbegin()[0]) + " FPS";
     ImGui::PlotLines(label.c_str(), framesPerSecond.data(), (int)framesPerSecond.size(), 0, NULL, 0, FLT_MAX, {0, 100});
     ImGui::NewLine();
-    ImGui::SliderFloat("Peak Brightness", &postProcessing->peak_brightness, 80.f, 1000.f);
-    ImGui::SliderFloat("Gamma Correction", &postProcessing->gamma, 1.f, 3.f);
+    ImGui::Text("Peak White Brightness:");
+    ImGui::SliderFloat("##", &postProcessing->peak_brightness, 80.f, 1000.f);
+    ImGui::Text("Gamma Correction:");
+    ImGui::SliderFloat("##", &postProcessing->gamma, 1.f, 3.f);
     ImGui::NewLine();
     static bool vsync = SwapChain::enableVSync;
     ImGui::Checkbox(vsync ? "VSync Enabled" : "VSync Disabled", &vsync);
