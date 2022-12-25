@@ -7,7 +7,7 @@
 
 #include "include/Application.hpp"
 #include "include/RenderSystem.hpp"
-#include "include/CompositionPipeline.hpp"
+#include "include/UI.hpp"
 #include "include/Buffer.hpp"
 
 //libs
@@ -48,11 +48,10 @@ void Application::run() {
 
     // GAMELOOP TIMING
     auto currentTime = std::chrono::high_resolution_clock::now();
-    std::vector<float> frameTimes;
     int cnt{0};
     auto startTime = currentTime;
     
-    // 3D + 2D CAMERAS
+    // 3D CAMERA
     Camera camera{};
     float aspect = renderer.getAspectRatio();
     camera.setProjection.perspective(aspect, glm::radians(75.f), .01f, 100.f);
@@ -86,48 +85,29 @@ void Application::run() {
         guiSetLayout->getDescriptorSetLayout(),
         binaryDir+"font"
     };
-    
-    // Composition Pipeline
-    std::unique_ptr<DescriptorPool> compositionPool =
-       DescriptorPool::Builder(device)
-           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .build();
-    
-    auto compositionSetLayout =
-        DescriptorSetLayout::Builder(device)
-            .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .build();
-    
-    std::vector<VkDescriptorSet>compositionDescriptorSets(SwapChain::MAX_FRAMES_IN_FLIGHT);
-    for (int i = 0; i < compositionDescriptorSets.size(); i++) {
-        auto descriptorInfo = renderer.getOffscreenImageInfo();
-        DescriptorWriter(*compositionSetLayout, *compositionPool)
-            .writeImage(0, &descriptorInfo)
-            .build(compositionDescriptorSets[i]);
-    }
-    
-    CompositionPipeline composition{
+
+    postProcessing = std::make_unique<CompositionPipeline>(
         device,
         renderer.getSwapChainRenderPass(),
-        compositionSetLayout->getDescriptorSetLayout(),
+        renderer.getPostProcessingDescriptorSetLayout(),
         binaryDir+"composition"
-    };
+    );
+    
+    UI imgui(device, renderer.getSwapChainRenderPass(), binaryDir+"imgui");
 
     // Load heavy assets on a separate thread
     std::thread([this]() {
         this->load_phase = 1;
         this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_A.tga"));
         this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_N.tga", VK_FORMAT_R8G8B8A8_UNORM));
-        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_M.tga"));
-        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_R.tga"));
-        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_AO.tga"));
-        
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_M.tga", VK_FORMAT_R8G8B8A8_UNORM));
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_R.tga", VK_FORMAT_R8G8B8A8_UNORM));
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_AO.tga", VK_FORMAT_R8G8B8A8_UNORM));
         this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Waffle_A.png"));
         this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Waffle_N.png", VK_FORMAT_R8G8B8A8_UNORM));
-        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Waffle_M.png"));
-        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Waffle_R.png"));
-        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Waffle_AO.png"));
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Waffle_M.png", VK_FORMAT_R8G8B8A8_UNORM));
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Waffle_R.png", VK_FORMAT_R8G8B8A8_UNORM));
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Waffle_AO.png", VK_FORMAT_R8G8B8A8_UNORM));
         this->load_phase = 2;
         this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/hdri/spiaggia_di_mondello_4k.hdr", VK_FORMAT_R32G32B32A32_SFLOAT));
         this->load_phase = 3;
@@ -135,7 +115,7 @@ void Application::run() {
     }).detach();
     
     // Loading Screen Rendering
-    font.renderText("Vulkan Engine v0.7 Beta, MSAA x" + std::to_string(device.msaaSamples) + ", V-Sync: " + (renderer.isVSyncEnabled() ? "On" : "Off") , -.65f, -.9f, .4f, {.2f, .8f, 1.f}, aspect);
+    font.renderText("Vulkan Engine v0.7 Beta, MSAA up to " + std::to_string(device.msaaSamples) + "X, V-Sync: " + (renderer.isVSyncEnabled() ? "On" : "Off") , -.65f, -.9f, .4f, {.2f, .8f, 1.f}, aspect);
     font.renderText("Loading Vulkan Engine", .0f, .0f, 1.2f, { .7f, .0f, .0f}, aspect);
     textHolder.insert(textMeshes.begin(), textMeshes.end());
     font.renderText("Lorenzo Bozza's Works", .0f, .2f, .4f, { .8f, .8f, .8f}, aspect);
@@ -143,8 +123,6 @@ void Application::run() {
     bool nextIsLast = false;
     while (!assetsLoaded || load_phase > 0 || nextIsLast) {
         SDL_PollEvent(&sdl_event);
-        
-        cnt = (cnt + 130) % 628;
         
         auto newTime = std::chrono::high_resolution_clock::now();
         float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime -  currentTime).count();
@@ -168,7 +146,7 @@ void Application::run() {
             renderer.endOffscreenRenderPass(commandBuffer);
             
             renderer.beginSwapChainRenderPass(commandBuffer);
-            composition.renderSceneToSwapChain(commandBuffer, compositionDescriptorSets[frameIndex]);
+            postProcessing->renderSceneToSwapChain(commandBuffer, renderer.getPostProcessingDescriptorSets()->at(frameIndex));
             guiSystem.renderSolidObjects(guiInfo);
             renderer.endSwapChainRenderPass(commandBuffer);
             
@@ -220,26 +198,27 @@ void Application::run() {
     HDRi irradianceMap{device, environment, {32, 32}, "irradiance"};
     auto irradiance = irradianceMap.descriptorInfo();
     
-    font.renderText("Assets load time: " + std::to_string(std::chrono::duration<float, std::chrono::seconds::period>(std::chrono::high_resolution_clock::now() - startTime).count()).substr(0, 5) + " s", .0f, -.9f, .6f, { .5f, .0f, .0f}, aspect);
+    font.renderText("Assets took " + std::to_string(std::chrono::duration<float, std::chrono::seconds::period>(std::chrono::high_resolution_clock::now() - startTime).count()).substr(0, 4) + " seconds to load", .0f, -.9f, .6f, { .8f, .8f, .8f}, aspect);
     
-    // Uniform Buffer Object (GlobalUbo)
-    std::unique_ptr<Buffer> uboBuffer;
-    uboBuffer = std::make_unique<Buffer>(
-        device,
-        sizeof(GlobalUbo),
-        1,
-        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
-    );
-    uboBuffer->map();
-    auto bufferInfo = uboBuffer->descriptorInfo();
+    // Uniform Buffer Objects (GlobalUbo)
+    std::vector<std::unique_ptr<Buffer>> uboBuffers(SwapChain::MAX_FRAMES_IN_FLIGHT);
+     for (int i = 0; i < uboBuffers.size(); i++) {
+         uboBuffers[i] = std::make_unique<Buffer>(
+            device,
+            sizeof(GlobalUbo),
+            1,
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+        );
+        uboBuffers[i]->map();
+    }
 
-    // SKYBOX RENDERING
+    // SKYBOX RENDERING DESCRIPTORS AND PIPELINE
     std::unique_ptr<DescriptorPool> skyboxPool =
        DescriptorPool::Builder(device)
-           .setMaxSets(1)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1)
+           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
            .build();
     
     auto skyboxSetLayout =
@@ -247,35 +226,38 @@ void Application::run() {
             .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
             .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .build();
-    
-    VkDescriptorSet skyboxDescriptorSet;
-    DescriptorWriter(*skyboxSetLayout, *skyboxPool)
-        .writeBuffer(0, &bufferInfo)
-        .writeImage(1, &environment)
-        .build(skyboxDescriptorSet);
-    
-    RenderSystem skyboxSystem{
+            
+    std::vector<VkDescriptorSet> skyboxDescriptorSets(SwapChain::MAX_FRAMES_IN_FLIGHT);
+     for (int i = 0; i < skyboxDescriptorSets.size(); i++) {
+         auto bufferInfo = uboBuffers[i]->descriptorInfo();
+         DescriptorWriter(*skyboxSetLayout, *skyboxPool)
+             .writeBuffer(0, &bufferInfo)
+             .writeImage(1, &environment)
+             .build(skyboxDescriptorSets[i]);
+     }
+
+    skyboxSystem = std::make_unique<RenderSystem>(
         device,
         renderer.getOffscreenRenderPass(),
         skyboxSetLayout->getDescriptorSetLayout(),
         binaryDir+"skybox",
         device.msaaSamples
-    };
+    );
     
     // Load Descriptors for PBR Textures
     for (int i = 0; i < 10; i++) {
         textureInfos.push_back(textures.at(i)->descriptorInfo());
     }
     
-    // GLOBAL RENDER SYSTEM
+    // GLOBAL RENDER SYSTEM DESCRIPTORS AND PIPELINE
     globalPool =
        DescriptorPool::Builder(device)
-           .setMaxSets(1)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, (uint32_t)textureInfos.size())
+           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, (uint32_t)textureInfos.size() * SwapChain::MAX_FRAMES_IN_FLIGHT)
            .build();
 
     auto globalSetLayout =
@@ -288,26 +270,49 @@ void Application::run() {
                 VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT,
                 (uint32_t)textureInfos.size())
             .build();
-
-    VkDescriptorSet globalDescriptorSet;
-    DescriptorWriter(*globalSetLayout, *globalPool)
-        .writeBuffer(0, &bufferInfo)
-        .writeImage(1, &irradiance) // Irradiance
-        .writeImage(2, &prefiltered)  // Reflection
-        .writeImage(3, renderer.getBrdfLutInfo())
-        .writeImage(4, textureInfos.data())
-        .build(globalDescriptorSet);
+            
+    std::vector<VkDescriptorSet> globalDescriptorSets(SwapChain::MAX_FRAMES_IN_FLIGHT);
+     for (int i = 0; i < globalDescriptorSets.size(); i++) {
+         auto bufferInfo = uboBuffers[i]->descriptorInfo();
+         DescriptorWriter(*globalSetLayout, *globalPool)
+            .writeBuffer(0, &bufferInfo)
+            .writeImage(1, &irradiance) // Irradiance
+            .writeImage(2, &prefiltered)  // Reflection
+            .writeImage(3, renderer.getBrdfLutInfo())
+            .writeImage(4, textureInfos.data())
+            .build(globalDescriptorSets[i]);
+     }
     
-    RenderSystem renderSystem{
+    renderSystem = std::make_unique<RenderSystem>(
         device,
         renderer.getOffscreenRenderPass(),
         globalSetLayout->getDescriptorSetLayout(),
         binaryDir+"shader",
         device.msaaSamples
-    };
+    );
+    
+    SDL_Vulkan_GetDrawableSize(window.getWindow(), &surfaceExtent.width, &surfaceExtent.height);
+    SDL_GetWindowSize(window.getWindow(), &windowExtent.width, &windowExtent.height);
+    float dpi_scale_fact = surfaceExtent.width / windowExtent.width;
+    ImGuiIO& io = ImGui::GetIO();
+    io.DisplaySize = {(float)surfaceExtent.width, (float)surfaceExtent.height};
+    io.FontGlobalScale = dpi_scale_fact;
+    {
+        ImGuiStyle& style = ImGui::GetStyle();
+        style.FrameBorderSize = 0.0f;
+        style.WindowBorderSize = 0.0f;
+        style.Colors[ImGuiCol_TitleBg] = ImVec4(0.2f, 0.0f, 0.4f, 0.6f);
+        style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.2f, 0.0f, 0.4f, 0.8f);
+        style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.2f, 0.0f, 0.4f, 0.4f);
+        style.Colors[ImGuiCol_Header] = ImVec4(0.2f, 0.0f, 0.4f, 0.4f);
+        style.Colors[ImGuiCol_CheckMark] = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
+        style.WindowRounding = 10.f;
+        style.FrameRounding = 5.f;
+        style.ScaleAllSizes(dpi_scale_fact);
+    }
     
     bool running = true;
-    auto counter1Hz = std::chrono::high_resolution_clock::now();
+    auto counter4Hz = std::chrono::high_resolution_clock::now();
     bool mouseLeft = false;
     while(running)
     {
@@ -317,7 +322,21 @@ void Application::run() {
         float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime -  currentTime).count();
         currentTime = newTime;
         frameTimes.push_back(frameTime);
+        if (frameTimes.size() > 50) {
+            frameTimes.erase(frameTimes.begin());
+        }
         frameTime = glm::min(frameTime, .05f); // Prevent movement glitches when resizing
+        if (std::chrono::duration<float, std::chrono::seconds::period>(newTime -  counter4Hz).count() > .25f) {
+            counter4Hz = newTime;
+            float avg = 0;
+            for (int k = 0; k < frameTimes.size(); k++) { avg += frameTimes[k]; }
+            avg = avg / frameTimes.size();
+            avg = 1.f / avg;
+            framesPerSecond.push_back(avg);
+            if (framesPerSecond.size() > 75) {
+                framesPerSecond.erase(framesPerSecond.begin());
+            }
+        }
 
         while(SDL_PollEvent(&sdl_event))
         {
@@ -341,13 +360,19 @@ void Application::run() {
                     running = false;
                     break;
                 case SDL_MOUSEBUTTONDOWN:
+                    io.MouseDown[0] = sdl_event.button.state;
                     mouseLeft = true;
                     break;
                 case SDL_MOUSEBUTTONUP:
+                    io.MouseDown[0] = sdl_event.button.state;
                     mouseLeft = false;
                     break;
                 case SDL_MOUSEMOTION:
-                    if (mouseLeft) {
+                    int wx, wy, mx, my;
+                    SDL_GetWindowPosition(window.getWindow(), &wx, &wy);
+                    SDL_GetGlobalMouseState(&mx, &my);
+                    io.AddMousePosEvent((mx - wx) * dpi_scale_fact, (my - wy) * dpi_scale_fact);
+                    if (mouseLeft && !ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow)) {
                         rotate.x = .05f*sdl_event.motion.yrel;
                         rotate.y = -.05f*sdl_event.motion.xrel;
                     }
@@ -375,19 +400,9 @@ void Application::run() {
         // Polling keystrokes and adjusting the camera position/rotation
         camera.setViewYXZ(cameraObj.transform.translation, cameraObj.transform.rotation);
         //cameraCtrl.moveInPlaneXZ(window.getGLFWwindow(), frameTime, cameraObj);
-        
-        if (std::chrono::duration<float, std::chrono::seconds::period>(newTime -  counter1Hz).count() > 1.f) {
-            counter1Hz = newTime;
-            //std::cout << frameTimes.back() << " - " << frameTimes.front() << '\n';
-            float avg = 0;
-            for (int k = 0; k < frameTimes.size(); k++) { avg += frameTimes[k]; }
-            avg = avg / frameTimes.size();
-            vkWaitForFences(device.device(), 1, renderer.getSwapChainImageFence(frameIndex), VK_TRUE, UINT64_MAX);
-            textMeshes.clear();
-            font.renderText(std::to_string((int)(1.f / avg)) + " FPS", .9f, -.9f, .7f, {1.f, 1.f, 1.f}, aspect);
-            font.renderText(std::to_string(avg * 1000.f).substr(0, 4) + " MS", .9f, -.8f, .7f, {1.f, 1.f, 1.f}, aspect);
-            frameTimes.clear();
-        }
+
+        // Update ImGui Buffer
+        imgui.newFrame(this);
         
         if (auto commandBuffer = renderer.beginFrame()) {
             frameIndex = renderer.getFrameIndex();
@@ -396,7 +411,7 @@ void Application::run() {
                 frameTime,
                 commandBuffer,
                 camera,
-                globalDescriptorSet,
+                globalDescriptorSets[frameIndex],
                 solidObjects
             };
             
@@ -405,7 +420,7 @@ void Application::run() {
                 frameTime,
                 commandBuffer,
                 camera,
-                skyboxDescriptorSet,
+                skyboxDescriptorSets[frameIndex],
                 env
             };
             
@@ -424,18 +439,21 @@ void Application::run() {
             ubo.viewMatrix = frameInfo.camera.getView();
             ubo.invViewMatrix = frameInfo.camera.getInverseView();
             //ubo.lightPosition = pos;
-            uboBuffer->writeToBuffer(&ubo);
-            uboBuffer->flush();
+            uboBuffers[frameIndex]->writeToBuffer(&ubo);
+            uboBuffers[frameIndex]->flush();
+            
+            imgui.updateBuffers(frameIndex);
             
             //RenderPass
             renderer.beginOffscreenRenderPass(commandBuffer);
-            skyboxSystem.renderSolidObjects(skyboxInfo);
-            renderSystem.renderSolidObjects(frameInfo);
+            skyboxSystem->renderSolidObjects(skyboxInfo);
+            renderSystem->renderSolidObjects(frameInfo);
             renderer.endOffscreenRenderPass(commandBuffer);
             
             renderer.beginSwapChainRenderPass(commandBuffer);
-            composition.renderSceneToSwapChain(commandBuffer, compositionDescriptorSets[frameIndex]);
+            postProcessing->renderSceneToSwapChain(commandBuffer, renderer.getPostProcessingDescriptorSets()->at(frameIndex));
             guiSystem.renderSolidObjects(guiInfo);
+            imgui.draw(commandBuffer, frameIndex);
             renderer.endSwapChainRenderPass(commandBuffer);
             
             renderer.endFrame();
@@ -454,13 +472,13 @@ void Application::loadSolidObjects() {
     sphere.transform.rotation.x = .04f;
     sphere.transform.scale = {1.f, 1.f, 1.f};
     solidObjects.emplace(sphere.getId(), std::move(sphere));
-    
+
     auto block = SolidObject::createSolidObject();
     block.model = Model::createModelFromFile(device, binaryDir+"plane.obj");
     block.textureIndex = 1;
-    block.transform.translation = {.0f, 1.0f, .0f};
-    block.transform.scale = {.4f, .4f, .4f};
-    block.transform.rotation = {.0f, .0f, .0f};
+    block.transform.translation = {.0f, 1.f, .0f};
+    //block.transform.scale = {.01f, .01f, .01f};
+    //block.transform.rotation = {3.14f, 1.57f, .0f};
     solidObjects.emplace(block.getId(), std::move(block));
     
     // Cubemap 3D canvas
@@ -470,4 +488,50 @@ void Application::loadSolidObjects() {
     cube.transform.scale = {1.f, 1.f, 1.f};
     cube.transform.rotation = {.0f, .0f, .0f};
     env.emplace(cube.getId(), std::move(cube));
+}
+
+void Application::renderImguiContent() {
+    ImGui::TextUnformatted(device.properties.deviceName);
+    
+    ImGui::SetNextWindowPos(ImVec2(20, 500), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(500, 1000), ImGuiCond_FirstUseEver);
+    ImGui::Begin("Settings", nullptr, ImGuiWindowFlags_NoTitleBar);
+    
+    std::string label = std::to_string((int)framesPerSecond.rbegin()[0]) + " FPS";
+    ImGui::PlotLines(label.c_str(), framesPerSecond.data(), (int)framesPerSecond.size(), 0, NULL, 0, FLT_MAX, {0, 100});
+    ImGui::NewLine();
+    ImGui::Text("Peak White Brightness:");
+    ImGui::SliderFloat("##", &postProcessing->peak_brightness, 80.f, 1000.f);
+    ImGui::Text("Gamma Correction:");
+    ImGui::SliderFloat("##", &postProcessing->gamma, 1.f, 3.f);
+    ImGui::NewLine();
+    static bool vsync = SwapChain::enableVSync;
+    ImGui::Checkbox(vsync ? "VSync Enabled" : "VSync Disabled", &vsync);
+    if (SwapChain::enableVSync != vsync) {
+        SwapChain::enableVSync = vsync;
+        renderer.recreateSwapChain();
+    }
+    ImGui::NewLine();
+    static int msaa = device.msaaSamples;
+    ImGui::Text("Anti-Aliasing:");
+    ImGui::RadioButton("No AA", &msaa, 1);
+    for (int i = 2; i <= device.maxSampleCount; i *= 2) {
+        ImGui::RadioButton(("MSAA "+std::to_string(i)+"X").c_str(), &msaa, i);
+    }
+    if (msaa != device.msaaSamples) {
+        device.msaaSamples = (VkSampleCountFlagBits)msaa;
+        renderer.recreateOffscreenFlag = true;
+        renderer.recreateSwapChain();
+        renderSystem->recreatePipeline(renderer.getOffscreenRenderPass(), device.msaaSamples);
+        skyboxSystem->recreatePipeline(renderer.getOffscreenRenderPass(), device.msaaSamples);
+    }
+    ImGui::NewLine();
+    float ddpi;
+    SDL_GetDisplayDPI(0, &ddpi, nullptr, nullptr);
+    ImGui::Text("Window size: %i x %i", WIDTH, HEIGHT);
+    ImGui::Text("Actual window: %i x %i", windowExtent.width, windowExtent.height);
+    ImGui::Text("Vulkan surface: %i x %i", surfaceExtent.width, surfaceExtent.height);
+    ImGui::Text("Display DPI: %i", (int)ddpi);
+
+    ImGui::End();
 }

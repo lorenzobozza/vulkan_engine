@@ -19,14 +19,17 @@ class Buffer {
       VkBufferUsageFlags usageFlags,
       VkMemoryPropertyFlags memoryPropertyFlags,
       VkDeviceSize minOffsetAlignment = 1);
+  Buffer(Device& device);
   ~Buffer();
  
   Buffer(const Buffer&) = delete;
   Buffer& operator=(const Buffer&) = delete;
- 
+  
+  void destroy();
   VkResult map(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
   void unmap();
- 
+  
+  void createBuffer(VkDeviceSize bufferSize, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags);
   void writeToBuffer(void* data, VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
   VkResult flush(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
   VkDescriptorBufferInfo descriptorInfo(VkDeviceSize size = VK_WHOLE_SIZE, VkDeviceSize offset = 0);
@@ -38,6 +41,7 @@ class Buffer {
   VkResult invalidateIndex(int index);
  
   VkBuffer getBuffer() const { return buffer; }
+  VkDeviceMemory getMemory() { return memory; }
   void* getMappedMemory() const { return mapped; }
   uint32_t getInstanceCount() const { return instanceCount; }
   VkDeviceSize getInstanceSize() const { return instanceSize; }

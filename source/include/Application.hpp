@@ -19,6 +19,7 @@
 #include "Texture.hpp"
 #include "TextRender.hpp"
 #include "HDRi.hpp"
+#include "CompositionPipeline.hpp"
 
 //std
 #include <memory>
@@ -39,6 +40,7 @@ public:
     
     void run();
     void simulate();
+    void renderImguiContent();
     
     static int sum(int a) { return a + a; }
     
@@ -49,6 +51,9 @@ private:
     Device device{window};
     Renderer renderer{window, device};
     Image vulkanImage{device};
+    std::unique_ptr<RenderSystem> renderSystem;
+    std::unique_ptr<RenderSystem> skyboxSystem;
+    std::unique_ptr<CompositionPipeline> postProcessing;
     
     std::vector< std::unique_ptr<Texture> > textures{};
     std::vector<VkDescriptorImageInfo> textureInfos{};
@@ -62,9 +67,16 @@ private:
     
     SDL_Event sdl_event;
     int frameIndex{0};
+    std::vector<float> frameTimes;
+    std::vector<float> framesPerSecond{0};
     
     uint8_t load_phase{0};
     std::string binaryDir;
+    
+    struct{
+        int width;
+        int height;
+    } surfaceExtent, windowExtent;
 };
 
 #endif /* Application_hpp */

@@ -30,9 +30,8 @@ public:
     Renderer(const Renderer &) = delete;
     Renderer &operator=(const Renderer &) = delete;
     
-    VkRenderPass getOffscreenRenderPass() const { return swapChain->getOffscreenRenderPass(); }
+    VkRenderPass getOffscreenRenderPass() const { return offscreen.renderPass; }
     VkRenderPass getSwapChainRenderPass() const { return swapChain->getCompositionRenderPass(); }
-    VkDescriptorImageInfo getOffscreenImageInfo() { return swapChain->getOffscreenDescriptorInfo(); }
     float getAspectRatio() const { return swapChain->extentAspectRatio(); }
     bool isFrameInProgress() const { return  isFrameStarted; }
     
@@ -53,6 +52,8 @@ public:
     VkDescriptorImageInfo* getBrdfLutInfo() { return &brdfImageInfo; }
 
     bool isVSyncEnabled() { return swapChain->isVSyncEnabled(); }
+    void recreateSwapChain();
+    bool recreateOffscreenFlag = false;
     
     VkCommandBuffer beginFrame();
     void endFrame();
@@ -61,23 +62,47 @@ public:
     void beginOffscreenRenderPass(VkCommandBuffer commandBuffer);
     void endOffscreenRenderPass(VkCommandBuffer commandBuffer);
     
+    VkDescriptorSetLayout getPostProcessingDescriptorSetLayout() { return postprocSetLayout->getDescriptorSetLayout(); }
+    std::vector<VkDescriptorSet> *getPostProcessingDescriptorSets() { return postprocDescriptorSets; }
+    
 private:
-    void recreateSwapChain();
     void createCommandBuffers();
     void freeCommandBuffers();
     
+    void createOffscreenPass();
+    void destroyOffscreenPass();
+    
     void integrateBrdfLut();
-
+    
+    struct FrameBufferAttachment {
+        VkImage image;
+        VkDeviceMemory mem;
+        VkImageView view;
+    };
+    
     SDLWindow &window;
     Device &device;
     std::unique_ptr<SwapChain> swapChain;
     std::vector<VkCommandBuffer> commandBuffers;
     
-    VkImage brdfImage;
-    VkDeviceMemory brdfMem;
-    VkImageView brdfView;
+    FrameBufferAttachment brdf;
     VkSampler brdfSampler;
     VkDescriptorImageInfo brdfImageInfo;
+    
+    struct OffscreenPass {
+		int32_t width, height;
+		VkFramebuffer frameBuffer;
+		FrameBufferAttachment color, depth, multisampling;
+		VkRenderPass renderPass;
+		VkSampler sampler;
+		VkDescriptorImageInfo descriptor;
+        const VkFormat colorFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+        VkFormat depthFormat;
+	} offscreen;
+    
+    std::unique_ptr<DescriptorPool> postprocPool;
+    std::unique_ptr<DescriptorSetLayout> postprocSetLayout;
+    std::vector<VkDescriptorSet> *postprocDescriptorSets;
     
     uint32_t currentImageIndex;
     int currentFrameIndex{0};

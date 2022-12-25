@@ -33,7 +33,7 @@ void SDLWindow::initWindow() {
     SDL_Init(SDL_INIT_EVERYTHING);
     
     window = SDL_CreateWindow(windowName.c_str(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height,
-    SDL_WINDOW_VULKAN | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_RESIZABLE);
+    SDL_WINDOW_VULKAN | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_RESIZABLE);// | SDL_WINDOW_FULLSCREEN_DESKTOP);
     
     SDL_Surface *surface = IMG_Load("3d.png");
     SDL_SetWindowIcon(window, surface);

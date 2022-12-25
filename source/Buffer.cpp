@@ -44,11 +44,21 @@ Buffer::Buffer(
   bufferSize = alignmentSize * instanceCount;
   device.createBuffer(bufferSize, usageFlags, memoryPropertyFlags, buffer, memory);
 }
+
+Buffer::Buffer(Device& device) : device{device} {}
  
 Buffer::~Buffer() {
-  unmap();
-  vkDestroyBuffer(device.device(), buffer, nullptr);
-  vkFreeMemory(device.device(), memory, nullptr);
+    unmap();
+    destroy();
+}
+
+void Buffer::destroy() {
+    vkDestroyBuffer(device.device(), buffer, nullptr);
+    vkFreeMemory(device.device(), memory, nullptr);
+}
+
+void Buffer::createBuffer(VkDeviceSize bufferSize, VkBufferUsageFlags usageFlags, VkMemoryPropertyFlags memoryPropertyFlags) {
+    device.createBuffer(bufferSize, usageFlags, memoryPropertyFlags, buffer, memory);
 }
  
 /**
