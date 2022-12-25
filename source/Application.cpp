@@ -58,7 +58,7 @@ void Application::run() {
     bool orth = false;
     // Create object without model for the 3D camera position
     SolidObject cameraObj = SolidObject::createSolidObject();
-    cameraObj.transform.translation = {.0f, -2.f, -2.f};
+    cameraObj.transform.translation = {.0f, .0f, -2.f};
     
     TextRender font{device, textMeshes, "fonts/Disket-Mono-Regular.ttf"};
     auto faces = font.getDescriptor();
@@ -103,6 +103,11 @@ void Application::run() {
         this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_M.tga", VK_FORMAT_R8G8B8A8_UNORM));
         this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_R.tga", VK_FORMAT_R8G8B8A8_UNORM));
         this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Cerberus_AO.tga", VK_FORMAT_R8G8B8A8_UNORM));
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Waffle_A.png"));
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Waffle_N.png", VK_FORMAT_R8G8B8A8_UNORM));
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Waffle_M.png", VK_FORMAT_R8G8B8A8_UNORM));
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Waffle_R.png", VK_FORMAT_R8G8B8A8_UNORM));
+        this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/Waffle_AO.png", VK_FORMAT_R8G8B8A8_UNORM));
         this->load_phase = 2;
         this->textures.push_back( std::make_unique<Texture>(this->device, vulkanImage, "texture/hdri/spiaggia_di_mondello_4k.hdr", VK_FORMAT_R32G32B32A32_SFLOAT));
         this->load_phase = 3;
@@ -182,7 +187,7 @@ void Application::run() {
     loadSolidObjects();
 
     //HDRi Pre-Processing
-    auto equitangular = textures.at(5)->descriptorInfo();
+    auto equitangular = textures.at(10)->descriptorInfo();
     
     HDRi environmentMap{device, equitangular, {1024, 1024}, "equirectangular", 9};
     auto environment = environmentMap.descriptorInfo();
@@ -240,7 +245,7 @@ void Application::run() {
     );
     
     // Load Descriptors for PBR Textures
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 10; i++) {
         textureInfos.push_back(textures.at(i)->descriptorInfo());
     }
     
@@ -467,11 +472,10 @@ void Application::loadSolidObjects() {
     sphere.transform.rotation.x = .04f;
     sphere.transform.scale = {1.f, 1.f, 1.f};
     solidObjects.emplace(sphere.getId(), std::move(sphere));
-    obj = sphere.getId();
 
     auto block = SolidObject::createSolidObject();
     block.model = Model::createModelFromFile(device, binaryDir+"plane.obj");
-    block.textureIndex = -1;
+    block.textureIndex = 1;
     block.transform.translation = {.0f, 1.f, .0f};
     //block.transform.scale = {.01f, .01f, .01f};
     //block.transform.rotation = {3.14f, 1.57f, .0f};

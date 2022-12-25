@@ -77,8 +77,6 @@ private:
         int width;
         int height;
     } surfaceExtent, windowExtent;
-    
-    id_t obj;
 };
 
 #endif /* Application_hpp */
