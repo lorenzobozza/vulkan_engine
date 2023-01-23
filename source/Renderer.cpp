@@ -15,8 +15,6 @@
 Renderer::Renderer(SDLWindow &passWindow, Device &passDevice) : window{passWindow}, device{passDevice} {
     recreateSwapChain();
     createCommandBuffers();
-    
-    integrateBrdfLut();
 }
 
 Renderer::~Renderer() {
@@ -482,13 +480,14 @@ void Renderer::destroyOffscreenPass() {
     vkDestroyImage(device.device(), offscreen.multisampling.image, nullptr);
     vkFreeMemory(device.device(), offscreen.multisampling.mem, nullptr);
     
+    // TODO: migrate all deletions to unique_ptr = nullptr
     delete(postprocDescriptorSets);
     postprocSetLayout.reset();
     postprocPool.reset();
 }
 
-void Renderer::integrateBrdfLut() {
-    VkAttachmentDescription attachment;
+void Renderer::integrateBrdfLut(std::string shaderPath) {
+    VkAttachmentDescription attachment = {};
 
     attachment.format = VK_FORMAT_R16G16_SFLOAT;
     attachment.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -557,8 +556,8 @@ void Renderer::integrateBrdfLut() {
     pipelineConfig.rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
     Pipeline pipeline{
         device,
-        "brdf.vert.spv",
-        "brdf.frag.spv",
+        shaderPath+"brdf.vert.spv",
+        shaderPath+"brdf.frag.spv",
         pipelineConfig
     };
     
@@ -690,10 +689,10 @@ void Renderer::integrateBrdfLut() {
     //RENDER
     Model::Data data;
     data.vertices = {
-        {{-1.f, -1.f, .0f}, {}, {}, {0.f, 0.f}},
-        {{1.f, -1.f, .0f}, {}, {}, {1.f, 0.f}},
-        {{1.f, 1.f, .0f}, {}, {}, {1.f, 1.f}},
-        {{-1.f, 1.f, .0f}, {}, {}, {0.f, 1.f}}
+        {{-1.f, -1.f, .0f}, {}, {}, {}, {0.f, 0.f}},
+        {{1.f, -1.f, .0f}, {}, {}, {}, {1.f, 0.f}},
+        {{1.f, 1.f, .0f}, {}, {}, {}, {1.f, 1.f}},
+        {{-1.f, 1.f, .0f}, {}, {}, {}, {0.f, 1.f}}
     };
     data.indices = {
         0,1,2,3,0,2

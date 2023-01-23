@@ -18,6 +18,7 @@ struct PushConstantData {
   int textureIndex{};
   float metalness{};
   float roughness{};
+  alignas(16) glm::vec3 color{};
 };
 
 RenderSystem::RenderSystem(
@@ -68,44 +69,49 @@ void RenderSystem::createPipelineLayout(VkDescriptorSetLayout globalSetLayout) {
 void RenderSystem::createPipeline(VkRenderPass renderPass) {
   assert(pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
 
-  PipelineConfigInfo pipelineConfig{};
-  Pipeline::defaultPipelineConfigInfo(pipelineConfig);
-  pipelineConfig.renderPass = renderPass;
-  pipelineConfig.pipelineLayout = pipelineLayout;
-  pipelineConfig.multisampleInfo.rasterizationSamples = sampleCount;
-  pipelineConfig.multisampleInfo.sampleShadingEnable = VK_TRUE;
-  pipelineConfig.multisampleInfo.minSampleShading = .2f;
-  pipeline = std::make_unique<Pipeline>(
-      device,
-      shaderPath+".vert.spv",
-      shaderPath+".frag.spv",
-      pipelineConfig);
-}
+    PipelineConfigInfo pipelineConfig{};
+    Pipeline::defaultPipelineConfigInfo(pipelineConfig);
+    pipelineConfig.renderPass = renderPass;
+    pipelineConfig.pipelineLayout = pipelineLayout;
+    pipelineConfig.multisampleInfo.rasterizationSamples = sampleCount;
+    pipelineConfig.multisampleInfo.sampleShadingEnable = VK_TRUE;
+    pipelineConfig.multisampleInfo.minSampleShading = .2f;
+
+    pipelineConfig.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
+    pipelineConfig.rasterizationInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+    pipelineConfig.rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
+    pipeline = std::make_unique<Pipeline>(
+        device,
+        shaderPath+".vert.spv",
+        shaderPath+".frag.spv",
+        pipelineConfig);
+    }
 
 void RenderSystem::renderSolidObjects(FrameInfo &frameInfo) {
   pipeline->bind(frameInfo.commandBuffer);
-  
+
+  for (auto &kv : frameInfo.solidObjects) {
+    auto &obj = kv.second;
+    
     vkCmdBindDescriptorSets(
         frameInfo.commandBuffer,
         VK_PIPELINE_BIND_POINT_GRAPHICS,
         pipelineLayout,
         0,
         1,
-        &frameInfo.globalDescriptorSet,
+        &frameInfo.globalDescriptorSet[obj.textureIndex],
         0,
         nullptr
     );
-
-  for (auto &kv : frameInfo.solidObjects) {
-    auto &obj = kv.second;
-  
+    
     PushConstantData push{};
     push.modelMatrix = obj.transform.mat4();
-    //push.normalMatrix = obj.transform.normalMatrix();
     push.textureIndex = obj.textureIndex;
     push.metalness = obj.metalness;
     push.roughness = obj.roughness;
-    
+    push.color = obj.color;
+
     vkCmdPushConstants(
         frameInfo.commandBuffer,
         pipelineLayout,

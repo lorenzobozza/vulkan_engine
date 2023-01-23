@@ -20,7 +20,10 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
     VkDebugUtilsMessageTypeFlagsEXT messageType,
     const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
     void *pUserData) {
-  std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
+    
+    if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+        std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
+    }
 
   return VK_FALSE;
 }
@@ -54,7 +57,7 @@ void DestroyDebugUtilsMessengerEXT(
 
 Device::Device(SDLWindow &window) : window{window} {
   createInstance();
-  //setupDebugMessenger(); //TODO: FIX
+  setupDebugMessenger();
   createSurface();
   pickPhysicalDevice();
   createLogicalDevice();
@@ -74,8 +77,9 @@ Device::~Device() {
 }
 
 void Device::createInstance() {
-  if (enableValidationLayers && !checkValidationLayerSupport()) {
-    throw std::runtime_error("validation layers requested, but not available!");
+  if (enableValidationLayers) {
+    if(!checkValidationLayerSupport())
+        throw std::runtime_error("validation layers requested, but not available!");
   }
 
   VkApplicationInfo appInfo = {};
@@ -140,8 +144,8 @@ void Device::pickPhysicalDevice() {
   for (const auto &device : devices) {
     if (isDeviceSuitable(device)) {
       physicalDevice = device;
-      msaaSamples = getMaxUsableSampleCount();
-      maxSampleCount = msaaSamples;
+      maxSampleCount = getMaxUsableSampleCount();
+      msaaSamples = VK_SAMPLE_COUNT_1_BIT;
       break;
     }
   }
@@ -182,7 +186,7 @@ void Device::createLogicalDevice() {
   deviceFeatures.sampleRateShading = VK_TRUE;
   deviceFeatures.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
   
-    // Descriptor indexing (for textures)
+    /** Variable Descriptor Count Implementation
     VkPhysicalDeviceDescriptorIndexingFeatures descriptor_indexing_features{};
     descriptor_indexing_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
     // Enable non-uniform indexing
@@ -190,6 +194,7 @@ void Device::createLogicalDevice() {
     descriptor_indexing_features.runtimeDescriptorArray = VK_TRUE;
     descriptor_indexing_features.descriptorBindingVariableDescriptorCount = VK_TRUE;
     descriptor_indexing_features.descriptorBindingPartiallyBound = VK_TRUE;
+    */
 
   VkDeviceCreateInfo createInfo = {};
   createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -201,7 +206,7 @@ void Device::createLogicalDevice() {
   createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
   createInfo.ppEnabledExtensionNames = deviceExtensions.data();
   
-  createInfo.pNext = &descriptor_indexing_features;
+  createInfo.pNext = nullptr;//&descriptor_indexing_features;
 
   // might not really be necessary anymore because device specific validation layers
   // have been deprecated
@@ -309,9 +314,10 @@ std::vector<const char *> Device::getRequiredExtensions() {
   }
   
   std::vector<const char*> extensions = {
-    VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
+    VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
     VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME,
-    VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
+    VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+    VK_EXT_DEBUG_REPORT_EXTENSION_NAME,
   };
   size_t addedExtensionCount = extensions.size();
   extensions.resize(addedExtensionCount + sdlExtensionCount);

@@ -46,13 +46,13 @@ std::vector<VkVertexInputAttributeDescription> Model::Vertex::getAttributeDescri
     attributeDescriptions.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, position)});
     attributeDescriptions.push_back({1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color)});
     attributeDescriptions.push_back({2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal)});
-    attributeDescriptions.push_back({3, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent)});
+    attributeDescriptions.push_back({3, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, tangent)});
     attributeDescriptions.push_back({4, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, uv)});
 
     return attributeDescriptions;
 }
 
- void Model::Data::computeTangentBasis(Model::Vertex &v0, Model::Vertex &v1, Model::Vertex &v2) {
+void Model::Data::computeTangentBasis(Model::Vertex &v0, Model::Vertex &v1, Model::Vertex &v2, glm::vec3 *tanOut) {
     // Edges of the triangle : position delta
     glm::vec3 deltaPos1 = v1.position - v0.position;
     glm::vec3 deltaPos2 = v2.position - v0.position;
@@ -66,27 +66,11 @@ std::vector<VkVertexInputAttributeDescription> Model::Vertex::getAttributeDescri
         deltaUV2 = {0.f, 1.f};
     }
     
-    float r = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
-    glm::vec3 tangent = (deltaPos1 * deltaUV2.y - deltaPos2 * deltaUV1.y) * r;
-
-    if (v0.tangent != glm::vec3{.0f}) {
-        v0.tangent = normalize(v0.tangent) + normalize(tangent);
-    } else {
-        v0.tangent = tangent;
-    }
+    float denom = (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
+    float r = denom == 0.f ? 0.f : 1.f / denom;
     
-    if (v1.tangent != glm::vec3{.0f}) {
-        v1.tangent = normalize(v1.tangent) + normalize(tangent);
-    } else {
-        v1.tangent = tangent;
-    }
-    
-    if (v2.tangent != glm::vec3{.0f}) {
-        v2.tangent = normalize(v2.tangent) + normalize(tangent);
-    } else {
-        v2.tangent = tangent;
-    }
-
+    tanOut[0] = (deltaPos1 * deltaUV2.y - deltaPos2 * deltaUV1.y) * r;
+    tanOut[1] = (deltaPos1 * deltaUV2.x - deltaPos2 * deltaUV1.x) * r;
  }
 
 void Model::Data::loadModel(const std::string &filePath) {
@@ -104,8 +88,6 @@ void Model::Data::loadModel(const std::string &filePath) {
     
     std::unordered_map<Vertex, uint32_t> uniqueVertices{};
     for (const auto &shape: shapes) {
-    
-        uint32_t vertexCount{0};
         
         for (const auto &index: shape.mesh.indices) {
             Vertex vertex{};
@@ -136,25 +118,41 @@ void Model::Data::loadModel(const std::string &filePath) {
                 };
             }
             
-            if (uniqueVertices.count(vertex) == 0) {
+            if (uniqueVertices.count(vertex) == 0 || true) { // Mark ALL vertices as unique (overlapping UV bug)
                 uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
                 vertices.push_back(vertex);
             }
             indices.push_back(uniqueVertices[vertex]);
-            
-            if (vertexCount++ == 2) {
-                // compute tangent basis for each triangle
-                computeTangentBasis(
-                    vertices.at(indices.rbegin()[2]),
-                    vertices.at(indices.rbegin()[1]),
-                    vertices.at(indices.rbegin()[0])
-                );
-                vertexCount = 0;
-            }
-            
         }
         
     }
+    
+    std::vector<glm::vec3> tangents(vertices.size(), glm::vec3(0.f));
+    std::vector<glm::vec3> bitangents(vertices.size(), glm::vec3(0.f));
+    glm::vec3 tanBasis[2];
+    
+    // Compute Tangent Basis for each triangle
+    for (size_t i = 0; i < indices.size(); i+=3) {
+        computeTangentBasis(vertices.at(indices[i]), vertices.at(indices[i +1]), vertices.at(indices[i +2]), tanBasis);
+        tangents.at(indices[i]) += tanBasis[0];
+        tangents.at(indices[i +1]) += tanBasis[0];
+        tangents.at(indices[i +2]) += tanBasis[0];
+        bitangents.at(indices[i]) += tanBasis[1];
+        bitangents.at(indices[i +1]) += tanBasis[1];
+        bitangents.at(indices[i +2]) += tanBasis[1];
+    }
+    
+    // Assign oriented Tangent Basis to each vertex
+    for (size_t i = 0; i < vertices.size(); i++) {
+        glm::vec3 N = vertices.at(i).normal;
+        glm::vec3 T = tangents.at(i);
+        // Re-Orthogonalize, Normalize
+        T = glm::normalize(T - (glm::dot(T, N) * N));
+        float w = glm::dot(glm::cross(N, T), bitangents.at(i)) < 0.f ? -1.f : 1.f;
+        
+        vertices.at(i).tangent = {T, w};
+    }
+    
 }
 
 Model::Model(Device &dev, const Data &data) : device{dev} {

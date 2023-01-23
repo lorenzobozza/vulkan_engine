@@ -42,22 +42,24 @@ DescriptorSetLayout::DescriptorSetLayout(
     std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> bindings,
     std::vector<VkDescriptorBindingFlags> bindingsFlags)
     : device{device}, bindings{bindings}, bindingsFlags{bindingsFlags} {
+
   std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings{};
   for (auto kv : bindings) {
     setLayoutBindings.push_back(kv.second);
   }
 
-    // Binding flags for indexing (textures)
+    /** Variable Descriptor Count Implementation
     VkDescriptorSetLayoutBindingFlagsCreateInfo binding_flags{};
     binding_flags.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
     binding_flags.bindingCount = (uint32_t) bindings.size();
     binding_flags.pBindingFlags = bindingsFlags.data();
+    */
 
   VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo{};
   descriptorSetLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
   descriptorSetLayoutInfo.bindingCount = static_cast<uint32_t>(setLayoutBindings.size());
   descriptorSetLayoutInfo.pBindings = setLayoutBindings.data();
-  descriptorSetLayoutInfo.pNext = &binding_flags;
+  descriptorSetLayoutInfo.pNext = nullptr;//&binding_flags;
   //descriptorSetLayoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
 
   if (vkCreateDescriptorSetLayout(
@@ -121,8 +123,12 @@ DescriptorPool::~DescriptorPool() {
 }
 
 bool DescriptorPool::allocateDescriptor(
-    const VkDescriptorSetLayout descriptorSetLayout, VkDescriptorSet &descriptor, const std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> &bindings) const {
+    const VkDescriptorSetLayout descriptorSetLayout,
+    VkDescriptorSet &descriptor,
+    const std::unordered_map<uint32_t,
+    VkDescriptorSetLayoutBinding> &bindings) const {
     
+    /** Variable Descriptor Count Implementation
     uint32_t max_counts{1};
     for (auto binding : bindings) {
         max_counts = std::max(binding.second.descriptorCount, max_counts);
@@ -131,13 +137,14 @@ bool DescriptorPool::allocateDescriptor(
     set_counts.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO;
     set_counts.descriptorSetCount = 1;
     set_counts.pDescriptorCounts = &max_counts;
+    */
     
   VkDescriptorSetAllocateInfo allocInfo{};
   allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
   allocInfo.descriptorPool = descriptorPool;
   allocInfo.pSetLayouts = &descriptorSetLayout;
   allocInfo.descriptorSetCount = 1;
-  allocInfo.pNext = &set_counts;
+  allocInfo.pNext = nullptr;//&set_counts;
 
   // Might want to create a "DescriptorPoolManager" class that handles this case, and builds
   // a new pool whenever an old pool fills up. But this is beyond our current scope

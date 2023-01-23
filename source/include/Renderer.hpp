@@ -49,6 +49,7 @@ public:
     VkExtent2D getSwapChainExtent() { return swapChain->getSwapChainExtent(); }
     VkFence *getSwapChainImageFence(int imageIndex) { return swapChain->getCurrentImageFence(imageIndex); }
     
+    void integrateBrdfLut(std::string shaderPath);
     VkDescriptorImageInfo* getBrdfLutInfo() { return &brdfImageInfo; }
 
     bool isVSyncEnabled() { return swapChain->isVSyncEnabled(); }
@@ -71,8 +72,6 @@ private:
     
     void createOffscreenPass();
     void destroyOffscreenPass();
-    
-    void integrateBrdfLut();
     
     struct FrameBufferAttachment {
         VkImage image;

@@ -11,6 +11,10 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb-master/stb_image.h>
 
+#include "libtiff/tiffio.h"
+#include <iostream>
+#include <chrono>
+
 //#define TINYEXR_USE_MINIZ 0
 //#define TINYEXR_USE_STB_ZLIB 1
 //#define TINYEXR_IMPLEMENTATION
@@ -18,16 +22,17 @@
 
 Texture::Texture(Device &dev, Image &image, std::string filePath, VkFormat format)
     : device{dev}, image{image}, textureFilePath{filePath}, viewType{VK_IMAGE_VIEW_TYPE_2D}, format{format} {
-    createTextureImage();
-    createTextureImageView();
-    createTextureSampler();
+    loadTexture();
+    TIFFSetWarningHandler(NULL);
 }
 
 Texture::Texture(Device &dev, Image &image, std::string filePath, VkImageViewType viewType, VkFormat format)
     : device{dev}, image{image}, textureFilePath{filePath}, viewType{viewType}, format{format} {
+    loadTexture();
     createTextureImage();
     createTextureImageView();
     createTextureSampler();
+    TIFFSetWarningHandler(NULL);
 }
 
 Texture::~Texture() {
@@ -35,6 +40,12 @@ Texture::~Texture() {
     vkDestroyImageView(device.device(), textureImageView, nullptr);
     vkDestroyImage(device.device(), textureImage, nullptr);
     vkFreeMemory(device.device(), textureImageMemory, nullptr);
+}
+
+void Texture::moveBuffer() {
+    createTextureImage();
+    createTextureImageView();
+    createTextureSampler();
 }
 
 VkDescriptorImageInfo Texture::descriptorInfo() {
@@ -45,7 +56,7 @@ VkDescriptorImageInfo Texture::descriptorInfo() {
     };
 }
 
-void Texture::createTextureImage() {
+void Texture::loadTexture() {
     uint8_t depth;
     size_t bitsPerPixel;
     switch (format) {
@@ -93,15 +104,33 @@ void Texture::createTextureImage() {
             break;
     }
     
+    bool libtiff = false;
     int texWidth, texHeight, texChannels;
-    
     void* pixels;
-    if(stbi_is_hdr(textureFilePath.c_str())) {
-        float* data = stbi_loadf(textureFilePath.c_str(), &texWidth, &texHeight, &texChannels, depth);
-        pixels = (void*)data;
+
+    auto fileExt = textureFilePath.substr(textureFilePath.size() - 4, textureFilePath.size() - 1);
+    if (fileExt == ".tif" || fileExt == "tiff") {
+        TIFF* tif = TIFFOpen(textureFilePath.c_str(), "r");
+        TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &texWidth);
+        TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &texHeight);
+        
+        pixels = _TIFFmalloc(texWidth * texHeight * sizeof (uint32_t));
+        if (pixels != NULL) {
+            if (TIFFReadRGBAImage(tif, texWidth, texHeight, (uint32_t*)pixels, 0)) {
+                libtiff = true;
+            } else {
+                _TIFFfree(pixels);
+            }
+        }
+        TIFFClose(tif);
     } else {
-        stbi_uc* data = stbi_load(textureFilePath.c_str(), &texWidth, &texHeight, &texChannels, depth);
-        pixels = (void*)data;
+        if(stbi_is_hdr(textureFilePath.c_str())) {
+            float* data = stbi_loadf(textureFilePath.c_str(), &texWidth, &texHeight, &texChannels, depth);
+            pixels = (void*)data;
+        } else {
+            stbi_uc* data = stbi_load(textureFilePath.c_str(), &texWidth, &texHeight, &texChannels, depth);
+            pixels = (void*)data;
+        }
     }
 
     VkDeviceSize imageSize = texWidth * texHeight * bitsPerPixel;
@@ -110,30 +139,41 @@ void Texture::createTextureImage() {
         throw std::runtime_error("failed to load texture image!");
     }
     
-    Buffer stagingBuffer{
+    stagingBuffer = std::make_unique<Buffer>(
         device,
         imageSize,
         1,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-    };
+    );
     
-    stagingBuffer.map();
-    stagingBuffer.writeToBuffer(pixels);
+    stagingBuffer->map();
+    stagingBuffer->writeToBuffer(pixels);
     
-    stbi_image_free(pixels);
+    if (libtiff) {
+        _TIFFfree(pixels);
+    } else {
+        stbi_image_free(pixels);
+    }
     
-    image.createImage(texWidth, texHeight, format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
+    _w = texWidth;
+    _h = texHeight;
+}
+
+void Texture::createTextureImage() {
+    image.createImage(_w, _h, format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
     
     auto commandBuffer = image.beginSingleTimeCommands();
     
     image.transitionImageLayout(commandBuffer, textureImage, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
     
-    image.copyBufferToImage(commandBuffer, stagingBuffer.getBuffer(), textureImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+    image.copyBufferToImage(commandBuffer, stagingBuffer->getBuffer(), textureImage, static_cast<uint32_t>(_w), static_cast<uint32_t>(_h));
     
     image.transitionImageLayout(commandBuffer, textureImage, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     
     image.endSingleTimeCommands(commandBuffer);
+    
+    stagingBuffer = nullptr;
 }
 
 void Texture::createTextureImageView() {

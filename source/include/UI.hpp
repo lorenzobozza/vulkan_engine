@@ -18,7 +18,7 @@
 
 class UI {
 public:
-    UI(Device &device, VkRenderPass renderPass, std::string dynamicShaderPath);
+    UI(Device &device, VkRenderPass renderPass, std::string binaryPath);
     ~UI();
     
     struct PushConstBlock {
@@ -32,7 +32,7 @@ public:
 
 private:
     std::vector<char> readFile(const std::string &filepath);
-    void loadFontTexture();
+    void loadFontTexture(std::string binaryPath);
     void createDescriptors();
     void createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath);
 

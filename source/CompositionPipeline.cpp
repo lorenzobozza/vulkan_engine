@@ -68,10 +68,10 @@ void CompositionPipeline::createPipeline(VkRenderPass renderPass) {
       
     Model::Data data;
     data.vertices = {
-        {{-1.f, -1.f, .0f}, {}, {}, {0.f, 0.f}},
-        {{1.f, -1.f, .0f}, {}, {}, {1.f, 0.f}},
-        {{1.f, 1.f, .0f}, {}, {}, {1.f, 1.f}},
-        {{-1.f, 1.f, .0f}, {}, {}, {0.f, 1.f}}
+        {{-1.f, -1.f, .0f}, {}, {}, {}, {0.f, 0.f}},
+        {{1.f, -1.f, .0f}, {}, {}, {}, {1.f, 0.f}},
+        {{1.f, 1.f, .0f}, {}, {}, {}, {1.f, 1.f}},
+        {{-1.f, 1.f, .0f}, {}, {}, {}, {0.f, 1.f}}
     };
     data.indices = {
         0,1,2,2,3,0

@@ -31,7 +31,7 @@ vec3 aces_approx(vec3 v)
 
 void main() {
     vec3 color = texture(frame, texCoord).rgb;
-    if (push.peak_brightness > 100.0) {
+    if (push.peak_brightness > 800.0) {
         color = reinhard_extended_luminance(color, push.peak_brightness);
     } else {
         color = aces_approx(color);

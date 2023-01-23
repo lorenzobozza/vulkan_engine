@@ -95,8 +95,9 @@ endif()
 include_directories(external)
 
 file(GLOB_RECURSE SOURCES ${PROJECT_SOURCE_DIR}/source/*.cpp)
+file(GLOB_RECURSE SOURCES_C ${PROJECT_SOURCE_DIR}/source/*.c)
 
-add_executable(${PROJECT_NAME} ${SOURCES})
+add_executable(${PROJECT_NAME} ${SOURCES} ${SOURCES_C})
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 

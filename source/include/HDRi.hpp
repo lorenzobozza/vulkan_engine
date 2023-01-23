@@ -18,7 +18,7 @@
 
 class HDRi {
 public:
-    HDRi(Device &device, VkDescriptorImageInfo &srcDescriptor, VkExtent2D extent, std::string shader, uint16_t mipLevels = 1);
+    HDRi(Device &device, VkDescriptorImageInfo &srcDescriptor, VkExtent2D extent, std::string shader, std::string binaryPath, uint16_t mipLevels = 1);
     ~HDRi();
     
     VkDescriptorImageInfo descriptorInfo();
@@ -88,6 +88,7 @@ private:
     VkSampler cubeSampler;
     
     std::string shader;
+    std::string binaryPath;
     uint16_t mipLevels;
     bool isFrameStarted = false;
 

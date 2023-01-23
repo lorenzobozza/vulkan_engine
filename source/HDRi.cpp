@@ -9,8 +9,8 @@
 
 #include <array>
 
-HDRi::HDRi(Device &device, VkDescriptorImageInfo &srcDescriptor, VkExtent2D extent, std::string shader, uint16_t mipLevels)
-    : device{device}, srcDescriptor{srcDescriptor}, extent{extent}, shader{shader}, mipLevels{mipLevels} {
+HDRi::HDRi(Device &device, VkDescriptorImageInfo &srcDescriptor, VkExtent2D extent, std::string shader, std::string binaryPath, uint16_t mipLevels)
+    : device{device}, srcDescriptor{srcDescriptor}, extent{extent}, shader{shader}, binaryPath{binaryPath}, mipLevels{mipLevels} {
     
     initHDRi();
     renderFaces();
@@ -367,8 +367,8 @@ void HDRi::createPipeline() {
   pipelineConfig.rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
   pipeline = std::make_unique<Pipeline>(
       device,
-      "cubemap.vert.spv",
-      shader+".frag.spv",
+      binaryPath+"cubemap.vert.spv",
+      binaryPath+shader+".frag.spv",
       pipelineConfig);
 }
 

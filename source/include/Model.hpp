@@ -23,11 +23,11 @@
 class Model {
 public:
     struct Vertex {
-        glm::vec3 position{};
-        glm::vec3 color{};
+        glm::vec3 position{0.f};
+        glm::vec3 color{1.f};
         glm::vec3 normal{};
+        glm::vec4 tangent{0.f};
         glm::vec2 uv{};
-        glm::vec3 tangent{};
 
         static std::vector<VkVertexInputBindingDescription> getBindingDescriptions();
         static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions();
@@ -41,7 +41,7 @@ public:
         std::vector<Vertex> vertices{};
         std::vector<uint32_t> indices{};
         
-        void computeTangentBasis(Model::Vertex &v0, Model::Vertex &v1, Model::Vertex &v2);
+        void computeTangentBasis(Model::Vertex &v0, Model::Vertex &v1, Model::Vertex &v2, glm::vec3 *tanOut);
         
         void loadModel(const std::string &filePath);
     };

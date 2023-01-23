@@ -12,7 +12,7 @@
 #include <iostream>
 #include <fstream>
 
-UI::UI(Device &device, VkRenderPass renderPass, std::string dynamicShaderPath) : device{device} {
+UI::UI(Device &device, VkRenderPass renderPass, std::string binaryPath) : device{device} {
     vertexBuffers = new std::vector<std::unique_ptr<Buffer>>(SwapChain::MAX_FRAMES_IN_FLIGHT);
     indexBuffers = new std::vector<std::unique_ptr<Buffer>>(SwapChain::MAX_FRAMES_IN_FLIGHT);
     
@@ -23,9 +23,9 @@ UI::UI(Device &device, VkRenderPass renderPass, std::string dynamicShaderPath) :
 
     ImGui::CreateContext();
     
-    loadFontTexture();
+    loadFontTexture(binaryPath);
     createDescriptors();
-    createPipeline(renderPass, dynamicShaderPath);
+    createPipeline(renderPass, binaryPath+"imgui");
     
     ImGui::StyleColorsDark();
 }
@@ -293,12 +293,12 @@ void UI::draw(VkCommandBuffer commandBuffer, int frameIndex) {
     }
 }
 
-void UI::loadFontTexture() {
+void UI::loadFontTexture(std::string binaryPath) {
     unsigned char* fontData;
     int texWidth, texHeight;
     
     ImGuiIO &io = ImGui::GetIO();
-    io.Fonts->AddFontFromFileTTF("fonts/monaco.ttf", 24.0f);
+    io.Fonts->AddFontFromFileTTF((binaryPath+"fonts/monaco.ttf").c_str(), 24.0f);
     io.Fonts->GetTexDataAsRGBA32(&fontData, &texWidth, &texHeight);
 
     if (!fontData) {

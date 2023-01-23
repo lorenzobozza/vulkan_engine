@@ -11,14 +11,23 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
-TextRender::TextRender(Device &device, SolidObject::Map &meshes, const char* fontPath)
-    : device{device}, meshes{meshes}, fontPath{fontPath} {
+struct PushConstantData {
+  glm::mat4 modelMatrix{1.f};
+  int textureIndex{};
+};
+
+TextRender::TextRender(Device &device, VkRenderPass renderPass, const char* fontPath) : device{device}, fontPath{fontPath} {
     loadFaces('!', '~'); // all faces from ! to ~
     createImageStack();
     createSampler();
+    createDescriptors();
+    createPipelineLayout();
+    createPipeline(renderPass);
 }
 
 TextRender::~TextRender() {
+    pipeline.reset();
+    vkDestroyPipelineLayout(device.device(), pipelineLayout, nullptr);
     vkDestroySampler(device.device(), bitmapSampler, nullptr);
     vkDestroyImageView(device.device(), bitmapImageView, nullptr);
     vkDestroyImage(device.device(), bitmapImage, nullptr);
@@ -44,10 +53,10 @@ unsigned int TextRender::renderText(std::string text, float x, float y, float sc
             
             Model::Data rectMesh{};
             rectMesh.vertices = {
-                {{xpos,     ypos + h, 0.f}, color, {0.f, 0.f, -1.f}, {0.f,      1.f}},
-                {{xpos + w, ypos + h, 0.f}, color, {0.f, 0.f, -1.f}, {ch.uv.x,  1.f}},
-                {{xpos + w, ypos    , 0.f}, color, {0.f, 0.f, -1.f}, {ch.uv.x,  ch.uv.y}},
-                {{xpos,     ypos    , 0.f}, color, {0.f, 0.f, -1.f}, {0.f,      ch.uv.y}}
+                {{xpos,     ypos + h, 0.f}, color, {0.f, 0.f, -1.f}, {}, {0.f,      1.f}},
+                {{xpos + w, ypos + h, 0.f}, color, {0.f, 0.f, -1.f}, {}, {ch.uv.x,  1.f}},
+                {{xpos + w, ypos    , 0.f}, color, {0.f, 0.f, -1.f}, {}, {ch.uv.x,  ch.uv.y}},
+                {{xpos,     ypos    , 0.f}, color, {0.f, 0.f, -1.f}, {}, {0.f,      ch.uv.y}}
             };
             
             rectMesh.indices = {0,3,2,0,2,1};
@@ -74,12 +83,39 @@ unsigned int TextRender::renderText(std::string text, float x, float y, float sc
     return boxes.back();
 }
 
-VkDescriptorImageInfo TextRender::getDescriptor() {
-    return VkDescriptorImageInfo {
-        bitmapSampler,
-        bitmapImageView,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-    };
+void TextRender::render(VkCommandBuffer commandBuffer, int frameIndex) {
+    pipeline->bind(commandBuffer);
+    
+    vkCmdBindDescriptorSets(
+        commandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        pipelineLayout,
+        0,
+        1,
+        &textDescriptorSets->at(frameIndex),
+        0,
+        nullptr
+    );
+
+    for (auto &kv : meshes) {
+        auto &obj = kv.second;
+    
+        PushConstantData push{};
+        push.modelMatrix = obj.transform.mat4();
+        push.textureIndex = obj.textureIndex;
+        
+        vkCmdPushConstants(
+            commandBuffer,
+            pipelineLayout,
+            VK_SHADER_STAGE_ALL_GRAPHICS,
+            0,
+            sizeof(PushConstantData),
+            &push);
+            
+            
+        obj.model->bind(commandBuffer);
+        obj.model->draw(commandBuffer);
+    }
 }
 
 void TextRender::loadFaces(const char firstChar, const char lastChar) {
@@ -135,6 +171,31 @@ void TextRender::loadFaces(const char firstChar, const char lastChar) {
     FT_Done_Face(face);
     
     FT_Done_FreeType(ft);
+}
+
+void TextRender::createDescriptors() {
+    VkDescriptorImageInfo fontFaces {
+        bitmapSampler,
+        bitmapImageView,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+    };
+    
+    textPool =
+       DescriptorPool::Builder(device)
+           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .build();
+    textSetLayout =
+        DescriptorSetLayout::Builder(device)
+            .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .build();
+            
+    textDescriptorSets = new std::vector<VkDescriptorSet>(SwapChain::MAX_FRAMES_IN_FLIGHT);
+    for (int i = 0; i < textDescriptorSets->size(); i++) {
+        DescriptorWriter(*textSetLayout, *textPool)
+            .writeImage(0, &fontFaces)
+            .build(textDescriptorSets->at(i));
+    }
 }
 
 void TextRender::createImageStack() {
@@ -224,4 +285,41 @@ void TextRender::createSampler() {
     if (vkCreateSampler(device.device(), &samplerInfo, nullptr, &bitmapSampler) != VK_SUCCESS) {
         throw std::runtime_error("failed to create bitmap sampler!");
     }
+}
+
+void TextRender::createPipelineLayout() {
+    VkPushConstantRange pushConstantRange;
+
+    pushConstantRange.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = sizeof(PushConstantData);
+    
+    auto setLayout = textSetLayout->getDescriptorSetLayout();
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts = &setLayout;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+    if (vkCreatePipelineLayout(device.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create pipeline layout!");
+    }
+}
+
+void TextRender::createPipeline(VkRenderPass renderPass) {
+    assert(pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
+
+    PipelineConfigInfo pipelineConfig{};
+    Pipeline::defaultPipelineConfigInfo(pipelineConfig);
+    pipelineConfig.renderPass = renderPass;
+    pipelineConfig.pipelineLayout = pipelineLayout;
+    pipelineConfig.multisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    pipelineConfig.multisampleInfo.sampleShadingEnable = VK_TRUE;
+    pipelineConfig.multisampleInfo.minSampleShading = .2f;
+    pipeline = std::make_unique<Pipeline>(
+      device,
+      "font.vert.spv",
+      "font.frag.spv",
+      pipelineConfig);
 }
