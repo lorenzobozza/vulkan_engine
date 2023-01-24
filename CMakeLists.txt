@@ -92,12 +92,33 @@ else()
 	message(STATUS "Using Freetype lib at: ${FTYPE_LIB}")
 endif()
 
+# Set TIFF_PATH in .env.cmake or cmake call to target specific LibTIFF version
+if (DEFINED TIFF_PATH)
+  set(TIFF_INCLUDE_DIRS "${TIFF_PATH}/include")
+  if (MSVC)
+    set(TIFF_LIB "${TIFF_PATH}/windows/lib")
+  elseif (CMAKE_GENERATOR STREQUAL "MinGW Makefiles")
+    set(TIFF_LIB "${TIFF_PATH}/windows/lib")
+  else()
+    set(TIFF_LIB "${TIFF_PATH}/macOS/lib")
+  endif()
+else()
+  find_package(freetype REQUIRED) # throws error if could not find LibTIFF
+  set(TIFF_LIB freetype)
+  message(STATUS "Found LibTIFF")
+endif()
+
+if (NOT FTYPE_LIB)
+	message(FATAL_ERROR "Could not find Freetype library!")
+else()
+	message(STATUS "Using Freetype lib at: ${FTYPE_LIB}")
+endif()
+
 include_directories(external)
 
 file(GLOB_RECURSE SOURCES ${PROJECT_SOURCE_DIR}/source/*.cpp)
-file(GLOB_RECURSE SOURCES_C ${PROJECT_SOURCE_DIR}/source/*.c)
 
-add_executable(${PROJECT_NAME} ${SOURCES} ${SOURCES_C})
+add_executable(${PROJECT_NAME} ${SOURCES})
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 
@@ -109,6 +130,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
     ${Vulkan_INCLUDE_DIRS}
     ${SDL2_INCLUDE_DIRS}
     ${FTYPE_INCLUDE_DIRS}
+    ${TIFF_INCLUDE_DIRS}
     ${UTIL_PATH}
     ${IMGUI_PATH}
   )
@@ -117,6 +139,7 @@ target_link_directories(${PROJECT_NAME} PUBLIC
   ${Vulkan_LIBRARIES}
   ${SDL2_LIB}
   ${FTYPE_LIB}
+  ${TIFF_LIB}
 )
 
 if (WIN32)
@@ -131,7 +154,7 @@ if (WIN32)
     )
   endif()
 
-  target_link_libraries(${PROJECT_NAME} SDL2 SDL2_image freetype vulkan-1)
+  target_link_libraries(${PROJECT_NAME} SDL2 SDL2_image freetype tiff-4 vulkan-1)
   
   message(STATUS "COPYING DLLs")
   file(COPY ${SDL2_DLL} DESTINATION "./Release")
@@ -140,7 +163,7 @@ elseif (UNIX)
     message(STATUS "CREATING BUILD FOR UNIX")
 
     if (APPLE)
-      target_link_libraries(${PROJECT_NAME} libSDL2-2.0.0.dylib libSDL2_image-2.0.0.dylib libfreetype.6.dylib libvulkan.1.3.236.dylib)
+      target_link_libraries(${PROJECT_NAME} libSDL2-2.0.0.dylib libSDL2_image-2.0.0.dylib libfreetype.6.dylib libtiff-4.5.0.dylib libvulkan.1.3.236.dylib)
     endif()
 
 endif()
