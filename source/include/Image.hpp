@@ -11,6 +11,9 @@
 #include "Device.hpp"
 #include "Buffer.hpp"
 
+//std
+#include <memory>
+
 class Image {
 public:
     Image(Device &dev);

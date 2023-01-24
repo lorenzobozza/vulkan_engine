@@ -88,8 +88,8 @@ void Application::run() {
             "Fabric_Round_Red", "Flagpoles", "Floor", "Ivy", "Lion_Head", "Lion_Shield", "Roof", "Vase_Hanging",
             "Vase_Hanging_Chain", "Vase_Octagonal", "Vase_Round", "Vase_Round_Plants"
         };
-        
-        const size_t nTex = materials.size() * 5;
+
+        const size_t nTex = 24 * 5;
         textures.reserve(nTex + 1);
         
         #ifndef ENHANCED_MT
