@@ -79,8 +79,8 @@ void Application::run() {
     // Load heavy assets on a separate thread
     std::thread([this]() {
         this->load_phase = 1;
-        this->textures.emplace(0, std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"texture/hdri/snowy_field_8k.hdr", VK_FORMAT_R32G32B32A32_SFLOAT));
-        textures.at(0)->moveBuffer();
+        this->textures.emplace(0, std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"texture/hdri/spiaggia_di_mondello_4k.hdr", VK_FORMAT_R32G32B32A32_SFLOAT));
+        textures.at(0)->moveBuffer(VK_FALSE);
 
         std::vector<std::string> materials = {
             "Arches", "Bricks", "Ceiling", "Column_A", "Column_B", "Column_C", "Details", "Fabric_Curtain_Blue",

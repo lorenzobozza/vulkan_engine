@@ -26,7 +26,7 @@ Texture::Texture(Device &dev, Image &image, std::string filePath, VkFormat forma
 Texture::Texture(Device &dev, Image &image, std::string filePath, VkImageViewType viewType, VkFormat format)
     : device{dev}, image{image}, textureFilePath{filePath}, viewType{viewType}, format{format} {
     loadTexture();
-    createTextureImage();
+    createTextureImage(VK_FALSE);
     createTextureImageView();
     createTextureSampler();
     TIFFSetWarningHandler(NULL);
@@ -39,8 +39,8 @@ Texture::~Texture() {
     vkFreeMemory(device.device(), textureImageMemory, nullptr);
 }
 
-void Texture::moveBuffer() {
-    createTextureImage();
+void Texture::moveBuffer(bool mipmap) {
+    createTextureImage(mipmap);
     createTextureImageView();
     createTextureSampler();
 }
@@ -159,13 +159,16 @@ void Texture::loadTexture() {
     mipLevels = std::floor(std::log2(std::max(_w, _h))) + 1;
 }
 
-void Texture::createTextureImage() {
+void Texture::createTextureImage(bool mipmap) {
+    if (!mipmap) {
+        mipLevels = 1;
+    }
 
     image.createImage(_w, _h, format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory, 1, mipLevels);
     
     auto commandBuffer = image.beginSingleTimeCommands();
     
-    // Load mip 0 from buffer
+    // Load mip 0 from staging buffer
     image.transitionImageLayout(commandBuffer, textureImage, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, mipLevels);
     image.copyBufferToImage(commandBuffer, stagingBuffer->getBuffer(), textureImage, static_cast<uint32_t>(_w), static_cast<uint32_t>(_h));
     
@@ -231,7 +234,7 @@ void Texture::createTextureSampler() {
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     
-    samplerInfo.anisotropyEnable = VK_TRUE;
+    samplerInfo.anisotropyEnable = mipLevels > 1 ? VK_TRUE : VK_FALSE;
     samplerInfo.maxAnisotropy = device.properties.limits.maxSamplerAnisotropy / 4;
     
     samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
