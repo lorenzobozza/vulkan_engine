@@ -570,6 +570,8 @@ void Application::loadSolidObjects() {
         auto group = SolidObject::createSolidObject();
         group.model = Model::createModelFromFile(device, binaryDir + "sponza/sponza_" + meshNames[i] + ".obj");
         group.textureIndex = i;
+        group.roughness = .9f;
+        group.metalness = 1.f;
         solidObjects.emplace(group.getId(), std::move(group));
     }
     

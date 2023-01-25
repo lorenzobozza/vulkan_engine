@@ -31,6 +31,7 @@ private:
     
     std::unique_ptr<Buffer> stagingBuffer;
     int _w, _h;
+    int mipLevels;
     
     VkImage textureImage{};
     VkDeviceMemory textureImageMemory{};

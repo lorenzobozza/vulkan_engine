@@ -38,7 +38,7 @@ void main() {
     
     vec3 T = normalize( vec3(push.modelMatrix * vec4(tangent.xyz, 0.0)) );
     vec3 N = normalize( vec3(push.modelMatrix * vec4(normal, 0.0)) );
-    vec3 B = cross(N, T);
+    vec3 B = cross(N, T) * tangent.w;
     mat3 TBN = transpose( mat3(T, B, N) );
 
     frag.color = T;

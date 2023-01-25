@@ -59,7 +59,11 @@ VkDescriptorImageInfo HDRi::descriptorInfo() {
     };
 }
 
-void HDRi::renderFaces() {    
+void HDRi::renderFaces() {
+
+    // Correct mip levels if they exceed the given resolution
+    uint16_t maxMip = std::floor(std::log2(std::max(extent.width, extent.height))) + 1;
+    mipLevels = std::min(maxMip, mipLevels);
     
     Camera cubeCam{};
     cubeCam.setProjection.perspective(1.0f, glm::radians(90.f), .1f, 10.f);
@@ -408,6 +412,7 @@ void HDRi::createOffscreenFramebuffer() {
         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
         1,  // Layers
         1,  // Mip levels
+        0,  // Base mip
         VK_IMAGE_ASPECT_DEPTH_BIT);
     
     offscreenPass.color.view = vulkanImage.createImageView(
