@@ -43,7 +43,7 @@ public:
         
         void computeTangentBasis(Model::Vertex &v0, Model::Vertex &v1, Model::Vertex &v2, glm::vec3 *tanOut);
         
-        void loadModel(const std::string &filePath);
+        void loadModel(const std::string &filePath, bool allUniqueVertices);
     };
     
     Model(Device &dev, const Data &data);
@@ -53,7 +53,7 @@ public:
     Model(const Model &) = delete;
     Model &operator=(const Model &) = delete;
         
-    static std::unique_ptr<Model> createModelFromFile(Device &device, const std::string &filePath);
+    static std::unique_ptr<Model> createModelFromFile(Device &device, const std::string &filePath, bool allUniqueVertices = VK_FALSE);
     
     void bind(VkCommandBuffer commandBuffer);
     void draw(VkCommandBuffer commandBuffer);
