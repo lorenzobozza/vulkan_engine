@@ -80,7 +80,7 @@ void Application::run() {
     std::thread([this]() {
         this->load_phase = 1;
         this->textures.emplace(0, std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"texture/hdri/spiaggia_di_mondello_4k.hdr", VK_FORMAT_R32G32B32A32_SFLOAT));
-        textures.at(0)->moveBuffer();
+        textures.at(0)->moveBuffer(VK_FALSE);
 
         std::vector<std::string> materials = {
             "Arches", "Bricks", "Ceiling", "Column_A", "Column_B", "Column_C", "Details", "Fabric_Curtain_Blue",
@@ -368,15 +368,21 @@ void Application::run() {
                 framesPerSecond.erase(framesPerSecond.begin());
             }
         }
+        
+        // Prepare next GUI Frame
+        imgui.newFrame(this);
 
         while(SDL_PollEvent(&sdl_event))
         {
             switch (sdl_event.type) {
                 case SDL_WINDOWEVENT:
                     if (sdl_event.window.event == SDL_WINDOWEVENT_RESIZED) {
+                        DEBUG_MESSAGE("Window resize event detected!");
                         SDL_Vulkan_GetDrawableSize(window.getWindow(), &surfaceExtent.width, &surfaceExtent.height);
                         SDL_GetWindowSize(window.getWindow(), &windowExtent.width, &windowExtent.height);
                         renderer.recreateSwapChain();
+                        dpi_scale_fact = surfaceExtent.width / windowExtent.width;
+                        io.FontGlobalScale = dpi_scale_fact;
                     }
                     break;
                 case SDL_QUIT:
@@ -503,9 +509,6 @@ void Application::run() {
         
         // Polling keystrokes and adjusting the camera position/rotation
         camera.setViewYXZ(cameraObj.transform.translation, cameraObj.transform.rotation);
-
-        // Prepare next GUI Frame
-        imgui.newFrame(this);
         
         if (auto commandBuffer = renderer.beginFrame()) {
             frameIndex = renderer.getFrameIndex();
@@ -568,8 +571,10 @@ void Application::loadSolidObjects() {
 
     for (int i = 0; i < meshNames.size(); i++) {
         auto group = SolidObject::createSolidObject();
-        group.model = Model::createModelFromFile(device, binaryDir + "sponza/sponza_" + meshNames[i] + ".obj");
+        group.model = Model::createModelFromFile(device, binaryDir + "sponza/sponza_" + meshNames[i] + ".obj", VK_TRUE);
         group.textureIndex = i;
+        group.roughness = .7f;
+        group.metalness = 1.f;
         solidObjects.emplace(group.getId(), std::move(group));
     }
     
@@ -608,10 +613,9 @@ void Application::renderImguiContent() {
     ImGui::TextUnformatted(device.properties.deviceName);
     float ddpi;
     SDL_GetDisplayDPI(0, &ddpi, nullptr, nullptr);
-    ImGui::Text("Window size: %i x %i", WIDTH, HEIGHT);
-    ImGui::Text("Actual window: %i x %i", windowExtent.width, windowExtent.height);
-    ImGui::Text("Vulkan surface: %i x %i", surfaceExtent.width, surfaceExtent.height);
-    ImGui::Text("Display DPI: %i", (int)ddpi);
+    ImGui::Text("Actual window size\t %i x %i", windowExtent.width, windowExtent.height);
+    ImGui::Text("Vulkan surface size\t %i x %i", surfaceExtent.width, surfaceExtent.height);
+    ImGui::Text("Display DPI\t %i", (int)ddpi);
     
     /**** SETTINGS WINDOW **/
     
@@ -631,6 +635,26 @@ void Application::renderImguiContent() {
     
     ImGui::NewLine();
     ImGui::Text("FIF: %i", SwapChain::MAX_FRAMES_IN_FLIGHT);
+    
+    ImGui::NewLine();
+    static int windowMode = 0;
+    if (ImGui::Combo("##fullscreen", &windowMode, "Windowed\0Windowed Borderless\0Full Screen\0")) {
+        switch (windowMode) {
+            case 0:
+            window.setWindowFullScreen(0);
+                break;
+            case 1:
+            window.setWindowFullScreen(SDL_WINDOW_FULLSCREEN_DESKTOP);
+                break;
+            case 2:
+            window.setWindowFullScreen(SDL_WINDOW_FULLSCREEN);
+                break;
+        }
+    }
+    static int res = 0;
+    if (ImGui::Combo("##resolution", &res, window.supportedResNames.c_str())) {
+        window.setWindowExtent(window.supportedModes[res].w, window.supportedModes[res].h);
+    }
     
     ImGui::NewLine();
     static bool vsync = SwapChain::enableVSync;

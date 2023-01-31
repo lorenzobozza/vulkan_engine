@@ -16,6 +16,7 @@
 #include <SDL2/SDL_image.h>
 
 // std
+#include <vector>
 #include <string>
 
 class SDLWindow {
@@ -33,6 +34,11 @@ public:
     void setWindowExtent(int Width, int Height) { width = Width; height = Height; }
     VkExtent2D getExtent() { return { static_cast<uint32_t>(width), static_cast<uint32_t>(height)}; }
     SDL_Window *getWindow() const { return window; }
+    
+    void setWindowFullScreen(uint32_t flags);
+    
+    std::string supportedResNames;
+    std::vector<SDL_DisplayMode> supportedModes;
     
 private:
     void initWindow();

@@ -12,13 +12,10 @@
 #include <stb-master/stb_image.h>
 
 #include "libtiff/tiffio.h"
+
+// std
 #include <iostream>
 #include <chrono>
-
-//#define TINYEXR_USE_MINIZ 0
-//#define TINYEXR_USE_STB_ZLIB 1
-//#define TINYEXR_IMPLEMENTATION
-//#include <tinyexr/tinyexr.h>
 
 Texture::Texture(Device &dev, Image &image, std::string filePath, VkFormat format)
     : device{dev}, image{image}, textureFilePath{filePath}, viewType{VK_IMAGE_VIEW_TYPE_2D}, format{format} {
@@ -29,7 +26,7 @@ Texture::Texture(Device &dev, Image &image, std::string filePath, VkFormat forma
 Texture::Texture(Device &dev, Image &image, std::string filePath, VkImageViewType viewType, VkFormat format)
     : device{dev}, image{image}, textureFilePath{filePath}, viewType{viewType}, format{format} {
     loadTexture();
-    createTextureImage();
+    createTextureImage(VK_FALSE);
     createTextureImageView();
     createTextureSampler();
     TIFFSetWarningHandler(NULL);
@@ -42,8 +39,8 @@ Texture::~Texture() {
     vkFreeMemory(device.device(), textureImageMemory, nullptr);
 }
 
-void Texture::moveBuffer() {
-    createTextureImage();
+void Texture::moveBuffer(bool mipmap) {
+    createTextureImage(mipmap);
     createTextureImageView();
     createTextureSampler();
 }
@@ -158,18 +155,65 @@ void Texture::loadTexture() {
     
     _w = texWidth;
     _h = texHeight;
+    
+    mipLevels = std::floor(std::log2(std::max(_w, _h))) + 1;
 }
 
-void Texture::createTextureImage() {
-    image.createImage(_w, _h, format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory);
+void Texture::createTextureImage(bool mipmap) {
+    if (!mipmap) {
+        mipLevels = 1;
+    }
+
+    image.createImage(_w, _h, format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory, 1, mipLevels);
     
     auto commandBuffer = image.beginSingleTimeCommands();
     
-    image.transitionImageLayout(commandBuffer, textureImage, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    
+    // Load mip 0 from staging buffer
+    image.transitionImageLayout(commandBuffer, textureImage, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, mipLevels);
     image.copyBufferToImage(commandBuffer, stagingBuffer->getBuffer(), textureImage, static_cast<uint32_t>(_w), static_cast<uint32_t>(_h));
     
-    image.transitionImageLayout(commandBuffer, textureImage, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    int mipWidth = _w;
+    int mipHeight = _h;
+    
+    VkFormatProperties prop;
+    vkGetPhysicalDeviceFormatProperties(device.getPhysicalDevice(), format, &prop);
+    if (!(prop.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) {
+        throw std::runtime_error("Linear filtering not supported on this image format");
+    }
+    
+    // Compute mips
+    for (int i = 1; i < mipLevels; i++) {
+        // Prepare mip i - 1 to be read
+        image.transitionImageLayout(commandBuffer, textureImage, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 1, 1, i - 1);
+        // Prepare mip i to be written
+        image.transitionImageLayout(commandBuffer, textureImage, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, 1, i);
+        
+        VkImageBlit blit{};
+        blit.srcOffsets[0] = { 0, 0, 0 };
+        blit.srcOffsets[1] = { mipWidth, mipHeight, 1 };
+        blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.srcSubresource.mipLevel = i - 1;
+        blit.srcSubresource.baseArrayLayer = 0;
+        blit.srcSubresource.layerCount = 1;
+        blit.dstOffsets[0] = { 0, 0, 0 };
+        blit.dstOffsets[1] = { mipWidth > 1 ? mipWidth / 2 : 1, mipHeight > 1 ? mipHeight / 2 : 1, 1 };
+        blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        blit.dstSubresource.mipLevel = i;
+        blit.dstSubresource.baseArrayLayer = 0;
+        blit.dstSubresource.layerCount = 1;
+        
+        // Perform texture filtering from mip i - 1 to mip i
+        vkCmdBlitImage(commandBuffer, textureImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, textureImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_LINEAR);
+        
+        // Set mip i - 1 to final shader read only layout
+        image.transitionImageLayout(commandBuffer, textureImage, format, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 1, 1, i - 1);
+        
+        if (mipWidth > 1) mipWidth /= 2;
+        if (mipHeight > 1) mipHeight /= 2;
+    }
+    
+    // Set last mip to final shader read only layout
+    image.transitionImageLayout(commandBuffer, textureImage, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 1, 1, mipLevels - 1);
     
     image.endSingleTimeCommands(commandBuffer);
     
@@ -177,7 +221,7 @@ void Texture::createTextureImage() {
 }
 
 void Texture::createTextureImageView() {
-    textureImageView = image.createImageView(textureImage, viewType, format);
+    textureImageView = image.createImageView(textureImage, viewType, format, 1, mipLevels);
 }
 
 void Texture::createTextureSampler() {
@@ -190,8 +234,8 @@ void Texture::createTextureSampler() {
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     
-    samplerInfo.anisotropyEnable = VK_FALSE;
-    samplerInfo.maxAnisotropy = device.properties.limits.maxSamplerAnisotropy;
+    samplerInfo.anisotropyEnable = mipLevels > 1 ? VK_TRUE : VK_FALSE;
+    samplerInfo.maxAnisotropy = device.properties.limits.maxSamplerAnisotropy / 4;
     
     samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
     samplerInfo.unnormalizedCoordinates = VK_FALSE;
@@ -202,7 +246,7 @@ void Texture::createTextureSampler() {
     samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
     samplerInfo.mipLodBias = 0.0f;
     samplerInfo.minLod = 0.0f;
-    samplerInfo.maxLod = 0.0f;
+    samplerInfo.maxLod = static_cast<float>(mipLevels);
     
     if (vkCreateSampler(device.device(), &samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) {
         throw std::runtime_error("failed to create texture sampler!");

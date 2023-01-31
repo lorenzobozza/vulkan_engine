@@ -32,7 +32,7 @@ void main() {
 		for (float theta = 0.0; theta < 0.5 * PI; theta += delta) {
 			vec3 tempVec = cos(phi) * right + sin(phi) * up;
 			vec3 sampleVector = cos(theta) * N + sin(theta) * tempVec;
-			color += texture(environmentMap, sampleVector).rgb * cos(theta) * sin(theta);
+			color += textureLod(environmentMap, sampleVector, 4.8).rgb * cos(theta) * sin(theta);
 			sampleCount++;
 		}
 	}

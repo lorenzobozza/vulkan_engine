@@ -60,6 +60,7 @@ class Device {
   VkQueue transferQueue() { return transferQueue_; }
   VkQueue presentQueue() { return presentQueue_; }
   QueueFamilyIndices getFamilyIndices() { return indices; }
+  VkPhysicalDevice getPhysicalDevice() { return physicalDevice; }
 
   SwapChainSupportDetails getSwapChainSupport() { return querySwapChainSupport(physicalDevice); }
   uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);

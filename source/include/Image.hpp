@@ -13,6 +13,7 @@
 
 //std
 #include <memory>
+#include <cmath>
 
 class Image {
 public:
@@ -38,6 +39,7 @@ public:
         VkImageLayout newLayout,
         uint32_t layerCount = 1,
         uint32_t levelCount = 1,
+        uint32_t baseMipLevel = 0,
         VkImageAspectFlags aspectMask = VK_IMAGE_ASPECT_COLOR_BIT);
     
     void copyBufferToImage(
@@ -45,7 +47,8 @@ public:
         VkBuffer buffer,
         VkImage image,
         uint32_t width, uint32_t height,
-        uint32_t layerCount = 1);
+        uint32_t layerCount = 1,
+        uint32_t mipLevel = 0);
     
     VkImageView createImageView(
         VkImage image,

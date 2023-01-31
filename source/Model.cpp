@@ -73,7 +73,7 @@ void Model::Data::computeTangentBasis(Model::Vertex &v0, Model::Vertex &v1, Mode
     tanOut[1] = (deltaPos1 * deltaUV2.x - deltaPos2 * deltaUV1.x) * r;
  }
 
-void Model::Data::loadModel(const std::string &filePath) {
+void Model::Data::loadModel(const std::string &filePath, bool allUniqueVertices) {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
@@ -118,7 +118,8 @@ void Model::Data::loadModel(const std::string &filePath) {
                 };
             }
             
-            if (uniqueVertices.count(vertex) == 0 || true) { // Mark ALL vertices as unique (overlapping UV bug)
+            // allUniqueVertices == True treats ALL vertices as unique (bypass overlapping UV bug)
+            if (uniqueVertices.count(vertex) == 0 || allUniqueVertices) {
                 uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
                 vertices.push_back(vertex);
             }
@@ -146,7 +147,7 @@ void Model::Data::loadModel(const std::string &filePath) {
     for (size_t i = 0; i < vertices.size(); i++) {
         glm::vec3 N = vertices.at(i).normal;
         glm::vec3 T = tangents.at(i);
-        // Re-Orthogonalize, Normalize
+        // Re-Orthogonalize, then Normalize
         T = glm::normalize(T - (glm::dot(T, N) * N));
         float w = glm::dot(glm::cross(N, T), bitangents.at(i)) < 0.f ? -1.f : 1.f;
         
@@ -162,9 +163,9 @@ Model::Model(Device &dev, const Data &data) : device{dev} {
 
 Model::~Model() {}
 
-std::unique_ptr<Model> Model::createModelFromFile(Device &device, const std::string &filePath) {
+std::unique_ptr<Model> Model::createModelFromFile(Device &device, const std::string &filePath, bool allUniqueVertices) {
     Data data{};
-    data.loadModel(filePath);
+    data.loadModel(filePath, allUniqueVertices);
     return std::make_unique<Model>(device, data);
 }
 
