@@ -38,8 +38,8 @@
 struct GlobalUbo {
     glm::mat4 projectionView{1.f};
     glm::vec4 ambientLightColor{1.f, 1.f, 1.f, .1f};
-    glm::vec3 lightPosition{.0f,-1.f,.0f};
-    alignas(16) glm::vec4 lightColor{1.f, 1.f, 1.f, 10.f};
+    glm::vec4 lightPosition[2] = {{.0f,-1.f,.0f,.0f},{.0f,-1.f,.0f,.0f}};
+    glm::vec4 lightColor{1.f, 1.f, 1.f, 10.f};
     glm::mat4 viewMatrix{1.f};
     glm::mat4 invViewMatrix{1.f};
 };

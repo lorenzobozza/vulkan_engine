@@ -60,7 +60,7 @@ void Application::run() {
     // 3D CAMERA
     Camera camera{};
     float aspect = renderer.getAspectRatio();
-    camera.setProjection.perspective(aspect, glm::radians(75.f), .01f, 100.f);
+    camera.setProjection.perspective(aspect, glm::radians(60.f), .01f, 100.f);
     bool orth = false;
     // Create object without model for the 3D camera position
     SolidObject cameraObj = SolidObject::createSolidObject();
@@ -323,7 +323,7 @@ void Application::run() {
     float dpi_scale_fact = surfaceExtent.width / windowExtent.width;
     ImGuiIO& io = ImGui::GetIO();
     io.DisplaySize = {(float)surfaceExtent.width, (float)surfaceExtent.height};
-    io.FontGlobalScale = dpi_scale_fact;
+    io.FontGlobalScale = dpi_scale_fact * (windowExtent.width / 1920.f);
     {
         ImGuiStyle& style = ImGui::GetStyle();
         style.FrameBorderSize = 0.0f;
@@ -382,7 +382,8 @@ void Application::run() {
                         SDL_GetWindowSize(window.getWindow(), &windowExtent.width, &windowExtent.height);
                         renderer.recreateSwapChain();
                         dpi_scale_fact = surfaceExtent.width / windowExtent.width;
-                        io.FontGlobalScale = dpi_scale_fact;
+                        io.DisplaySize = {(float)surfaceExtent.width, (float)surfaceExtent.height};
+                        io.FontGlobalScale = dpi_scale_fact * (windowExtent.width / 1920.f);
                     }
                     break;
                 case SDL_QUIT:
@@ -620,7 +621,7 @@ void Application::renderImguiContent() {
     /**** SETTINGS WINDOW **/
     
     ImGui::SetNextWindowPos(ImVec2(20, 500), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(500, 1000), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(windowExtent.width*.25f, windowExtent.height*.75f), ImGuiCond_FirstUseEver);
     ImGui::Begin("Settings", nullptr, ImGuiWindowFlags_NoTitleBar);
     
     std::string label = std::to_string((int)framesPerSecond.rbegin()[0]) + " FPS";
@@ -642,6 +643,7 @@ void Application::renderImguiContent() {
         switch (windowMode) {
             case 0:
             window.setWindowFullScreen(0);
+            renderer.recreateOffscreenFlag = VK_TRUE;
                 break;
             case 1:
             window.setWindowFullScreen(SDL_WINDOW_FULLSCREEN_DESKTOP);
@@ -654,6 +656,9 @@ void Application::renderImguiContent() {
     static int res = 0;
     if (ImGui::Combo("##resolution", &res, window.supportedResNames.c_str())) {
         window.setWindowExtent(window.supportedModes[res].w, window.supportedModes[res].h);
+        if (windowMode == 2) {
+            window.setWindowFullScreen(SDL_WINDOW_FULLSCREEN);
+        }
     }
     
     ImGui::NewLine();
@@ -687,11 +692,12 @@ void Application::renderImguiContent() {
     ImGui::SliderFloat("##strength", &color[3], 1.f, 100.f);
     ubo.lightColor = {color[0], color[1], color[2], color[3]};
     
-    glm::vec3 lightPos = ubo.lightPosition;
+    glm::vec4 lightPos = ubo.lightPosition[0];
     ImGui::SliderFloat("LPosX", &lightPos.x, -3.f, 3.f);
     ImGui::SliderFloat("LPosY", &lightPos.y, -.5f, -5.f);
     ImGui::SliderFloat("LPosZ", &lightPos.z, -4.f, 4.f);
-    ubo.lightPosition = lightPos;
+    ubo.lightPosition[0] = lightPos;
+    ubo.lightPosition[1].z = - lightPos.z;
 
     ImGui::End();
 }

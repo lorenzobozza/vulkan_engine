@@ -8,7 +8,7 @@ layout(location = 0) out vec4 outColor;
 layout(binding = 0) uniform GlobalUbo {
     mat4 projectionViewMatrix;
     vec4 ambientLightColor;
-    vec3 lightPosition;
+    vec4 lightPosition[2];
     vec4 lightColor;
     mat4 viewMatrix;
     mat4 invViewMatrix;
