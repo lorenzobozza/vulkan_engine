@@ -4,4 +4,4 @@
 
 Cross platform real-time PBR engine written in C++ using Vulkan and SDL2
 
-<img width="1792" alt="Vulkan Engine Preview" src="https://user-images.githubusercontent.com/31863767/214121401-bbe41b68-5167-4b11-be20-be0d3c4cd276.png">
+<img width="1362" alt="vulkan_engine_corrected" src="https://github.com/lorenzobozza/vulkan_engine/assets/31863767/263064e9-e959-4cb6-8d90-a1f60b99c4c1">
