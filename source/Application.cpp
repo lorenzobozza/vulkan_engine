@@ -681,8 +681,10 @@ void Application::renderImguiContent() {
     }
     
     ImGui::NewLine();
+    ImGui::Text("Exposure");
+    ImGui::SliderFloat("##exposure", &postProcessing->exposure, 1.f, 5.f);
     ImGui::Text("Peak White Brightness");
-    ImGui::SliderFloat("##brightness", &postProcessing->peak_brightness, 80.f, 1000.f);
+    ImGui::SliderFloat("##brightness", &postProcessing->peak_brightness, 1.f, 15.f);
     ImGui::Text("Gamma Correction");
     ImGui::SliderFloat("##gamma", &postProcessing->gamma, 1.f, 3.f);
     
