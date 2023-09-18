@@ -63,12 +63,13 @@ void SDLWindow::setWindowFullScreen(uint32_t flags) {
     switch (flags) {
         case 0:
         SDL_SetWindowFullscreen(window, 0);
-        SDL_SetWindowSize(window, 1280, 720);
+        SDL_SetWindowSize(window, width, height);
             break;
         case SDL_WINDOW_FULLSCREEN_DESKTOP:
         SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
             break;
         case SDL_WINDOW_FULLSCREEN:
+        if (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) { SDL_SetWindowFullscreen(window, 0); }
         SDL_SetWindowDisplayMode(window, &displayMode);
         SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN);
             break;
@@ -76,27 +77,3 @@ void SDLWindow::setWindowFullScreen(uint32_t flags) {
             break;
     }
 }
-
-/*
-void Window::initWindow() {
-    glfwInit();
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-    monitor = glfwGetPrimaryMonitor();
-    if(fullScreen) {
-        const GLFWvidmode* mode = glfwGetVideoMode(monitor);
-        width = mode->width;
-        height = mode->height;
-    }
-    window = glfwCreateWindow(width, height, windowName.c_str(), nullptr, nullptr);
-    glfwSetWindowUserPointer(window, this);
-    glfwSetFramebufferSizeCallback(window, frameBufferResizeCallback);
-}
-
-void Window::frameBufferResizeCallback(GLFWwindow *window, int width, int height) {
-    auto thisWindow = reinterpret_cast<Window *>(glfwGetWindowUserPointer(window));
-    thisWindow->frameBufferResized = true;
-    thisWindow->width = width;
-    thisWindow->height = height;
-}
- */

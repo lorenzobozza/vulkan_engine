@@ -19,7 +19,7 @@ layout(location = 0) out vec4 outColor;
 layout(binding = 0) uniform GlobalUbo {
     mat4 projectionViewMatrix;
     vec4 ambientLightColor;
-    vec3 lightPosition;
+    vec4 lightPosition[2];
     vec4 lightColor;
     mat4 viewMatrix;
     mat4 invViewMatrix;
@@ -97,20 +97,14 @@ void main() {
     
     mat3 invTBN = transpose(vert.TBN);
     vec3 N = invTBN * normal;
-    vec3 tangentLightPos = vert.TBN * ubo.lightPosition;
 
+    // View coordinates in tangent space
     vec3 viewPos = ubo.invViewMatrix[3].xyz;
     vec3 viewDir = normalize(viewPos - vert.worldPos);
     vec3 tangentViewDir = normalize(vert.tangentViewPos - vert.tangentPos);
-    vec3 tangentLightDir = normalize(tangentLightPos - vert.tangentPos);
     vec3 R = reflect(-viewDir, N);
-
-    // Lighting directions in tangent space
-    vec3 halfDir = normalize(tangentLightDir + tangentViewDir);
-    float lightDist = length(tangentLightPos - vert.tangentPos);
-    float attenuation = ubo.lightColor.w / (lightDist * lightDist);
-    vec3 radiance = ubo.lightColor.xyz * attenuation;
     
+    float dotNV = max(0.001, dot(normal, tangentViewDir));
 
 //Physically Based Rendering (Metalness-Roughness Workflow)
     vec3 F0 = vec3(0.04);
@@ -118,21 +112,31 @@ void main() {
     
     // Specular Light contribution
     vec3 Lo = vec3(0.0);
-    float dotNH = max(0.001, dot(normal, halfDir));
-    float dotNV = max(0.001, dot(normal, tangentViewDir));
-    float dotNL = max(0.001, dot(normal, tangentLightDir));
-    float dotHV = max(0.001, dot(halfDir, tangentViewDir));
-	if (dotNL > 0.0) {
-		// D = Normal distribution (Distribution of the microfacets)
-		float D = D_GGX(dotNH, roughness);
-		// G = Geometric shadowing term (Microfacets shadowing)
-		float G = G_SchlicksmithGGX(dotNL, dotNV, roughness);
-		// F = Fresnel factor (Reflectance depending on angle of incidence)
-		vec3 F = F_Schlick(dotHV, F0);
-		vec3 spec = D * F * G / max(4.0 * dotNL * dotNV, 0.001);
-		vec3 kD = (vec3(1.0) - F) * (1.0 - metalness);
-		Lo = (kD * albedo / PI + spec) * dotNL * radiance;
-	}
+    
+    for (int i = 0; i < 2; i++) {
+        // Lighting coordinates in tangent space
+        vec3 tangentLightPos = vert.TBN * ubo.lightPosition[i].xyz;
+        vec3 tangentLightDir = normalize(tangentLightPos - vert.tangentPos);
+        vec3 halfDir = normalize(tangentLightDir + tangentViewDir);
+        float lightDist = length(tangentLightPos - vert.tangentPos);
+        float attenuation = ubo.lightColor.w / (lightDist * lightDist);
+        vec3 radiance = ubo.lightColor.xyz * attenuation;
+        
+        float dotNH = max(0.001, dot(normal, halfDir));
+        float dotNL = max(0.001, dot(normal, tangentLightDir));
+        float dotHV = max(0.001, dot(halfDir, tangentViewDir));
+        if (dotNL > 0.0) {
+            // D = Normal distribution (Distribution of the microfacets)
+            float D = D_GGX(dotNH, roughness);
+            // G = Geometric shadowing term (Microfacets shadowing)
+            float G = G_SchlicksmithGGX(dotNL, dotNV, roughness);
+            // F = Fresnel factor (Reflectance depending on angle of incidence)
+            vec3 F = F_Schlick(dotHV, F0);
+            vec3 spec = D * F * G / max(4.0 * dotNL * dotNV, 0.001);
+            vec3 kD = (vec3(1.0) - F) * (1.0 - metalness);
+            Lo += (kD * albedo / PI + spec) * dotNL * radiance;
+        }
+    }
     
 // IBL Part (Non-Tangent Space)
     vec3 reflection = prefilteredReflection(R, roughness);
@@ -154,7 +158,7 @@ void main() {
     ambient = mix(ambient, ambient * occlusion, 0.7);
     
 // Ambient + Light
-    vec3 pbr = ambient + Lo;
+    vec3 pbr = 0.5 * ambient + Lo;
     
     outColor = vec4(pbr, 1.0);
 }

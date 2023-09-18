@@ -32,8 +32,9 @@ class CompositionPipeline {
 
   virtual void renderSceneToSwapChain(VkCommandBuffer commandBuffer, VkDescriptorSet &descriptorSets);
   
-  float peak_brightness = 400.f;
-  float gamma = 2.4f;
+  float exposure = 1.5f;
+  float peak_brightness = 2.f;
+  float gamma = 2.2f;
 
  private:
   void createPipelineLayout(VkDescriptorSetLayout globalSetLayout);
