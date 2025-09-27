@@ -1,13 +1,16 @@
 //
-//  SolidObject.cpp
+//  Primitive.cpp
 //  vulkan_engine
 //
 //  Created by Lorenzo Bozza on 12/11/21.
 //
 
-#include "include/SolidObject.hpp"
+#include "include/Primitive.hpp"
 
 glm::mat4 TransformComponent::mat4() {
+    if (hasMatrix) {
+        return matrix;
+    }
     const float c3 = glm::cos(rotation.z);
     const float s3 = glm::sin(rotation.z);
     const float c2 = glm::cos(rotation.x);
@@ -38,6 +41,9 @@ glm::mat4 TransformComponent::mat4() {
 }
 
 glm::mat3 TransformComponent::normalMatrix() {
+    if (hasMatrix) {
+        return glm::transpose(glm::inverse(glm::mat3(matrix)));
+    }
     const float c3 = glm::cos(rotation.z);
     const float s3 = glm::sin(rotation.z);
     const float c2 = glm::cos(rotation.x);

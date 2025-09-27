@@ -48,6 +48,7 @@ std::vector<VkVertexInputAttributeDescription> Model::Vertex::getAttributeDescri
     attributeDescriptions.push_back({2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal)});
     attributeDescriptions.push_back({3, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, tangent)});
     attributeDescriptions.push_back({4, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, uv)});
+    attributeDescriptions.push_back({5, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, uv1)});
 
     return attributeDescriptions;
 }
@@ -70,7 +71,7 @@ void Model::Data::computeTangentBasis(Model::Vertex &v0, Model::Vertex &v1, Mode
     float r = denom == 0.f ? 0.f : 1.f / denom;
     
     tanOut[0] = (deltaPos1 * deltaUV2.y - deltaPos2 * deltaUV1.y) * r;
-    tanOut[1] = (deltaPos1 * deltaUV2.x - deltaPos2 * deltaUV1.x) * r;
+    tanOut[1] = (deltaPos2 * deltaUV1.x - deltaPos1 * deltaUV2.x) * r;
  }
 
 void Model::Data::loadModel(const std::string &filePath, bool allUniqueVertices) {

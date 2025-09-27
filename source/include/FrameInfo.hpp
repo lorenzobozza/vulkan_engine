@@ -9,7 +9,8 @@
 #define FrameInfo_hpp
 
 #include "Camera.hpp"
-#include "SolidObject.hpp"
+#include "Primitive.hpp"
+#include "Material.hpp"
 
 //lib
 #include <vulkan/vulkan.h>
@@ -19,8 +20,9 @@ struct FrameInfo {
     float frameTime;
     VkCommandBuffer commandBuffer;
     Camera &camera;
-    std::vector<VkDescriptorSet> globalDescriptorSet;
-    SolidObject::Map &solidObjects;
+    std::unordered_map<std::string, VkDescriptorSet> globalDescriptorSet;
+    Primitive::Map &primitives;
+    std::unordered_map<std::string, Material> &materials;
 };
 
 #endif /* FrameInfo_hpp */

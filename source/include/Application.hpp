@@ -21,13 +21,14 @@
 #include "Descriptors.hpp"
 #include "Model.hpp"
 #include "Renderer.hpp"
-#include "SolidObject.hpp"
+#include "Primitive.hpp"
 #include "Camera.hpp"
 #include "Keyboard.hpp"
 #include "Texture.hpp"
 #include "TextRender.hpp"
 #include "HDRi.hpp"
 #include "CompositionPipeline.hpp"
+#include "Material.hpp"
 
 //std
 #include <memory>
@@ -73,18 +74,34 @@ private:
     std::unique_ptr<RenderSystem> skyboxSystem;
     std::unique_ptr<CompositionPipeline> postProcessing;
     
+    std::vector<std::unique_ptr<Texture>> testure{};
+    std::unordered_map<std::string, Material> materials{};
+    
     std::unordered_map<uint32_t, std::unique_ptr<Texture>> textures{};
     std::vector<VkDescriptorImageInfo> textureInfos{};
     bool assetsLoaded = false;
     
     std::unique_ptr<DescriptorPool> globalPool{};
-    SolidObject::Map solidObjects;
-    SolidObject::Map env;
+    Primitive::Map primitives;
+    Primitive::Map env;
     
     SDL_Event sdl_event;
     int frameIndex{0};
     std::vector<float> frameTimes{0};
     std::vector<float> framesPerSecond{0};
+    
+    struct {
+        private:
+            std::chrono::high_resolution_clock::time_point start{};
+            std::chrono::high_resolution_clock::time_point cpuStop{};
+            std::chrono::high_resolution_clock::time_point gpuStop{};
+        public:
+            float cpuTime{0};
+            float gpuTime{0};
+            void startFrame(void) { start = std::chrono::high_resolution_clock::now(); }
+            void cpuEnd(void) { cpuStop = std::chrono::high_resolution_clock::now(); cpuTime = std::chrono::duration<float, std::chrono::seconds::period>(cpuStop - start).count(); }
+            void gpuEnd(void) { gpuStop = std::chrono::high_resolution_clock::now(); gpuTime = std::chrono::duration<float, std::chrono::seconds::period>(gpuStop - cpuStop).count(); }
+    } m_Perf;
     
     uint8_t load_phase{0};
     std::string binaryDir;

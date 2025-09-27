@@ -8,7 +8,7 @@
 #ifndef Keyboard_hpp
 #define Keyboard_hpp
 
-#include "SolidObject.hpp"
+#include "Primitive.hpp"
 /*
  class Keyboard {
  public:
@@ -25,7 +25,7 @@
         int lookDown = GLFW_KEY_DOWN;
     };
     
-    void moveInPlaneXZ(GLFWwindow * window, float dt, SolidObject &solidObject);
+    void moveInPlaneXZ(GLFWwindow * window, float dt, Primitive &Primitive);
     
     KeyMappings keys{};
     float moveSpeed{3.f};

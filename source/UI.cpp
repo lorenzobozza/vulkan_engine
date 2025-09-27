@@ -298,7 +298,7 @@ void UI::loadFontTexture(std::string binaryPath) {
     int texWidth, texHeight;
     
     ImGuiIO &io = ImGui::GetIO();
-    io.Fonts->AddFontFromFileTTF((binaryPath+"fonts/monaco.ttf").c_str(), 24.0f);
+    io.Fonts->AddFontFromFileTTF((binaryPath+"fonts/brassMono.otf").c_str(), 20.f);
     io.Fonts->GetTexDataAsRGBA32(&fontData, &texWidth, &texHeight);
 
     if (!fontData) {

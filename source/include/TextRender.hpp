@@ -12,7 +12,7 @@
 #include "Buffer.hpp"
 #include "Descriptors.hpp"
 #include "Pipeline.hpp"
-#include "SolidObject.hpp"
+#include "Primitive.hpp"
 #include "FrameInfo.hpp"
 #include "Image.hpp"
 
@@ -47,7 +47,7 @@ public:
 private:
 
     Device &device;
-    SolidObject::Map meshes;
+    Primitive::Map meshes;
     Image vulkanImage{device};
     std::unordered_map<char, Character> characters;
 

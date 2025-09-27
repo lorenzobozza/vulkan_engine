@@ -9,6 +9,9 @@
 #include "include/RenderSystem.hpp"
 #include "include/UI.hpp"
 #include "include/Buffer.hpp"
+#include "include/importGLTF.hpp"
+
+#include "include/Material.hpp"
 
 //libs
 #define GLM_FORCE_RADIANS
@@ -60,10 +63,11 @@ void Application::run() {
     // 3D CAMERA
     Camera camera{};
     float aspect = renderer.getAspectRatio();
-    camera.setProjection.perspective(aspect, glm::radians(60.f), .01f, 100.f);
+    camera.setProjection.perspective(aspect, glm::radians(75.f), .01f, 100.f);
     bool orth = false;
+    
     // Create object without model for the 3D camera position
-    SolidObject cameraObj = SolidObject::createSolidObject();
+    Primitive cameraObj = Primitive::new_primitive();
     cameraObj.transform.translation = {.0f, -2.f, -2.f};
     
     postProcessing = std::make_unique<CompositionPipeline>(
@@ -79,61 +83,9 @@ void Application::run() {
     // Load heavy assets on a separate thread
     std::thread([this]() {
         this->load_phase = 1;
-        this->textures.emplace(0, std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"texture/hdri/spiaggia_di_mondello_4k.hdr", VK_FORMAT_R32G32B32A32_SFLOAT));
-        textures.at(0)->moveBuffer(VK_FALSE);
-
-        std::vector<std::string> materials = {
-            "Arches", "Bricks", "Ceiling", "Column_A", "Column_B", "Column_C", "Details", "Fabric_Curtain_Blue",
-            "Fabric_Curtain_Green", "Fabric_Curtain_Red", "Fabric_Round_Blue", "Fabric_Round_Green",
-            "Fabric_Round_Red", "Flagpoles", "Floor", "Ivy", "Lion_Head", "Lion_Shield", "Roof", "Vase_Hanging",
-            "Vase_Hanging_Chain", "Vase_Octagonal", "Vase_Round", "Vase_Round_Plants"
-        };
-
-        const size_t nTex = 24 * 5;
-        textures.reserve(nTex + 1);
         
-        #ifndef ENHANCED_MT
-        
-        for (int i = 0; i < materials.size(); i++) {
-            uint16_t tex = i * 5;
-            this->textures.emplace(++tex, std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"sponza/textures/"+materials[i]+"/"+materials[i]+"_Diffuse.tif"));
-            this->textures.at(tex)->moveBuffer();
-            this->textures.emplace(++tex, std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"sponza/textures/"+materials[i]+"/"+materials[i]+"_Normal.tif", VK_FORMAT_R8G8B8A8_UNORM));
-            this->textures.at(tex)->moveBuffer();
-            this->textures.emplace(++tex, std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"sponza/textures/"+materials[i]+"/"+materials[i]+"_Metallic.tif"));
-            this->textures.at(tex)->moveBuffer();
-            this->textures.emplace(++tex, std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"sponza/textures/"+materials[i]+"/"+materials[i]+"_Smoothness.tif"));
-            this->textures.at(tex)->moveBuffer();
-            this->textures.emplace(++tex, std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"sponza/textures/"+materials[i]+"/"+materials[i]+"_AO.tif"));
-            this->textures.at(tex)->moveBuffer();
-        }
-        
-        #else
-        
-        // Load textures to host visible memory
-        std::unique_ptr<Texture> staged[nTex];
-        for (int i = 0; i < materials.size(); i++)
-            std::thread([this, i, &materials, &staged]() {
-            uint16_t tex = i * 5;
-                staged[tex++] = std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"sponza/textures/"+materials[i]+"/"+materials[i]+"_Diffuse.tif");
-                staged[tex++] = std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"sponza/textures/"+materials[i]+"/"+materials[i]+"_Normal.tif", VK_FORMAT_R8G8B8A8_UNORM);
-                staged[tex++] = std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"sponza/textures/"+materials[i]+"/"+materials[i]+"_Metallic.tif");
-                staged[tex++] = std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"sponza/textures/"+materials[i]+"/"+materials[i]+"_Smoothness.tif");
-                staged[tex] = std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"sponza/textures/"+materials[i]+"/"+materials[i]+"_AO.tif");
-            }).detach();
-        
-        // Move staged texture-buffers to VRAM as they get loaded (while also moving each associated pointer to the heap)
-        int loaded = 0, i = 0;
-        while(loaded < nTex) {
-            if (staged[i] != nullptr) {
-                staged[i]->moveBuffer(); // Host -> Device
-                textures.emplace(i + 1, std::move(staged[i]));
-                loaded++;
-            }
-            i = ++i % nTex;
-        }
-        
-        #endif
+        this->testure.push_back(std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"texture/hdri/symmetrical_garden_02_8k.hdr", false, VK_FORMAT_R32G32B32A32_SFLOAT));
+        this->testure.back()->moveBuffer();
         
         this->load_phase = 2;
         this->assetsLoaded = true;
@@ -208,7 +160,7 @@ void Application::run() {
     /****
     HDRi, IBL, SkyBox
     */
-    auto equitangular = textures.at(0)->descriptorInfo();
+    auto equitangular = testure.at(0)->descriptorInfo();
     
     HDRi environmentMap{device, equitangular, {1024, 1024}, "equirectangular", binaryDir, 9};
     auto environment = environmentMap.descriptorInfo();
@@ -233,14 +185,16 @@ void Application::run() {
             .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .build();
             
-    std::vector<VkDescriptorSet> skyboxDescriptorSets[SwapChain::MAX_FRAMES_IN_FLIGHT];
+    std::unordered_map<std::string, VkDescriptorSet> skyboxDescriptorSets[SwapChain::MAX_FRAMES_IN_FLIGHT];
     for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
-        skyboxDescriptorSets[i] = std::vector<VkDescriptorSet>(1);
+        VkDescriptorSet descriptorSet;
         auto bufferInfo = uboBuffers[i]->descriptorInfo();
         DescriptorWriter(*skyboxSetLayout, *skyboxPool)
             .writeBuffer(0, &bufferInfo)
             .writeImage(1, &environment)
-            .build(skyboxDescriptorSets[i][0]);
+            .build(descriptorSet);
+            
+        skyboxDescriptorSets[i].emplace("SKY", descriptorSet);
     }
 
     // SkyBox Pipeline
@@ -255,9 +209,10 @@ void Application::run() {
     /****
     Global Scene
     */
-    for (int i = 1; i < textures.size(); i++) { textureInfos.push_back(textures.at(i)->descriptorInfo()); }
+    //for (int i = 1; i < textures.size(); i++) { textureInfos.push_back(textures.at(i)->descriptorInfo()); }
     
-    const uint32_t numOfMaterials = (uint32_t)textureInfos.size() / 5;
+    const uint32_t numOfMaterials = (uint32_t)materials.size();
+    //(uint32_t)textureInfos.size() / 3;
     
     // Global Scene Descriptors
     globalPool =
@@ -287,25 +242,35 @@ void Application::run() {
             .addBinding(8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .build();
     
-    std::vector<VkDescriptorSet> inFlightDescriptorSets[SwapChain::MAX_FRAMES_IN_FLIGHT];
+    // Create a Descriptor Map for each frame in flight
+    std::unordered_map<std::string, VkDescriptorSet> inFlightDescriptorSets[SwapChain::MAX_FRAMES_IN_FLIGHT];
+    
     for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
-        std::vector<VkDescriptorSet> descriptorSets(numOfMaterials);
         auto bufferInfo = uboBuffers[i]->descriptorInfo();
-        int matCnt = 0;
-        for (int j = 0; j < numOfMaterials; j++) {
+        for (auto& kv : materials) {
+            auto& name = kv.first;
+            auto& material = kv.second;
+            VkDescriptorSet descriptorSet;
+            VkDescriptorImageInfo   emissive = material.getColorTextureIF(),
+                                    normal = material.getNormalTextureIF(),
+                                    occlusion = material.getOcclusionTextureIF(),
+                                    metalRough = material.getMetalRoughTextureIF(),
+                                    def = testure.at(0)->descriptorInfo();
+                                    
             DescriptorWriter(*globalSetLayout, *globalPool)
                 .writeBuffer(0, &bufferInfo)
                 .writeImage(1, &irradiance)                 // Irradiance
                 .writeImage(2, &prefiltered)                // Reflection
                 .writeImage(3, renderer.getBrdfLutInfo())   // BRDF Lut
-                .writeImage(4, &textureInfos[matCnt++])     // Diffuse
-                .writeImage(5, &textureInfos[matCnt++])     // Normal
-                .writeImage(6, &textureInfos[matCnt++])     // Metallic
-                .writeImage(7, &textureInfos[matCnt++])     // Roughness
-                .writeImage(8, &textureInfos[matCnt++])     // Occlusion
-                .build(descriptorSets[j]);
+                .writeImage(4, &emissive)       // Diffuse
+                .writeImage(5, &normal)         // Normal
+                .writeImage(6, &metalRough)     // Metallic
+                .writeImage(7, &def)            // Roughness
+                .writeImage(8, &occlusion)      // Occlusion
+                .build(descriptorSet);
+                
+            inFlightDescriptorSets[i].emplace(name, descriptorSet);
         }
-        inFlightDescriptorSets[i] = descriptorSets;
     }
      
     // Global Scene Pipeline
@@ -350,6 +315,7 @@ void Application::run() {
         cnt = ++cnt % 628;
         // Compute frame latency and store the value
         auto newTime = std::chrono::high_resolution_clock::now();
+        
         float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime -  currentTime).count();
         currentTime = newTime;
         frameTimes.push_back(frameTime);
@@ -368,6 +334,8 @@ void Application::run() {
                 framesPerSecond.erase(framesPerSecond.begin());
             }
         }
+        
+        m_Perf.startFrame();
         
         // Prepare next GUI Frame
         imgui.newFrame(this);
@@ -511,6 +479,8 @@ void Application::run() {
         // Polling keystrokes and adjusting the camera position/rotation
         camera.setViewYXZ(cameraObj.transform.translation, cameraObj.transform.rotation);
         
+        m_Perf.cpuEnd();
+        
         if (auto commandBuffer = renderer.beginFrame()) {
             frameIndex = renderer.getFrameIndex();
             FrameInfo frameInfo{
@@ -519,7 +489,8 @@ void Application::run() {
                 commandBuffer,
                 camera,
                 inFlightDescriptorSets[frameIndex],
-                solidObjects
+                primitives,
+                materials
             };
             
             FrameInfo skyboxInfo{
@@ -528,7 +499,8 @@ void Application::run() {
                 commandBuffer,
                 camera,
                 skyboxDescriptorSets[frameIndex],
-                env
+                env,
+                materials
             };
             
             // Update UBO
@@ -556,31 +528,28 @@ void Application::run() {
             
             renderer.endFrame();
         }
+        
+        m_Perf.gpuEnd();
+    
     }
-
     vkDeviceWaitIdle(device.device());
+    
 }
 
 void Application::loadSolidObjects() {
-    std::vector<std::string> meshNames = {
-        "arches", "brickwalls", "ceilings", "columns_a", "columns_b", "columns_c",
-        "details", "fabric_curtains_blue", "fabric_curtains_green", "fabric_curtains_red",
-        "fabric_rounds_blue", "fabric_rounds_green", "fabric_rounds_red", "flagpoles",
-        "floors", "ivys", "lion_heads", "lion_shields", "roofs", "vases_hanging",
-        "vases_hanging_chain", "vases_octagonal", "vases_round", "vases_round_plants"
-    };
-
-    for (int i = 0; i < meshNames.size(); i++) {
-        auto group = SolidObject::createSolidObject();
-        group.model = Model::createModelFromFile(device, binaryDir + "sponza/sponza_" + meshNames[i] + ".obj", VK_TRUE);
-        group.textureIndex = i;
-        group.roughness = .7f;
-        group.metalness = 1.f;
-        solidObjects.emplace(group.getId(), std::move(group));
-    }
     
+    Material globalMaterial(&testure);
+    globalMaterial.color = {1.f, 0.f, 1.f, 1.f};
+    materials.emplace("Global_Default_Material", globalMaterial);
+    
+    NodeSet::InitStruct initNodeStruct{device, vulkanImage, primitives, testure, materials};
+    
+    //NodeSet(initNodeStruct, binaryDir + "chess.glb");
+    NodeSet(initNodeStruct, binaryDir + "Sponza.glb");
+    
+
     // Cubemap 3D canvas
-    auto cube = SolidObject::createSolidObject();
+    auto cube = Primitive::new_primitive();
     Model::Data cubeData;
     cubeData.vertices = {
         {{-1.f, -1.f, 1.f}, {}, {}, {}, {0.f, 0.f}},
@@ -600,8 +569,9 @@ void Application::loadSolidObjects() {
         4,1,5,1,4,0,
         3,6,2,6,3,7
     };
-    cube.model = std::make_unique<Model>(device, cubeData);
-    cube.textureIndex = 0;
+    cube.setModel(std::make_shared<Model>(device, cubeData));
+    cube.textureIndex = 1;
+    cube.material = "SKY";
     cube.transform.translation = {.0f, .0f, .0f};
     cube.transform.scale = {1.f, 1.f, 1.f};
     cube.transform.rotation = {.0f, .0f, .0f};
@@ -610,6 +580,33 @@ void Application::loadSolidObjects() {
 
 void Application::renderImguiContent() {
     static auto counter10Hz = std::chrono::high_resolution_clock::now();
+    
+    static bool showMaterials = false;
+    ImGui::Checkbox("Show Materials Table", &showMaterials);
+    if (showMaterials && ImGui::BeginTable("material_table", 5, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
+    {
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn(); ImGui::Text("Name");
+        ImGui::TableNextColumn(); ImGui::Text("Color");
+        ImGui::TableNextColumn(); ImGui::Text("Normal");
+        ImGui::TableNextColumn(); ImGui::Text("Occlusion");
+        ImGui::TableNextColumn(); ImGui::Text("Metal/Rough");
+        for (auto& kv: materials) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", kv.first.c_str());
+            ImGui::TableNextColumn();
+            if ((kv.second.getTextureBitmap() & 0x1) == 0) {ImGui::ColorButton("", ImVec4(kv.second.color.r,kv.second.color.g,kv.second.color.b,kv.second.color.a));}
+            else { ImGui::Text("%s","Texture"); }
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", (kv.second.getTextureBitmap() & 0x2) == 0 ? "NO" : "Texture");
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", (kv.second.getTextureBitmap() & 0x4) == 0 ? "NO" : "Texture");
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", (kv.second.getTextureBitmap() & 0x8) == 0 ? ( "M: " + std::to_string(kv.second.metalness) + ", R: " + std::to_string(kv.second.roughness) ).c_str() : "Texture");
+        }
+        ImGui::EndTable();
+    }
     
     ImGui::TextUnformatted(device.properties.deviceName);
     float ddpi;
@@ -632,7 +629,8 @@ void Application::renderImguiContent() {
         frameTime = frameTimes.back() * 1000.f;
         counter10Hz = std::chrono::high_resolution_clock::now();
     }
-    ImGui::Text("Frametime %.2f", frameTime);
+    ImGui::Text("CPU Time %.2fms", m_Perf.cpuTime * 1000.f);
+    ImGui::Text("GPU Time %.2fms", m_Perf.gpuTime * 1000.f);
     
     ImGui::NewLine();
     ImGui::Text("FIF: %i", SwapChain::MAX_FRAMES_IN_FLIGHT);

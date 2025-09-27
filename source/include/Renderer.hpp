@@ -13,7 +13,7 @@
 #include "SwapChain.hpp"
 #include "Descriptors.hpp"
 #include "Pipeline.hpp"
-#include "SolidObject.hpp"
+#include "Primitive.hpp"
 
 //std
 #include <memory>

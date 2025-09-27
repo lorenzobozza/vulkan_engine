@@ -17,19 +17,67 @@
 #include <iostream>
 #include <chrono>
 
-Texture::Texture(Device &dev, Image &image, std::string filePath, VkFormat format)
-    : device{dev}, image{image}, textureFilePath{filePath}, viewType{VK_IMAGE_VIEW_TYPE_2D}, format{format} {
+Texture::Texture(Device &dev, Image &image, std::string filePath, bool mipMapping, VkFormat format)
+    : device{dev}, image{image}, textureFilePath{filePath}, mipMapping{mipMapping}, viewType{VK_IMAGE_VIEW_TYPE_2D}, format{format} {
     loadTexture();
+    createDefaultTextureSampler();
     TIFFSetWarningHandler(NULL);
 }
 
-Texture::Texture(Device &dev, Image &image, std::string filePath, VkImageViewType viewType, VkFormat format)
-    : device{dev}, image{image}, textureFilePath{filePath}, viewType{viewType}, format{format} {
+Texture::Texture(Device &dev, Image &image, std::string filePath, bool mipMapping, VkImageViewType viewType, VkFormat format)
+    : device{dev}, image{image}, textureFilePath{filePath}, mipMapping{mipMapping}, viewType{viewType}, format{format} {
     loadTexture();
-    createTextureImage(VK_FALSE);
+    createDefaultTextureSampler();
+    createTextureImage();
     createTextureImageView();
-    createTextureSampler();
     TIFFSetWarningHandler(NULL);
+}
+
+Texture::Texture(Device &dev, Image &image, void* data, uint32_t texWidth, uint32_t texHeight, uint8_t depth, bool mipMapping, VkFormat format, VkSamplerCreateInfo *samplerInfo) : device{dev}, image{image}, mipMapping{mipMapping}, viewType{VK_IMAGE_VIEW_TYPE_2D}, format{format} {
+
+    VkDeviceSize imageSize = texWidth * texHeight * depth * sizeof(uint8_t);
+    
+    stagingBuffer = std::make_unique<Buffer>(
+        device,
+        imageSize,
+        1,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+    );
+    
+    stagingBuffer->map();
+    stagingBuffer->writeToBuffer(data);
+    
+    _w = texWidth;
+    _h = texHeight;
+    
+    if (mipMapping) {
+        mipLevels = std::floor(std::log2(std::max(_w, _h))) + 1;
+    }
+    else {
+        mipLevels = 1;
+    }
+    
+    samplerInfo->sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    
+    samplerInfo->anisotropyEnable = mipLevels > 1 ? VK_TRUE : VK_FALSE;
+    samplerInfo->maxAnisotropy = device.properties.limits.maxSamplerAnisotropy / 4;
+    
+    samplerInfo->borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
+    samplerInfo->unnormalizedCoordinates = VK_FALSE;
+    
+    samplerInfo->compareEnable = VK_FALSE;
+    samplerInfo->compareOp = VK_COMPARE_OP_ALWAYS;
+    
+    samplerInfo->mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerInfo->mipLodBias = 0.0f;
+    samplerInfo->minLod = 0.0f;
+    samplerInfo->maxLod = static_cast<float>(mipLevels);
+    
+    if (vkCreateSampler(device.device(), samplerInfo, nullptr, &textureSampler) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create texture sampler!");
+    }
+    
 }
 
 Texture::~Texture() {
@@ -39,10 +87,9 @@ Texture::~Texture() {
     vkFreeMemory(device.device(), textureImageMemory, nullptr);
 }
 
-void Texture::moveBuffer(bool mipmap) {
-    createTextureImage(mipmap);
+void Texture::moveBuffer() {
+    createTextureImage();
     createTextureImageView();
-    createTextureSampler();
 }
 
 VkDescriptorImageInfo Texture::descriptorInfo() {
@@ -156,14 +203,16 @@ void Texture::loadTexture() {
     _w = texWidth;
     _h = texHeight;
     
-    mipLevels = std::floor(std::log2(std::max(_w, _h))) + 1;
-}
-
-void Texture::createTextureImage(bool mipmap) {
-    if (!mipmap) {
+    if (mipMapping) {
+        mipLevels = std::floor(std::log2(std::max(_w, _h))) + 1;
+    }
+    else {
         mipLevels = 1;
     }
+    
+}
 
+void Texture::createTextureImage() {
     image.createImage(_w, _h, format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory, 1, mipLevels);
     
     auto commandBuffer = image.beginSingleTimeCommands();
@@ -224,7 +273,7 @@ void Texture::createTextureImageView() {
     textureImageView = image.createImageView(textureImage, viewType, format, 1, mipLevels);
 }
 
-void Texture::createTextureSampler() {
+void Texture::createDefaultTextureSampler() {
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     samplerInfo.magFilter = VK_FILTER_LINEAR;

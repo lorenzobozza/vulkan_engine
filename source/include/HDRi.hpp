@@ -11,7 +11,7 @@
 #include "Renderer.hpp"
 #include "Descriptors.hpp"
 #include "Camera.hpp"
-#include "SolidObject.hpp"
+#include "Primitive.hpp"
 #include "FrameInfo.hpp"
 #include "Texture.hpp"
 #include "RenderSystem.hpp"

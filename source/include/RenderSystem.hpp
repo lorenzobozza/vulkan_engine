@@ -10,9 +10,10 @@
 
 #include "Device.hpp"
 #include "Pipeline.hpp"
-#include "SolidObject.hpp"
+#include "Primitive.hpp"
 #include "Camera.hpp"
 #include "FrameInfo.hpp"
+#include "Material.hpp"
 
 //std
 #include <memory>
