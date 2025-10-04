@@ -53,6 +53,7 @@ Texture::Texture(Device &dev, Image &image, void* data, uint32_t texWidth, uint3
     
     if (mipMapping) {
         mipLevels = std::floor(std::log2(std::max(_w, _h))) + 1;
+        mipLevels = (mipLevels > 6) ? 6 : mipLevels;
     }
     else {
         mipLevels = 1;
@@ -283,8 +284,10 @@ void Texture::createDefaultTextureSampler() {
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     
+    float maxSamplerAnisotropy = device.properties.limits.maxSamplerAnisotropy;
+    
     samplerInfo.anisotropyEnable = mipLevels > 1 ? VK_TRUE : VK_FALSE;
-    samplerInfo.maxAnisotropy = device.properties.limits.maxSamplerAnisotropy / 4;
+    samplerInfo.maxAnisotropy = (maxSamplerAnisotropy > 8.0f) ? 8.0f : maxSamplerAnisotropy;
     
     samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
     samplerInfo.unnormalizedCoordinates = VK_FALSE;

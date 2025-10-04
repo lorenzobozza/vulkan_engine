@@ -121,12 +121,11 @@ void NodeSet::loadNodeFromModel(int nodeIndex, Node* parentNode) {
 
 void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform) {
     if (node.mesh > -1) {
-        Model::Data data;
-        uint32_t indexOffset = 0;
-    
         const tinygltf::Mesh& mesh = m_gltfModel.meshes[node.mesh];
         
         for (const tinygltf::Primitive& primitive : mesh.primitives) {
+            Model::Data data{};
+            uint32_t indexOffset = 0;
 
             uint32_t indexCount = 0;
             uint32_t vertexCount = 0;
@@ -496,12 +495,21 @@ static VkFilter getVkFilterMode(int32_t filterMode) {
 }
 
 void NodeSet::fillSamplerInfo(int textureIndex, VkSamplerCreateInfo *samplerInfo) {
-    samplerInfo->magFilter = getVkFilterMode(m_gltfModel.samplers[textureIndex].magFilter);
-    samplerInfo->minFilter = getVkFilterMode(m_gltfModel.samplers[textureIndex].minFilter);
+    if (m_gltfModel.samplers.size() > textureIndex) {
+        samplerInfo->magFilter = getVkFilterMode(m_gltfModel.samplers[textureIndex].magFilter);
+        samplerInfo->minFilter = getVkFilterMode(m_gltfModel.samplers[textureIndex].minFilter);
 
-    samplerInfo->addressModeU = getVkWrapMode(m_gltfModel.samplers[textureIndex].wrapS);
-    samplerInfo->addressModeV = getVkWrapMode(m_gltfModel.samplers[textureIndex].wrapT);
-    samplerInfo->addressModeW = samplerInfo->addressModeV;
+        samplerInfo->addressModeU = getVkWrapMode(m_gltfModel.samplers[textureIndex].wrapS);
+        samplerInfo->addressModeV = getVkWrapMode(m_gltfModel.samplers[textureIndex].wrapT);
+        samplerInfo->addressModeW = samplerInfo->addressModeV;
+    } else {
+        samplerInfo->magFilter = VK_FILTER_LINEAR;
+        samplerInfo->minFilter = VK_FILTER_LINEAR;
+
+        samplerInfo->addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo->addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo->addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    }
 }
 
 // MIKKtSPACE
