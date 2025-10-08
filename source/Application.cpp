@@ -60,53 +60,120 @@ void Application::run() {
     auto currentTime = std::chrono::high_resolution_clock::now();
     int cnt{0};
     
-    // 3D CAMERA
+
     Camera camera{};
-    float aspect = renderer.getAspectRatio();
-    camera.setProjection.perspective(aspect, glm::radians(75.f), .01f, 100.f);
+    float aspectRatio = renderer.getAspectRatio();
+    camera.setProjection.perspective(aspectRatio, glm::radians(75.f), .01f, 100.f);
+    
+    Primitive cameraObj = Primitive::new_primitive();
+    {
+        cameraObj.transform.translation = {.0f, -2.f, -2.f};
+    }
     bool orth = false;
     
-    // Create object without model for the 3D camera position
-    Primitive cameraObj = Primitive::new_primitive();
-    cameraObj.transform.translation = {.0f, -2.f, -2.f};
-    
     postProcessing = std::make_unique<CompositionPipeline>(
-        device,
+        vulkanDevice,
         renderer.getSwapChainRenderPass(),
         renderer.getPostProcessingDescriptorSetLayout(),
-        binaryDir+"composition"
+        binaryDir + "composition"
     );
     
-    //TextRender font{device, renderer.getSwapChainRenderPass(), "fonts/Disket-Mono-Regular.ttf"};
-    UI imgui(device, renderer.getSwapChainRenderPass(), binaryDir);
+    //TextRender font{vulkanDevice, renderer.getSwapChainRenderPass(), "fonts/Disket-Mono-Regular.ttf"};
+    UI imgui(vulkanDevice, renderer.getSwapChainRenderPass(), binaryDir);
+    
+    // GUI Style and Sizes definition
+    SDL_Vulkan_GetDrawableSize(window.getWindow(), &surfaceExtent.width, &surfaceExtent.height);
+    SDL_GetWindowSize(window.getWindow(), &windowExtent.width, &windowExtent.height);
+    dpi_scale_fact = surfaceExtent.width / windowExtent.width;
+    ImGuiIO& io = ImGui::GetIO();
+    io.DisplaySize = {(float)surfaceExtent.width, (float)surfaceExtent.height};
+    io.FontGlobalScale = dpi_scale_fact * (windowExtent.width / 1920.f);
+    {
+        ImGuiStyle& style = ImGui::GetStyle();
+        style.FrameBorderSize = 0.0f;
+        style.WindowBorderSize = 1.0f;
+        style.Colors[ImGuiCol_TitleBg] = ImVec4(0.8f, 0.0f, 0.0f, 0.6f);
+        style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.8f, 0.0f, 0.0f, 0.8f);
+        style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.8f, 0.0f, 0.0f, 0.4f);
+        style.Colors[ImGuiCol_Header] = ImVec4(0.8f, 0.0f, 0.0f, 0.4f);
+        style.Colors[ImGuiCol_CheckMark] = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
+        style.WindowRounding = 4.f;
+        style.FrameRounding = 5.f;
+        style.ScaleAllSizes(dpi_scale_fact * 0.8f);
+    }
 
     // Load heavy assets on a separate thread
     std::thread([this]() {
         this->load_phase = 1;
         
-        this->testure.push_back(std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"texture/hdri/symmetrical_garden_02_8k.hdr", false, VK_FORMAT_R32G32B32A32_SFLOAT));
-        this->testure.back()->moveBuffer();
+        this->testure.push_back(std::make_unique<Texture>(this->vulkanDevice, vulkanImage, binaryDir+"texture/hdri/symmetrical_garden_02_8k.hdr", false, VK_FORMAT_R32G32B32A32_SFLOAT));
+        //this->testure.back()->moveBuffer();
+        
+        Material globalMaterial(&testure);
+        globalMaterial.color = {1.f, 0.f, 1.f, 1.f};
+        materials.emplace("Global_Default_Material", globalMaterial);
+        
+        NodeSet::InitStruct initNodeStruct{vulkanDevice, vulkanImage, primitives, testure, materials};
+        
+        //NodeSet(initNodeStruct, binaryDir + "chess.glb");
+        NodeSet(initNodeStruct, binaryDir + "Sponza.glb");
+        
+
+        // Cubemap 3D canvas
+        auto cube = Primitive::new_primitive();
+        Model::Data cubeData;
+        cubeData.vertices = {
+            {{-1.f, -1.f, 1.f}, {}, {}, {}, {0.f, 0.f}},
+            {{1.f, -1.f, 1.f}, {}, {}, {}, {1.f, 0.f}},
+            {{1.f, 1.f, 1.f}, {}, {}, {}, {1.f, 1.f}},
+            {{-1.f, 1.f, 1.f}, {}, {}, {}, {0.f, 1.f}},
+            {{-1.f, -1.f, -1.f}, {}, {}, {}, {0.f, 0.f}},
+            {{1.f, -1.f, -1.f}, {}, {}, {}, {1.f, 0.f}},
+            {{1.f, 1.f, -1.f}, {}, {}, {}, {1.f, 1.f}},
+            {{-1.f, 1.f, -1.f}, {}, {}, {}, {0.f, 1.f}}
+        };
+        cubeData.indices = {
+            0,2,1,2,0,3,
+            4,5,6,6,7,4,
+            1,6,5,6,1,2,
+            0,4,7,7,3,0,
+            4,1,5,1,4,0,
+            3,6,2,6,3,7
+        };
+        cube.setModel(std::make_shared<Model>(vulkanDevice, cubeData));
+        cube.textureIndex = 1;
+        cube.material = "SKY";
+        cube.transform.translation = {.0f, .0f, .0f};
+        cube.transform.scale = {1.f, 1.f, 1.f};
+        cube.transform.rotation = {.0f, .0f, .0f};
+        env.emplace(cube.getId(), std::move(cube));
         
         this->load_phase = 2;
         this->assetsLoaded = true;
     }).detach();
     
     // Loading Screen Rendering
-    //font.renderText("Vulkan Engine V0.8", .0f, -.85f, 1.2f, { .7f, .0f, .0f}, aspect);
-    //font.renderText("github.com/lorenzobozza/vulkan_engine", .0f, -.8f, .35f, { .8f, .8f, .8f}, aspect);
+    //font.renderText("Vulkan Engine V0.8", .0f, -.85f, 1.2f, { .7f, .0f, .0f}, aspectRatio);
+    //font.renderText("github.com/lorenzobozza/vulkan_engine", .0f, -.8f, .35f, { .8f, .8f, .8f}, aspectRatio);
 
     bool nextIsLast = false;
     auto loadTimer = std::chrono::high_resolution_clock::now();
     while (!assetsLoaded || load_phase > 0 || nextIsLast) {
-        SDL_PollEvent(&sdl_event);
+        //SDL_PollEvent(&sdl_event);
         
         auto newTime = std::chrono::high_resolution_clock::now();
         float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime -  currentTime).count();
         currentTime = newTime;
         frameTime = glm::min(frameTime, .05f);
 
+        pollWindowEvents();
+        
+        imgui.newFrame(this);
+        
         if (auto commandBuffer = renderer.beginFrame()) {
             frameIndex = renderer.getFrameIndex();
+            
+            imgui.updateBuffers(frameIndex);
             
             //Render
             renderer.beginOffscreenRenderPass(commandBuffer);
@@ -115,6 +182,7 @@ void Application::run() {
             renderer.beginSwapChainRenderPass(commandBuffer);
             //postProcessing->renderSceneToSwapChain(commandBuffer, renderer.getPostProcessingDescriptorSets()->at(frameIndex));
             //font.render(commandBuffer, frameIndex);
+            imgui.draw(commandBuffer, frameIndex);
             renderer.endSwapChainRenderPass(commandBuffer);
             
             renderer.endFrame();
@@ -137,9 +205,14 @@ void Application::run() {
             }
         }
     }
-    vkDeviceWaitIdle(device.device());
+    
+    for (auto& t : testure) {
+        t->moveBuffer();
+    }
+    
+    vkDeviceWaitIdle(vulkanDevice.device());
     renderer.integrateBrdfLut(binaryDir);
-    loadSolidObjects();
+    //loadSolidObjects();
     DEBUG_MESSAGE('\t' << std::chrono::duration<float, std::chrono::seconds::period>(std::chrono::high_resolution_clock::now() - loadTimer).count());
     
     /****
@@ -148,7 +221,7 @@ void Application::run() {
     std::unique_ptr<Buffer> uboBuffers[SwapChain::MAX_FRAMES_IN_FLIGHT];
     for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
          uboBuffers[i] = std::make_unique<Buffer>(
-            device,
+            vulkanDevice,
             sizeof(GlobalUbo),
             1,
             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
@@ -162,25 +235,25 @@ void Application::run() {
     */
     auto equitangular = testure.at(0)->descriptorInfo();
     
-    HDRi environmentMap{device, equitangular, {1024, 1024}, "equirectangular", binaryDir, 9};
+    HDRi environmentMap{vulkanDevice, equitangular, {1024, 1024}, "equirectangular", binaryDir, 9};
     auto environment = environmentMap.descriptorInfo();
     
-    HDRi prefilteredMap{device, environment, {512, 512}, "prefiltering", binaryDir, 9};
+    HDRi prefilteredMap{vulkanDevice, environment, {512, 512}, "prefiltering", binaryDir, 9};
     auto prefiltered = prefilteredMap.descriptorInfo();
     
-    HDRi irradianceMap{device, environment, {32, 32}, "irradiance", binaryDir};
+    HDRi irradianceMap{vulkanDevice, environment, {32, 32}, "irradiance", binaryDir};
     auto irradiance = irradianceMap.descriptorInfo();
 
     // SkyBox Descriptors
     std::unique_ptr<DescriptorPool> skyboxPool =
-       DescriptorPool::Builder(device)
+       DescriptorPool::Builder(vulkanDevice)
            .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
            .build();
     
     auto skyboxSetLayout =
-        DescriptorSetLayout::Builder(device)
+        DescriptorSetLayout::Builder(vulkanDevice)
             .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
             .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .build();
@@ -199,11 +272,11 @@ void Application::run() {
 
     // SkyBox Pipeline
     skyboxSystem = std::make_unique<RenderSystem>(
-        device,
+        vulkanDevice,
         renderer.getOffscreenRenderPass(),
         skyboxSetLayout->getDescriptorSetLayout(),
         binaryDir+"skybox",
-        device.msaaSamples
+        vulkanDevice.msaaSamples
     );
     
     /****
@@ -216,7 +289,7 @@ void Application::run() {
     
     // Global Scene Descriptors
     globalPool =
-       DescriptorPool::Builder(device)
+       DescriptorPool::Builder(vulkanDevice)
            .setMaxSets(numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
@@ -230,7 +303,7 @@ void Application::run() {
            .build();
 
     auto globalSetLayout =
-        DescriptorSetLayout::Builder(device)
+        DescriptorSetLayout::Builder(vulkanDevice)
             .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
             .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .addBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
@@ -275,41 +348,20 @@ void Application::run() {
      
     // Global Scene Pipeline
     renderSystem = std::make_unique<RenderSystem>(
-        device,
+        vulkanDevice,
         renderer.getOffscreenRenderPass(),
         globalSetLayout->getDescriptorSetLayout(),
         binaryDir+"shader",
-        device.msaaSamples
+        vulkanDevice.msaaSamples
     );
     
-    // GUI Style and Sizes definition
-    SDL_Vulkan_GetDrawableSize(window.getWindow(), &surfaceExtent.width, &surfaceExtent.height);
-    SDL_GetWindowSize(window.getWindow(), &windowExtent.width, &windowExtent.height);
-    float dpi_scale_fact = surfaceExtent.width / windowExtent.width;
-    ImGuiIO& io = ImGui::GetIO();
-    io.DisplaySize = {(float)surfaceExtent.width, (float)surfaceExtent.height};
-    io.FontGlobalScale = dpi_scale_fact * (windowExtent.width / 1920.f);
-    {
-        ImGuiStyle& style = ImGui::GetStyle();
-        style.FrameBorderSize = 0.0f;
-        style.WindowBorderSize = 0.0f;
-        style.Colors[ImGuiCol_TitleBg] = ImVec4(0.8f, 0.0f, 0.0f, 0.6f);
-        style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.8f, 0.0f, 0.0f, 0.8f);
-        style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.8f, 0.0f, 0.0f, 0.4f);
-        style.Colors[ImGuiCol_Header] = ImVec4(0.8f, 0.0f, 0.0f, 0.4f);
-        style.Colors[ImGuiCol_CheckMark] = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
-        style.WindowRounding = 10.f;
-        style.FrameRounding = 5.f;
-        style.ScaleAllSizes(dpi_scale_fact * 0.8f);
-    }
+    
     
     // Hide not supported anti-aliasing presets from GUI
-    aaPresets.resize(1 + ctz(device.maxSampleCount));
+    aaPresets.resize(1 + ctz(vulkanDevice.maxSampleCount));
     
-    bool running = true;
     auto counter4Hz = std::chrono::high_resolution_clock::now();
-    bool mouseLeft = false;
-    uint8_t movement{0x00};
+    
     while(running)
     {
         cnt = ++cnt % 628;
@@ -339,108 +391,8 @@ void Application::run() {
         
         // Prepare next GUI Frame
         imgui.newFrame(this);
-
-        while(SDL_PollEvent(&sdl_event))
-        {
-            switch (sdl_event.type) {
-                case SDL_WINDOWEVENT:
-                    if (sdl_event.window.event == SDL_WINDOWEVENT_RESIZED) {
-                        DEBUG_MESSAGE("Window resize event detected!");
-                        SDL_Vulkan_GetDrawableSize(window.getWindow(), &surfaceExtent.width, &surfaceExtent.height);
-                        SDL_GetWindowSize(window.getWindow(), &windowExtent.width, &windowExtent.height);
-                        renderer.recreateSwapChain();
-                        dpi_scale_fact = surfaceExtent.width / windowExtent.width;
-                        io.DisplaySize = {(float)surfaceExtent.width, (float)surfaceExtent.height};
-                        io.FontGlobalScale = dpi_scale_fact * (windowExtent.width / 1920.f);
-                    }
-                    break;
-                case SDL_QUIT:
-                    running = false;
-                    break;
-                case SDL_KEYDOWN:
-                    switch (sdl_event.key.keysym.sym) {
-                        case SDLK_ESCAPE:
-                            running = false;
-                            break;
-                        case SDLK_w:
-                            movement |= 0x01;
-                            break;
-                        case SDLK_a:
-                            movement |= 0x02;
-                            break;
-                        case SDLK_s:
-                            movement |= 0x04;
-                            break;
-                        case SDLK_d:
-                            movement |= 0x08;
-                            break;
-                        case SDLK_LSHIFT:
-                            movement |= 0x10;
-                            break;
-                        case SDLK_SPACE:
-                            movement |= 0x20;
-                            break;
-                        default:
-                            break;
-                    }
-                    break;
-                case SDL_KEYUP:
-                    switch (sdl_event.key.keysym.sym) {
-                        case SDLK_w:
-                            movement &= 0xFE;
-                            break;
-                        case SDLK_a:
-                            movement &= 0xFD;
-                            break;
-                        case SDLK_s:
-                            movement &= 0xFB;
-                            break;
-                        case SDLK_d:
-                            movement &= 0xF7;
-                            break;
-                        case SDLK_LSHIFT:
-                            movement &= 0xEF;
-                            break;
-                        case SDLK_SPACE:
-                            movement &= 0xDF;
-                            break;
-                        default:
-                            break;
-                    }
-                    break;
-                case SDL_CONTROLLERDEVICEADDED:
-                    SDL_GameControllerOpen(0);
-                    //font.renderText(SDL_GameControllerNameForIndex(0), -.1f, -.95f, .1f);
-                    break;
-                case SDL_CONTROLLERDEVICEREMOVED:
-                    SDL_GameControllerClose(0);
-                    break;
-                case SDL_CONTROLLERBUTTONDOWN:
-                    running = false;
-                    break;
-                case SDL_MOUSEBUTTONDOWN:
-                    io.MouseDown[0] = sdl_event.button.state;
-                    mouseLeft = true;
-                    break;
-                case SDL_MOUSEBUTTONUP:
-                    io.MouseDown[0] = sdl_event.button.state;
-                    mouseLeft = false;
-                    break;
-                case SDL_MOUSEMOTION:
-                    int wx, wy, mx, my;
-                    SDL_GetWindowPosition(window.getWindow(), &wx, &wy);
-                    SDL_GetGlobalMouseState(&mx, &my);
-                    io.AddMousePosEvent((mx - wx) * dpi_scale_fact, (my - wy) * dpi_scale_fact);
-                    if (mouseLeft && !ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow)) {
-                        rotate.x = .05f*sdl_event.motion.yrel;
-                        rotate.y = -.05f*sdl_event.motion.xrel;
-                    }
-                    break;
-                case SDL_MOUSEWHEEL:
-                    io.AddMouseWheelEvent(sdl_event.wheel.preciseX, sdl_event.wheel.preciseX);
-                    break;
-            }
-        }
+        
+        pollWindowEvents();
         
         if (glm::dot(rotate, rotate) > glm::epsilon<float>()) {
             cameraObj.transform.rotation += rotate * .05f;
@@ -467,12 +419,12 @@ void Application::run() {
         }
         
         // Fix camera projection if the viewport's aspect ratio changes
-        if (aspect != renderer.getAspectRatio()) {
-            aspect = renderer.getAspectRatio();
+        if (aspectRatio != renderer.getAspectRatio()) {
+            aspectRatio = renderer.getAspectRatio();
             if (orth) {
-                camera.setOrthographicProjection(-aspect, aspect, -1.f, 1.f, -10.f, 100.f);
+                camera.setOrthographicProjection(-aspectRatio, aspectRatio, -1.f, 1.f, -10.f, 100.f);
             } else {
-                camera.setProjection.perspective(aspect);
+                camera.setProjection.perspective(aspectRatio);
             }
         }
         
@@ -532,54 +484,130 @@ void Application::run() {
         m_Perf.gpuEnd();
     
     }
-    vkDeviceWaitIdle(device.device());
+    vkDeviceWaitIdle(vulkanDevice.device());
     
+}
+
+void Application::pollWindowEvents(void) {
+    ImGuiIO& io = ImGui::GetIO();
+    bool mouseLeft = false;
+    while(SDL_PollEvent(&sdl_event))
+    {
+        switch (sdl_event.type) {
+            case SDL_WINDOWEVENT:
+                if (sdl_event.window.event == SDL_WINDOWEVENT_RESIZED) {
+                    DEBUG_MESSAGE("Window resize event detected!");
+                    SDL_Vulkan_GetDrawableSize(window.getWindow(), &surfaceExtent.width, &surfaceExtent.height);
+                    SDL_GetWindowSize(window.getWindow(), &windowExtent.width, &windowExtent.height);
+                    renderer.recreateSwapChain();
+                    dpi_scale_fact = surfaceExtent.width / windowExtent.width;
+                    io.DisplaySize = {(float)surfaceExtent.width, (float)surfaceExtent.height};
+                    io.FontGlobalScale = dpi_scale_fact * (windowExtent.width / 1920.f);
+                }
+                break;
+            case SDL_QUIT:
+                running = false;
+                break;
+            case SDL_KEYDOWN:
+                switch (sdl_event.key.keysym.sym) {
+                    case SDLK_ESCAPE:
+                        running = false;
+                        break;
+                    case SDLK_w:
+                        movement |= 0x01;
+                        break;
+                    case SDLK_a:
+                        movement |= 0x02;
+                        break;
+                    case SDLK_s:
+                        movement |= 0x04;
+                        break;
+                    case SDLK_d:
+                        movement |= 0x08;
+                        break;
+                    case SDLK_LSHIFT:
+                        movement |= 0x10;
+                        break;
+                    case SDLK_SPACE:
+                        movement |= 0x20;
+                        break;
+                    default:
+                        break;
+                }
+                break;
+            case SDL_KEYUP:
+                switch (sdl_event.key.keysym.sym) {
+                    case SDLK_w:
+                        movement &= 0xFE;
+                        break;
+                    case SDLK_a:
+                        movement &= 0xFD;
+                        break;
+                    case SDLK_s:
+                        movement &= 0xFB;
+                        break;
+                    case SDLK_d:
+                        movement &= 0xF7;
+                        break;
+                    case SDLK_LSHIFT:
+                        movement &= 0xEF;
+                        break;
+                    case SDLK_SPACE:
+                        movement &= 0xDF;
+                        break;
+                    default:
+                        break;
+                }
+                break;
+            case SDL_CONTROLLERDEVICEADDED:
+                SDL_GameControllerOpen(0);
+                //font.renderText(SDL_GameControllerNameForIndex(0), -.1f, -.95f, .1f);
+                break;
+            case SDL_CONTROLLERDEVICEREMOVED:
+                SDL_GameControllerClose(0);
+                break;
+            case SDL_CONTROLLERBUTTONDOWN:
+                running = false;
+                break;
+            case SDL_MOUSEBUTTONDOWN:
+                io.MouseDown[0] = sdl_event.button.state;
+                mouseLeft = true;
+                break;
+            case SDL_MOUSEBUTTONUP:
+                io.MouseDown[0] = sdl_event.button.state;
+                mouseLeft = false;
+                break;
+            case SDL_MOUSEMOTION:
+                int wx, wy, mx, my;
+                SDL_GetWindowPosition(window.getWindow(), &wx, &wy);
+                SDL_GetGlobalMouseState(&mx, &my);
+                io.AddMousePosEvent((mx - wx) * dpi_scale_fact, (my - wy) * dpi_scale_fact);
+                if (mouseLeft && !ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow)) {
+                    rotate.x = .05f*sdl_event.motion.yrel;
+                    rotate.y = -.05f*sdl_event.motion.xrel;
+                }
+                break;
+            case SDL_MOUSEWHEEL:
+                io.AddMouseWheelEvent(sdl_event.wheel.preciseX, sdl_event.wheel.preciseX);
+                break;
+        }
+    }
 }
 
 void Application::loadSolidObjects() {
     
-    Material globalMaterial(&testure);
-    globalMaterial.color = {1.f, 0.f, 1.f, 1.f};
-    materials.emplace("Global_Default_Material", globalMaterial);
-    
-    NodeSet::InitStruct initNodeStruct{device, vulkanImage, primitives, testure, materials};
-    
-    //NodeSet(initNodeStruct, binaryDir + "chess.glb");
-    NodeSet(initNodeStruct, binaryDir + "Sponza.glb");
-    
-
-    // Cubemap 3D canvas
-    auto cube = Primitive::new_primitive();
-    Model::Data cubeData;
-    cubeData.vertices = {
-        {{-1.f, -1.f, 1.f}, {}, {}, {}, {0.f, 0.f}},
-        {{1.f, -1.f, 1.f}, {}, {}, {}, {1.f, 0.f}},
-        {{1.f, 1.f, 1.f}, {}, {}, {}, {1.f, 1.f}},
-        {{-1.f, 1.f, 1.f}, {}, {}, {}, {0.f, 1.f}},
-        {{-1.f, -1.f, -1.f}, {}, {}, {}, {0.f, 0.f}},
-        {{1.f, -1.f, -1.f}, {}, {}, {}, {1.f, 0.f}},
-        {{1.f, 1.f, -1.f}, {}, {}, {}, {1.f, 1.f}},
-        {{-1.f, 1.f, -1.f}, {}, {}, {}, {0.f, 1.f}}
-    };
-    cubeData.indices = {
-        0,2,1,2,0,3,
-        4,5,6,6,7,4,
-        1,6,5,6,1,2,
-        0,4,7,7,3,0,
-        4,1,5,1,4,0,
-        3,6,2,6,3,7
-    };
-    cube.setModel(std::make_shared<Model>(device, cubeData));
-    cube.textureIndex = 1;
-    cube.material = "SKY";
-    cube.transform.translation = {.0f, .0f, .0f};
-    cube.transform.scale = {1.f, 1.f, 1.f};
-    cube.transform.rotation = {.0f, .0f, .0f};
-    env.emplace(cube.getId(), std::move(cube));
 }
 
 void Application::renderImguiContent() {
     static auto counter10Hz = std::chrono::high_resolution_clock::now();
+    
+    {   // Load model window
+        char charbuf[64];
+        if (ImGui::Begin("Load Model")) {
+            ImGui::InputText("GLB Filename", charbuf, 64);
+            ImGui::End();
+        }
+    }
     
     static bool showMaterials = false;
     ImGui::Checkbox("Show Materials Table", &showMaterials);
@@ -608,7 +636,7 @@ void Application::renderImguiContent() {
         ImGui::EndTable();
     }
     
-    ImGui::TextUnformatted(device.properties.deviceName);
+    ImGui::TextUnformatted(vulkanDevice.properties.deviceName);
     float ddpi;
     SDL_GetDisplayDPI(0, &ddpi, nullptr, nullptr);
     ImGui::Text("Actual window size\t %i x %i", windowExtent.width, windowExtent.height);
@@ -668,14 +696,14 @@ void Application::renderImguiContent() {
     }
     
     ImGui::NewLine();
-    static int aaIndex = ctz(device.msaaSamples);
+    static int aaIndex = ctz(vulkanDevice.msaaSamples);
     ImGui::Text("Anti-Aliasing");
     if (ImGui::Combo("##antialiasing", &aaIndex, aaPresets.data(), (int)aaPresets.size())) {
-        device.msaaSamples = static_cast<VkSampleCountFlagBits>(1 << aaIndex);
+        vulkanDevice.msaaSamples = static_cast<VkSampleCountFlagBits>(1 << aaIndex);
         renderer.recreateOffscreenFlag = true;
         renderer.recreateSwapChain();
-        renderSystem->recreatePipeline(renderer.getOffscreenRenderPass(), device.msaaSamples);
-        skyboxSystem->recreatePipeline(renderer.getOffscreenRenderPass(), device.msaaSamples);
+        renderSystem->recreatePipeline(renderer.getOffscreenRenderPass(), vulkanDevice.msaaSamples);
+        skyboxSystem->recreatePipeline(renderer.getOffscreenRenderPass(), vulkanDevice.msaaSamples);
     }
     
     ImGui::NewLine();

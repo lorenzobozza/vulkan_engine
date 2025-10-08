@@ -52,6 +52,16 @@ class NodeSet {
     void loadMaterialsToVRAM(void);
     void fillSamplerInfo(int textureIndex, VkSamplerCreateInfo *samplerInfo);
     
+    struct {
+        private:
+            std::chrono::high_resolution_clock::time_point _start{};
+            std::chrono::high_resolution_clock::time_point _cpuStop{};
+            int _perfCounter{};
+        public:
+            void startTimer(void) { _start = std::chrono::high_resolution_clock::now(); }
+            void endTimer(void) { _cpuStop = std::chrono::high_resolution_clock::now(); printf("PERF_%i: %f\n", _perfCounter++, std::chrono::duration<float, std::chrono::seconds::period>(_cpuStop - _start).count()); }
+    } m_Perf;
+    
 public:
     struct InitStruct {
         Device& device;

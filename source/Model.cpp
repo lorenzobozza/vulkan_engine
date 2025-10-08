@@ -190,7 +190,7 @@ void Model::draw(VkCommandBuffer commandBuffer) {
 
 void Model::createVertexBuffer(const std::vector<Vertex> &vertices) {
     vertexCount = static_cast<uint32_t>(vertices.size());
-    assert(vertexCount >= 3 && "Vertex count must be at least 3");
+    assert(vertexCount >= 3 && "createVertexBuffer(): Vertex count must be at least 3");
     
     uint32_t vertexSize = sizeof(vertices[0]);
     VkDeviceSize bufferSize = vertexSize * vertexCount;

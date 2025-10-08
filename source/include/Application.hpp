@@ -65,11 +65,12 @@ public:
     
 private:
     void loadSolidObjects();
+    void pollWindowEvents(void);
     
     SDLWindow window{WIDTH, HEIGHT, "Vulkan Engine Development"};
-    Device device{window};
-    Renderer renderer{window, device};
-    Image vulkanImage{device};
+    Device vulkanDevice{window};
+    Renderer renderer{window, vulkanDevice};
+    Image vulkanImage{vulkanDevice};
     std::unique_ptr<RenderSystem> renderSystem;
     std::unique_ptr<RenderSystem> skyboxSystem;
     std::unique_ptr<CompositionPipeline> postProcessing;
@@ -86,6 +87,9 @@ private:
     Primitive::Map env;
     
     SDL_Event sdl_event;
+    uint8_t movement{0x00};
+    bool running = true;
+    float dpi_scale_fact;
     int frameIndex{0};
     std::vector<float> frameTimes{0};
     std::vector<float> framesPerSecond{0};
