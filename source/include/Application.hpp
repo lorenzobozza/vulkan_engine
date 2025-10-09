@@ -88,6 +88,7 @@ private:
     
     SDL_Event sdl_event;
     uint8_t movement{0x00};
+    glm::vec3 rotate{.0f};
     bool running = true;
     float dpi_scale_fact;
     int frameIndex{0};

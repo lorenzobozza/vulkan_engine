@@ -12,6 +12,10 @@
 #include <tinygltf/tiny_gltf.h>
 #include "include/mikktspace.h"
 
+#include "TaskScheduler.h"
+
+enki::TaskScheduler g_TS;
+
 // MikkTSpace callbacks
 int giveNumFaces(const SMikkTSpaceContext * pContext);
 int giveNumVerticesOfFace(const SMikkTSpaceContext * pContext, const int iFace);
@@ -20,13 +24,86 @@ void giveNormal(const SMikkTSpaceContext * pContext, float fvNormOut[], const in
 void giveTexCoord(const SMikkTSpaceContext * pContext, float fvTexcOut[], const int iFace, const int iVert);
 void takeTSpaceBasic(const SMikkTSpaceContext * pContext, const float fvTangent[], const float fSign, const int iFace, const int iVert);
 
+/*
+ Copy raw unconverted data directly to destination
+ it will be converted later using multithreading
+ */
+static bool tinygltf_LoadImageDataCallback(
+                tinygltf::Image *image, const int image_idx, std::string *err,
+                std::string *warn, int req_width, int req_height,
+                const unsigned char *bytes, int size, void *user_data) {
+                   
+    image->image.resize(size);
+    std::copy(bytes, bytes + size, image->image.begin());
+                   
+    return true;
+}
+
+static void convertImageData(std::vector<tinygltf::Image>& images) {
+    static std::atomic_int i = -1;
+    i += 1;
+    
+    if (i >= images.size()) {
+        return;
+    }
+    
+    auto& image = images.at(i);
+        
+    int w = 0, h = 0, comp = 0, req_comp = 4;
+
+    unsigned char *data = nullptr;
+
+    int bits = 8;
+    int pixel_type = TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE;
+
+    if (stbi_is_16_bit_from_memory(image.image.data(), (int)image.image.size())) {
+        data = reinterpret_cast<unsigned char *>(
+            stbi_load_16_from_memory(image.image.data(), (int)image.image.size(), &w, &h, &comp, req_comp));
+        if (data) {
+            bits = 16;
+            pixel_type = TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT;
+        }
+    }
+
+    if (!data) data = stbi_load_from_memory(image.image.data(), (int)image.image.size(), &w, &h, &comp, req_comp);
+
+    if ((w < 1) || (h < 1)) {
+        stbi_image_free(data);
+        return;
+    }
+
+    if (req_comp != 0) {
+        comp = req_comp;
+    }
+
+    image.width = w;
+    image.height = h;
+    image.component = comp;
+    image.bits = bits;
+    image.pixel_type = pixel_type;
+    image.image.resize(static_cast<size_t>(w * h * comp) * size_t(bits / 8));
+    std::copy(data, data + w * h * comp * (bits / 8), image.image.begin());
+    
+    stbi_image_free(data);
+}
+
 NodeSet::NodeSet(InitStruct& init, std::string filePath)
     : m_Device{init.device}, m_Image{init.image}, m_Materials{init.materials},
     m_Primitives{init.primitives}, m_Textures{init.textures}, m_FilePath{filePath} {
 
-    m_Perf.startTimer();
-    loadBinaryGLB();
-    m_Perf.endTimer();
+    parseGLTF();
+    
+    const unsigned int vCpu = enki::GetNumHardwareThreads();
+    g_TS.Initialize(vCpu);
+    
+    const unsigned int count = (unsigned int)m_gltfModel.images.size();
+    enki::TaskSet task( count, [this]( enki::TaskSetPartition range_, uint32_t threadnum_  ) {
+         convertImageData(this->m_gltfModel.images);
+    }  );
+    g_TS.AddTaskSetToPipe( &task );
+    
+    g_TS.WaitforTask( &task );
+    g_TS.ShutdownNow();
     
     // glTF -> Vulkan, unit quaternion along X to rotate 180° about X
     Node* root = new Node;
@@ -34,9 +111,7 @@ NodeSet::NodeSet(InitStruct& init, std::string filePath)
     m_Nodes.push_back(root);
     
     for(int nodeIndex: m_gltfModel.scenes[m_gltfModel.defaultScene].nodes) {
-    m_Perf.startTimer();
         loadNodeFromModel(nodeIndex, root);
-        m_Perf.endTimer();
     }
     
     loadMaterialsToVRAM();
@@ -48,11 +123,21 @@ NodeSet::~NodeSet() {
     }
 }
 
-void NodeSet::loadBinaryGLB() {
+void NodeSet::parseGLTF() {
     tinygltf::TinyGLTF loader;
     std::string err, warn;
     
-    bool ret = loader.LoadBinaryFromFile(&m_gltfModel, &err, &warn, m_FilePath);
+    loader.SetImageLoader(tinygltf_LoadImageDataCallback, nullptr);
+    
+    bool ret = false;
+    auto fileExt = m_FilePath.substr(m_FilePath.size() - 4, m_FilePath.size() - 1);
+    
+    if (fileExt == ".glb") {
+        ret = loader.LoadBinaryFromFile(&m_gltfModel, &err, &warn, m_FilePath);
+    }
+    else if (fileExt == "gltf") {
+        ret = loader.LoadASCIIFromFile(&m_gltfModel, &err, &warn, m_FilePath);
+    }
     
     printf("%s\n", m_gltfModel.asset.generator.c_str());
     
@@ -91,11 +176,7 @@ void NodeSet::loadNodeFromModel(int nodeIndex, Node* parentNode) {
     newNode->Matrix *= (glm::translate(glm::mat4(1.0), newNode->Offset) * glm::toMat4(newNode->Quat) * glm::scale(glm::mat4(1.0), newNode->Scale));
     
     newNode->p_Parent = parentNode;
-    
-    static unsigned int level = 0;
-    for (int i=0; i<level; i++) std::cout << ' ';
-    level++;
-    std::cout << gltfNode.name << " > " << gltfNode.mesh << std::endl;
+
     
     // Transform propagation
     if (gltfNode.children.size() > 0) {
@@ -103,8 +184,6 @@ void NodeSet::loadNodeFromModel(int nodeIndex, Node* parentNode) {
             loadNodeFromModel(childIndex, newNode);
         }
     }
-    
-    level--;
     
     // For now we store all pointers only to be able to delete them at the end
     m_Nodes.push_back(newNode);

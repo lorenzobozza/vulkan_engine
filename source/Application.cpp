@@ -52,8 +52,6 @@ Application::Application(const char* binaryPath) : binaryDir{binaryPath} {
 
 Application::~Application() {}
 
-glm::vec3 rotate{.0f};
-
 void Application::run() {
 
     // GAMELOOP TIMING
@@ -389,10 +387,10 @@ void Application::run() {
         
         m_Perf.startFrame();
         
+        pollWindowEvents();
+        
         // Prepare next GUI Frame
         imgui.newFrame(this);
-        
-        pollWindowEvents();
         
         if (glm::dot(rotate, rotate) > glm::epsilon<float>()) {
             cameraObj.transform.rotation += rotate * .05f;
@@ -490,7 +488,7 @@ void Application::run() {
 
 void Application::pollWindowEvents(void) {
     ImGuiIO& io = ImGui::GetIO();
-    bool mouseLeft = false;
+    static bool mouseLeft = false;
     while(SDL_PollEvent(&sdl_event))
     {
         switch (sdl_event.type) {
@@ -509,6 +507,7 @@ void Application::pollWindowEvents(void) {
                 running = false;
                 break;
             case SDL_KEYDOWN:
+                io.AddKeyEvent(UI::ImGui_SDL2_KeyEventToImGuiKey(sdl_event.key.keysym.sym), true);
                 switch (sdl_event.key.keysym.sym) {
                     case SDLK_ESCAPE:
                         running = false;
@@ -536,6 +535,7 @@ void Application::pollWindowEvents(void) {
                 }
                 break;
             case SDL_KEYUP:
+                io.AddKeyEvent(UI::ImGui_SDL2_KeyEventToImGuiKey(sdl_event.key.keysym.sym), false);
                 switch (sdl_event.key.keysym.sym) {
                     case SDLK_w:
                         movement &= 0xFE;
@@ -600,14 +600,6 @@ void Application::loadSolidObjects() {
 
 void Application::renderImguiContent() {
     static auto counter10Hz = std::chrono::high_resolution_clock::now();
-    
-    {   // Load model window
-        char charbuf[64];
-        if (ImGui::Begin("Load Model")) {
-            ImGui::InputText("GLB Filename", charbuf, 64);
-            ImGui::End();
-        }
-    }
     
     static bool showMaterials = false;
     ImGui::Checkbox("Show Materials Table", &showMaterials);
