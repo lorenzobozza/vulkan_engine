@@ -40,7 +40,7 @@ static bool tinygltf_LoadImageDataCallback(
 }
 
 static void convertImageData(std::vector<tinygltf::Image>& images) {
-    static std::atomic_int i = -1;
+    static std::atomic_int i{-1};
     i += 1;
     
     if (i >= images.size()) {
