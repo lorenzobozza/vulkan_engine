@@ -9,6 +9,9 @@
 #include "include/RenderSystem.hpp"
 #include "include/UI.hpp"
 #include "include/Buffer.hpp"
+#include "include/importGLTF.hpp"
+
+#include "include/Material.hpp"
 
 //libs
 #define GLM_FORCE_RADIANS
@@ -49,112 +52,126 @@ Application::Application(const char* binaryPath) : binaryDir{binaryPath} {
 
 Application::~Application() {}
 
-glm::vec3 rotate{.0f};
-
 void Application::run() {
 
     // GAMELOOP TIMING
     auto currentTime = std::chrono::high_resolution_clock::now();
     int cnt{0};
     
-    // 3D CAMERA
+
     Camera camera{};
-    float aspect = renderer.getAspectRatio();
-    camera.setProjection.perspective(aspect, glm::radians(60.f), .01f, 100.f);
+    float aspectRatio = renderer.getAspectRatio();
+    camera.setProjection.perspective(aspectRatio, glm::radians(75.f), .01f, 100.f);
+    
+    Primitive cameraObj = Primitive::new_primitive();
+    {
+        cameraObj.transform.translation = {.0f, -2.f, -2.f};
+    }
     bool orth = false;
-    // Create object without model for the 3D camera position
-    SolidObject cameraObj = SolidObject::createSolidObject();
-    cameraObj.transform.translation = {.0f, -2.f, -2.f};
     
     postProcessing = std::make_unique<CompositionPipeline>(
-        device,
+        vulkanDevice,
         renderer.getSwapChainRenderPass(),
         renderer.getPostProcessingDescriptorSetLayout(),
-        binaryDir+"composition"
+        binaryDir + "composition"
     );
     
-    //TextRender font{device, renderer.getSwapChainRenderPass(), "fonts/Disket-Mono-Regular.ttf"};
-    UI imgui(device, renderer.getSwapChainRenderPass(), binaryDir);
+    //TextRender font{vulkanDevice, renderer.getSwapChainRenderPass(), "fonts/Disket-Mono-Regular.ttf"};
+    UI imgui(vulkanDevice, renderer.getSwapChainRenderPass(), binaryDir);
+    
+    // GUI Style and Sizes definition
+    SDL_Vulkan_GetDrawableSize(window.getWindow(), &surfaceExtent.width, &surfaceExtent.height);
+    SDL_GetWindowSize(window.getWindow(), &windowExtent.width, &windowExtent.height);
+    dpi_scale_fact = surfaceExtent.width / windowExtent.width;
+    ImGuiIO& io = ImGui::GetIO();
+    io.DisplaySize = {(float)surfaceExtent.width, (float)surfaceExtent.height};
+    io.FontGlobalScale = dpi_scale_fact * (windowExtent.width / 1920.f);
+    {
+        ImGuiStyle& style = ImGui::GetStyle();
+        style.FrameBorderSize = 0.0f;
+        style.WindowBorderSize = 1.0f;
+        style.Colors[ImGuiCol_TitleBg] = ImVec4(0.8f, 0.0f, 0.0f, 0.6f);
+        style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.8f, 0.0f, 0.0f, 0.8f);
+        style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.8f, 0.0f, 0.0f, 0.4f);
+        style.Colors[ImGuiCol_Header] = ImVec4(0.8f, 0.0f, 0.0f, 0.4f);
+        style.Colors[ImGuiCol_CheckMark] = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
+        style.WindowRounding = 4.f;
+        style.FrameRounding = 5.f;
+        style.ScaleAllSizes(dpi_scale_fact * 0.8f);
+    }
 
     // Load heavy assets on a separate thread
     std::thread([this]() {
         this->load_phase = 1;
-        this->textures.emplace(0, std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"texture/hdri/spiaggia_di_mondello_4k.hdr", VK_FORMAT_R32G32B32A32_SFLOAT));
-        textures.at(0)->moveBuffer(VK_FALSE);
+        
+        this->testure.push_back(std::make_unique<Texture>(this->vulkanDevice, vulkanImage, binaryDir+"texture/hdri/symmetrical_garden_02_8k.hdr", false, VK_FORMAT_R32G32B32A32_SFLOAT));
+        //this->testure.back()->moveBuffer();
+        
+        Material globalMaterial(&testure);
+        globalMaterial.color = {1.f, 0.f, 1.f, 1.f};
+        materials.emplace("Global_Default_Material", globalMaterial);
+        
+        NodeSet::InitStruct initNodeStruct{vulkanDevice, vulkanImage, primitives, testure, materials};
+        
+        //NodeSet(initNodeStruct, binaryDir + "chess.glb");
+        NodeSet(initNodeStruct, binaryDir + "Sponza.glb");
+        
 
-        std::vector<std::string> materials = {
-            "Arches", "Bricks", "Ceiling", "Column_A", "Column_B", "Column_C", "Details", "Fabric_Curtain_Blue",
-            "Fabric_Curtain_Green", "Fabric_Curtain_Red", "Fabric_Round_Blue", "Fabric_Round_Green",
-            "Fabric_Round_Red", "Flagpoles", "Floor", "Ivy", "Lion_Head", "Lion_Shield", "Roof", "Vase_Hanging",
-            "Vase_Hanging_Chain", "Vase_Octagonal", "Vase_Round", "Vase_Round_Plants"
+        // Cubemap 3D canvas
+        auto cube = Primitive::new_primitive();
+        Model::Data cubeData;
+        cubeData.vertices = {
+            {{-1.f, -1.f, 1.f}, {}, {}, {}, {0.f, 0.f}},
+            {{1.f, -1.f, 1.f}, {}, {}, {}, {1.f, 0.f}},
+            {{1.f, 1.f, 1.f}, {}, {}, {}, {1.f, 1.f}},
+            {{-1.f, 1.f, 1.f}, {}, {}, {}, {0.f, 1.f}},
+            {{-1.f, -1.f, -1.f}, {}, {}, {}, {0.f, 0.f}},
+            {{1.f, -1.f, -1.f}, {}, {}, {}, {1.f, 0.f}},
+            {{1.f, 1.f, -1.f}, {}, {}, {}, {1.f, 1.f}},
+            {{-1.f, 1.f, -1.f}, {}, {}, {}, {0.f, 1.f}}
         };
-
-        const size_t nTex = 24 * 5;
-        textures.reserve(nTex + 1);
-        
-        #ifndef ENHANCED_MT
-        
-        for (int i = 0; i < materials.size(); i++) {
-            uint16_t tex = i * 5;
-            this->textures.emplace(++tex, std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"sponza/textures/"+materials[i]+"/"+materials[i]+"_Diffuse.tif"));
-            this->textures.at(tex)->moveBuffer();
-            this->textures.emplace(++tex, std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"sponza/textures/"+materials[i]+"/"+materials[i]+"_Normal.tif", VK_FORMAT_R8G8B8A8_UNORM));
-            this->textures.at(tex)->moveBuffer();
-            this->textures.emplace(++tex, std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"sponza/textures/"+materials[i]+"/"+materials[i]+"_Metallic.tif"));
-            this->textures.at(tex)->moveBuffer();
-            this->textures.emplace(++tex, std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"sponza/textures/"+materials[i]+"/"+materials[i]+"_Smoothness.tif"));
-            this->textures.at(tex)->moveBuffer();
-            this->textures.emplace(++tex, std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"sponza/textures/"+materials[i]+"/"+materials[i]+"_AO.tif"));
-            this->textures.at(tex)->moveBuffer();
-        }
-        
-        #else
-        
-        // Load textures to host visible memory
-        std::unique_ptr<Texture> staged[nTex];
-        for (int i = 0; i < materials.size(); i++)
-            std::thread([this, i, &materials, &staged]() {
-            uint16_t tex = i * 5;
-                staged[tex++] = std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"sponza/textures/"+materials[i]+"/"+materials[i]+"_Diffuse.tif");
-                staged[tex++] = std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"sponza/textures/"+materials[i]+"/"+materials[i]+"_Normal.tif", VK_FORMAT_R8G8B8A8_UNORM);
-                staged[tex++] = std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"sponza/textures/"+materials[i]+"/"+materials[i]+"_Metallic.tif");
-                staged[tex++] = std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"sponza/textures/"+materials[i]+"/"+materials[i]+"_Smoothness.tif");
-                staged[tex] = std::make_unique<Texture>(this->device, vulkanImage, binaryDir+"sponza/textures/"+materials[i]+"/"+materials[i]+"_AO.tif");
-            }).detach();
-        
-        // Move staged texture-buffers to VRAM as they get loaded (while also moving each associated pointer to the heap)
-        int loaded = 0, i = 0;
-        while(loaded < nTex) {
-            if (staged[i] != nullptr) {
-                staged[i]->moveBuffer(); // Host -> Device
-                textures.emplace(i + 1, std::move(staged[i]));
-                loaded++;
-            }
-            i = ++i % nTex;
-        }
-        
-        #endif
+        cubeData.indices = {
+            0,2,1,2,0,3,
+            4,5,6,6,7,4,
+            1,6,5,6,1,2,
+            0,4,7,7,3,0,
+            4,1,5,1,4,0,
+            3,6,2,6,3,7
+        };
+        cube.setModel(std::make_shared<Model>(vulkanDevice, cubeData));
+        cube.textureIndex = 1;
+        cube.material = "SKY";
+        cube.transform.translation = {.0f, .0f, .0f};
+        cube.transform.scale = {1.f, 1.f, 1.f};
+        cube.transform.rotation = {.0f, .0f, .0f};
+        env.emplace(cube.getId(), std::move(cube));
         
         this->load_phase = 2;
         this->assetsLoaded = true;
     }).detach();
     
     // Loading Screen Rendering
-    //font.renderText("Vulkan Engine V0.8", .0f, -.85f, 1.2f, { .7f, .0f, .0f}, aspect);
-    //font.renderText("github.com/lorenzobozza/vulkan_engine", .0f, -.8f, .35f, { .8f, .8f, .8f}, aspect);
+    //font.renderText("Vulkan Engine V0.8", .0f, -.85f, 1.2f, { .7f, .0f, .0f}, aspectRatio);
+    //font.renderText("github.com/lorenzobozza/vulkan_engine", .0f, -.8f, .35f, { .8f, .8f, .8f}, aspectRatio);
 
     bool nextIsLast = false;
     auto loadTimer = std::chrono::high_resolution_clock::now();
     while (!assetsLoaded || load_phase > 0 || nextIsLast) {
-        SDL_PollEvent(&sdl_event);
+        //SDL_PollEvent(&sdl_event);
         
         auto newTime = std::chrono::high_resolution_clock::now();
         float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime -  currentTime).count();
         currentTime = newTime;
         frameTime = glm::min(frameTime, .05f);
 
+        pollWindowEvents();
+        
+        imgui.newFrame(this);
+        
         if (auto commandBuffer = renderer.beginFrame()) {
             frameIndex = renderer.getFrameIndex();
+            
+            imgui.updateBuffers(frameIndex);
             
             //Render
             renderer.beginOffscreenRenderPass(commandBuffer);
@@ -163,6 +180,7 @@ void Application::run() {
             renderer.beginSwapChainRenderPass(commandBuffer);
             //postProcessing->renderSceneToSwapChain(commandBuffer, renderer.getPostProcessingDescriptorSets()->at(frameIndex));
             //font.render(commandBuffer, frameIndex);
+            imgui.draw(commandBuffer, frameIndex);
             renderer.endSwapChainRenderPass(commandBuffer);
             
             renderer.endFrame();
@@ -185,9 +203,14 @@ void Application::run() {
             }
         }
     }
-    vkDeviceWaitIdle(device.device());
+    
+    for (auto& t : testure) {
+        t->moveBuffer();
+    }
+    
+    vkDeviceWaitIdle(vulkanDevice.device());
     renderer.integrateBrdfLut(binaryDir);
-    loadSolidObjects();
+    //loadSolidObjects();
     DEBUG_MESSAGE('\t' << std::chrono::duration<float, std::chrono::seconds::period>(std::chrono::high_resolution_clock::now() - loadTimer).count());
     
     /****
@@ -196,7 +219,7 @@ void Application::run() {
     std::unique_ptr<Buffer> uboBuffers[SwapChain::MAX_FRAMES_IN_FLIGHT];
     for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
          uboBuffers[i] = std::make_unique<Buffer>(
-            device,
+            vulkanDevice,
             sizeof(GlobalUbo),
             1,
             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
@@ -208,60 +231,63 @@ void Application::run() {
     /****
     HDRi, IBL, SkyBox
     */
-    auto equitangular = textures.at(0)->descriptorInfo();
+    auto equitangular = testure.at(0)->descriptorInfo();
     
-    HDRi environmentMap{device, equitangular, {1024, 1024}, "equirectangular", binaryDir, 9};
+    HDRi environmentMap{vulkanDevice, equitangular, {1024, 1024}, "equirectangular", binaryDir, 9};
     auto environment = environmentMap.descriptorInfo();
     
-    HDRi prefilteredMap{device, environment, {512, 512}, "prefiltering", binaryDir, 9};
+    HDRi prefilteredMap{vulkanDevice, environment, {512, 512}, "prefiltering", binaryDir, 9};
     auto prefiltered = prefilteredMap.descriptorInfo();
     
-    HDRi irradianceMap{device, environment, {32, 32}, "irradiance", binaryDir};
+    HDRi irradianceMap{vulkanDevice, environment, {32, 32}, "irradiance", binaryDir};
     auto irradiance = irradianceMap.descriptorInfo();
 
     // SkyBox Descriptors
     std::unique_ptr<DescriptorPool> skyboxPool =
-       DescriptorPool::Builder(device)
+       DescriptorPool::Builder(vulkanDevice)
            .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
            .build();
     
     auto skyboxSetLayout =
-        DescriptorSetLayout::Builder(device)
+        DescriptorSetLayout::Builder(vulkanDevice)
             .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
             .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .build();
             
-    std::vector<VkDescriptorSet> skyboxDescriptorSets[SwapChain::MAX_FRAMES_IN_FLIGHT];
+    std::unordered_map<std::string, VkDescriptorSet> skyboxDescriptorSets[SwapChain::MAX_FRAMES_IN_FLIGHT];
     for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
-        skyboxDescriptorSets[i] = std::vector<VkDescriptorSet>(1);
+        VkDescriptorSet descriptorSet;
         auto bufferInfo = uboBuffers[i]->descriptorInfo();
         DescriptorWriter(*skyboxSetLayout, *skyboxPool)
             .writeBuffer(0, &bufferInfo)
             .writeImage(1, &environment)
-            .build(skyboxDescriptorSets[i][0]);
+            .build(descriptorSet);
+            
+        skyboxDescriptorSets[i].emplace("SKY", descriptorSet);
     }
 
     // SkyBox Pipeline
     skyboxSystem = std::make_unique<RenderSystem>(
-        device,
+        vulkanDevice,
         renderer.getOffscreenRenderPass(),
         skyboxSetLayout->getDescriptorSetLayout(),
         binaryDir+"skybox",
-        device.msaaSamples
+        vulkanDevice.msaaSamples
     );
     
     /****
     Global Scene
     */
-    for (int i = 1; i < textures.size(); i++) { textureInfos.push_back(textures.at(i)->descriptorInfo()); }
+    //for (int i = 1; i < textures.size(); i++) { textureInfos.push_back(textures.at(i)->descriptorInfo()); }
     
-    const uint32_t numOfMaterials = (uint32_t)textureInfos.size() / 5;
+    const uint32_t numOfMaterials = (uint32_t)materials.size();
+    //(uint32_t)textureInfos.size() / 3;
     
     // Global Scene Descriptors
     globalPool =
-       DescriptorPool::Builder(device)
+       DescriptorPool::Builder(vulkanDevice)
            .setMaxSets(numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
@@ -275,7 +301,7 @@ void Application::run() {
            .build();
 
     auto globalSetLayout =
-        DescriptorSetLayout::Builder(device)
+        DescriptorSetLayout::Builder(vulkanDevice)
             .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
             .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .addBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
@@ -287,69 +313,59 @@ void Application::run() {
             .addBinding(8, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .build();
     
-    std::vector<VkDescriptorSet> inFlightDescriptorSets[SwapChain::MAX_FRAMES_IN_FLIGHT];
+    // Create a Descriptor Map for each frame in flight
+    std::unordered_map<std::string, VkDescriptorSet> inFlightDescriptorSets[SwapChain::MAX_FRAMES_IN_FLIGHT];
+    
     for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
-        std::vector<VkDescriptorSet> descriptorSets(numOfMaterials);
         auto bufferInfo = uboBuffers[i]->descriptorInfo();
-        int matCnt = 0;
-        for (int j = 0; j < numOfMaterials; j++) {
+        for (auto& kv : materials) {
+            auto& name = kv.first;
+            auto& material = kv.second;
+            VkDescriptorSet descriptorSet;
+            VkDescriptorImageInfo   emissive = material.getColorTextureIF(),
+                                    normal = material.getNormalTextureIF(),
+                                    occlusion = material.getOcclusionTextureIF(),
+                                    metalRough = material.getMetalRoughTextureIF(),
+                                    def = testure.at(0)->descriptorInfo();
+                                    
             DescriptorWriter(*globalSetLayout, *globalPool)
                 .writeBuffer(0, &bufferInfo)
                 .writeImage(1, &irradiance)                 // Irradiance
                 .writeImage(2, &prefiltered)                // Reflection
                 .writeImage(3, renderer.getBrdfLutInfo())   // BRDF Lut
-                .writeImage(4, &textureInfos[matCnt++])     // Diffuse
-                .writeImage(5, &textureInfos[matCnt++])     // Normal
-                .writeImage(6, &textureInfos[matCnt++])     // Metallic
-                .writeImage(7, &textureInfos[matCnt++])     // Roughness
-                .writeImage(8, &textureInfos[matCnt++])     // Occlusion
-                .build(descriptorSets[j]);
+                .writeImage(4, &emissive)       // Diffuse
+                .writeImage(5, &normal)         // Normal
+                .writeImage(6, &metalRough)     // Metallic
+                .writeImage(7, &def)            // Roughness
+                .writeImage(8, &occlusion)      // Occlusion
+                .build(descriptorSet);
+                
+            inFlightDescriptorSets[i].emplace(name, descriptorSet);
         }
-        inFlightDescriptorSets[i] = descriptorSets;
     }
      
     // Global Scene Pipeline
     renderSystem = std::make_unique<RenderSystem>(
-        device,
+        vulkanDevice,
         renderer.getOffscreenRenderPass(),
         globalSetLayout->getDescriptorSetLayout(),
         binaryDir+"shader",
-        device.msaaSamples
+        vulkanDevice.msaaSamples
     );
     
-    // GUI Style and Sizes definition
-    SDL_Vulkan_GetDrawableSize(window.getWindow(), &surfaceExtent.width, &surfaceExtent.height);
-    SDL_GetWindowSize(window.getWindow(), &windowExtent.width, &windowExtent.height);
-    float dpi_scale_fact = surfaceExtent.width / windowExtent.width;
-    ImGuiIO& io = ImGui::GetIO();
-    io.DisplaySize = {(float)surfaceExtent.width, (float)surfaceExtent.height};
-    io.FontGlobalScale = dpi_scale_fact * (windowExtent.width / 1920.f);
-    {
-        ImGuiStyle& style = ImGui::GetStyle();
-        style.FrameBorderSize = 0.0f;
-        style.WindowBorderSize = 0.0f;
-        style.Colors[ImGuiCol_TitleBg] = ImVec4(0.8f, 0.0f, 0.0f, 0.6f);
-        style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.8f, 0.0f, 0.0f, 0.8f);
-        style.Colors[ImGuiCol_MenuBarBg] = ImVec4(0.8f, 0.0f, 0.0f, 0.4f);
-        style.Colors[ImGuiCol_Header] = ImVec4(0.8f, 0.0f, 0.0f, 0.4f);
-        style.Colors[ImGuiCol_CheckMark] = ImVec4(0.0f, 1.0f, 0.0f, 1.0f);
-        style.WindowRounding = 10.f;
-        style.FrameRounding = 5.f;
-        style.ScaleAllSizes(dpi_scale_fact * 0.8f);
-    }
+    
     
     // Hide not supported anti-aliasing presets from GUI
-    aaPresets.resize(1 + ctz(device.maxSampleCount));
+    aaPresets.resize(1 + ctz(vulkanDevice.maxSampleCount));
     
-    bool running = true;
     auto counter4Hz = std::chrono::high_resolution_clock::now();
-    bool mouseLeft = false;
-    uint8_t movement{0x00};
+    
     while(running)
     {
         cnt = ++cnt % 628;
         // Compute frame latency and store the value
         auto newTime = std::chrono::high_resolution_clock::now();
+        
         float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime -  currentTime).count();
         currentTime = newTime;
         frameTimes.push_back(frameTime);
@@ -369,110 +385,12 @@ void Application::run() {
             }
         }
         
+        m_Perf.startFrame();
+        
+        pollWindowEvents();
+        
         // Prepare next GUI Frame
         imgui.newFrame(this);
-
-        while(SDL_PollEvent(&sdl_event))
-        {
-            switch (sdl_event.type) {
-                case SDL_WINDOWEVENT:
-                    if (sdl_event.window.event == SDL_WINDOWEVENT_RESIZED) {
-                        DEBUG_MESSAGE("Window resize event detected!");
-                        SDL_Vulkan_GetDrawableSize(window.getWindow(), &surfaceExtent.width, &surfaceExtent.height);
-                        SDL_GetWindowSize(window.getWindow(), &windowExtent.width, &windowExtent.height);
-                        renderer.recreateSwapChain();
-                        dpi_scale_fact = surfaceExtent.width / windowExtent.width;
-                        io.DisplaySize = {(float)surfaceExtent.width, (float)surfaceExtent.height};
-                        io.FontGlobalScale = dpi_scale_fact * (windowExtent.width / 1920.f);
-                    }
-                    break;
-                case SDL_QUIT:
-                    running = false;
-                    break;
-                case SDL_KEYDOWN:
-                    switch (sdl_event.key.keysym.sym) {
-                        case SDLK_ESCAPE:
-                            running = false;
-                            break;
-                        case SDLK_w:
-                            movement |= 0x01;
-                            break;
-                        case SDLK_a:
-                            movement |= 0x02;
-                            break;
-                        case SDLK_s:
-                            movement |= 0x04;
-                            break;
-                        case SDLK_d:
-                            movement |= 0x08;
-                            break;
-                        case SDLK_LSHIFT:
-                            movement |= 0x10;
-                            break;
-                        case SDLK_SPACE:
-                            movement |= 0x20;
-                            break;
-                        default:
-                            break;
-                    }
-                    break;
-                case SDL_KEYUP:
-                    switch (sdl_event.key.keysym.sym) {
-                        case SDLK_w:
-                            movement &= 0xFE;
-                            break;
-                        case SDLK_a:
-                            movement &= 0xFD;
-                            break;
-                        case SDLK_s:
-                            movement &= 0xFB;
-                            break;
-                        case SDLK_d:
-                            movement &= 0xF7;
-                            break;
-                        case SDLK_LSHIFT:
-                            movement &= 0xEF;
-                            break;
-                        case SDLK_SPACE:
-                            movement &= 0xDF;
-                            break;
-                        default:
-                            break;
-                    }
-                    break;
-                case SDL_CONTROLLERDEVICEADDED:
-                    SDL_GameControllerOpen(0);
-                    //font.renderText(SDL_GameControllerNameForIndex(0), -.1f, -.95f, .1f);
-                    break;
-                case SDL_CONTROLLERDEVICEREMOVED:
-                    SDL_GameControllerClose(0);
-                    break;
-                case SDL_CONTROLLERBUTTONDOWN:
-                    running = false;
-                    break;
-                case SDL_MOUSEBUTTONDOWN:
-                    io.MouseDown[0] = sdl_event.button.state;
-                    mouseLeft = true;
-                    break;
-                case SDL_MOUSEBUTTONUP:
-                    io.MouseDown[0] = sdl_event.button.state;
-                    mouseLeft = false;
-                    break;
-                case SDL_MOUSEMOTION:
-                    int wx, wy, mx, my;
-                    SDL_GetWindowPosition(window.getWindow(), &wx, &wy);
-                    SDL_GetGlobalMouseState(&mx, &my);
-                    io.AddMousePosEvent((mx - wx) * dpi_scale_fact, (my - wy) * dpi_scale_fact);
-                    if (mouseLeft && !ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow)) {
-                        rotate.x = .05f*sdl_event.motion.yrel;
-                        rotate.y = -.05f*sdl_event.motion.xrel;
-                    }
-                    break;
-                case SDL_MOUSEWHEEL:
-                    io.AddMouseWheelEvent(sdl_event.wheel.preciseX, sdl_event.wheel.preciseX);
-                    break;
-            }
-        }
         
         if (glm::dot(rotate, rotate) > glm::epsilon<float>()) {
             cameraObj.transform.rotation += rotate * .05f;
@@ -499,17 +417,19 @@ void Application::run() {
         }
         
         // Fix camera projection if the viewport's aspect ratio changes
-        if (aspect != renderer.getAspectRatio()) {
-            aspect = renderer.getAspectRatio();
+        if (aspectRatio != renderer.getAspectRatio()) {
+            aspectRatio = renderer.getAspectRatio();
             if (orth) {
-                camera.setOrthographicProjection(-aspect, aspect, -1.f, 1.f, -10.f, 100.f);
+                camera.setOrthographicProjection(-aspectRatio, aspectRatio, -1.f, 1.f, -10.f, 100.f);
             } else {
-                camera.setProjection.perspective(aspect);
+                camera.setProjection.perspective(aspectRatio);
             }
         }
         
         // Polling keystrokes and adjusting the camera position/rotation
         camera.setViewYXZ(cameraObj.transform.translation, cameraObj.transform.rotation);
+        
+        m_Perf.cpuEnd();
         
         if (auto commandBuffer = renderer.beginFrame()) {
             frameIndex = renderer.getFrameIndex();
@@ -519,7 +439,8 @@ void Application::run() {
                 commandBuffer,
                 camera,
                 inFlightDescriptorSets[frameIndex],
-                solidObjects
+                primitives,
+                materials
             };
             
             FrameInfo skyboxInfo{
@@ -528,7 +449,8 @@ void Application::run() {
                 commandBuffer,
                 camera,
                 skyboxDescriptorSets[frameIndex],
-                env
+                env,
+                materials
             };
             
             // Update UBO
@@ -556,62 +478,157 @@ void Application::run() {
             
             renderer.endFrame();
         }
+        
+        m_Perf.gpuEnd();
+    
     }
+    vkDeviceWaitIdle(vulkanDevice.device());
+    
+}
 
-    vkDeviceWaitIdle(device.device());
+void Application::pollWindowEvents(void) {
+    ImGuiIO& io = ImGui::GetIO();
+    static bool mouseLeft = false;
+    while(SDL_PollEvent(&sdl_event))
+    {
+        switch (sdl_event.type) {
+            case SDL_WINDOWEVENT:
+                if (sdl_event.window.event == SDL_WINDOWEVENT_RESIZED) {
+                    DEBUG_MESSAGE("Window resize event detected!");
+                    SDL_Vulkan_GetDrawableSize(window.getWindow(), &surfaceExtent.width, &surfaceExtent.height);
+                    SDL_GetWindowSize(window.getWindow(), &windowExtent.width, &windowExtent.height);
+                    renderer.recreateSwapChain();
+                    dpi_scale_fact = surfaceExtent.width / windowExtent.width;
+                    io.DisplaySize = {(float)surfaceExtent.width, (float)surfaceExtent.height};
+                    io.FontGlobalScale = dpi_scale_fact * (windowExtent.width / 1920.f);
+                }
+                break;
+            case SDL_QUIT:
+                running = false;
+                break;
+            case SDL_KEYDOWN:
+                io.AddKeyEvent(UI::ImGui_SDL2_KeyEventToImGuiKey(sdl_event.key.keysym.sym), true);
+                switch (sdl_event.key.keysym.sym) {
+                    case SDLK_ESCAPE:
+                        running = false;
+                        break;
+                    case SDLK_w:
+                        movement |= 0x01;
+                        break;
+                    case SDLK_a:
+                        movement |= 0x02;
+                        break;
+                    case SDLK_s:
+                        movement |= 0x04;
+                        break;
+                    case SDLK_d:
+                        movement |= 0x08;
+                        break;
+                    case SDLK_LSHIFT:
+                        movement |= 0x10;
+                        break;
+                    case SDLK_SPACE:
+                        movement |= 0x20;
+                        break;
+                    default:
+                        break;
+                }
+                break;
+            case SDL_KEYUP:
+                io.AddKeyEvent(UI::ImGui_SDL2_KeyEventToImGuiKey(sdl_event.key.keysym.sym), false);
+                switch (sdl_event.key.keysym.sym) {
+                    case SDLK_w:
+                        movement &= 0xFE;
+                        break;
+                    case SDLK_a:
+                        movement &= 0xFD;
+                        break;
+                    case SDLK_s:
+                        movement &= 0xFB;
+                        break;
+                    case SDLK_d:
+                        movement &= 0xF7;
+                        break;
+                    case SDLK_LSHIFT:
+                        movement &= 0xEF;
+                        break;
+                    case SDLK_SPACE:
+                        movement &= 0xDF;
+                        break;
+                    default:
+                        break;
+                }
+                break;
+            case SDL_CONTROLLERDEVICEADDED:
+                SDL_GameControllerOpen(0);
+                //font.renderText(SDL_GameControllerNameForIndex(0), -.1f, -.95f, .1f);
+                break;
+            case SDL_CONTROLLERDEVICEREMOVED:
+                SDL_GameControllerClose(0);
+                break;
+            case SDL_CONTROLLERBUTTONDOWN:
+                running = false;
+                break;
+            case SDL_MOUSEBUTTONDOWN:
+                io.MouseDown[0] = sdl_event.button.state;
+                mouseLeft = true;
+                break;
+            case SDL_MOUSEBUTTONUP:
+                io.MouseDown[0] = sdl_event.button.state;
+                mouseLeft = false;
+                break;
+            case SDL_MOUSEMOTION:
+                int wx, wy, mx, my;
+                SDL_GetWindowPosition(window.getWindow(), &wx, &wy);
+                SDL_GetGlobalMouseState(&mx, &my);
+                io.AddMousePosEvent((mx - wx) * dpi_scale_fact, (my - wy) * dpi_scale_fact);
+                if (mouseLeft && !ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow)) {
+                    rotate.x = .05f*sdl_event.motion.yrel;
+                    rotate.y = -.05f*sdl_event.motion.xrel;
+                }
+                break;
+            case SDL_MOUSEWHEEL:
+                io.AddMouseWheelEvent(sdl_event.wheel.preciseX, sdl_event.wheel.preciseX);
+                break;
+        }
+    }
 }
 
 void Application::loadSolidObjects() {
-    std::vector<std::string> meshNames = {
-        "arches", "brickwalls", "ceilings", "columns_a", "columns_b", "columns_c",
-        "details", "fabric_curtains_blue", "fabric_curtains_green", "fabric_curtains_red",
-        "fabric_rounds_blue", "fabric_rounds_green", "fabric_rounds_red", "flagpoles",
-        "floors", "ivys", "lion_heads", "lion_shields", "roofs", "vases_hanging",
-        "vases_hanging_chain", "vases_octagonal", "vases_round", "vases_round_plants"
-    };
-
-    for (int i = 0; i < meshNames.size(); i++) {
-        auto group = SolidObject::createSolidObject();
-        group.model = Model::createModelFromFile(device, binaryDir + "sponza/sponza_" + meshNames[i] + ".obj", VK_TRUE);
-        group.textureIndex = i;
-        group.roughness = .7f;
-        group.metalness = 1.f;
-        solidObjects.emplace(group.getId(), std::move(group));
-    }
     
-    // Cubemap 3D canvas
-    auto cube = SolidObject::createSolidObject();
-    Model::Data cubeData;
-    cubeData.vertices = {
-        {{-1.f, -1.f, 1.f}, {}, {}, {}, {0.f, 0.f}},
-        {{1.f, -1.f, 1.f}, {}, {}, {}, {1.f, 0.f}},
-        {{1.f, 1.f, 1.f}, {}, {}, {}, {1.f, 1.f}},
-        {{-1.f, 1.f, 1.f}, {}, {}, {}, {0.f, 1.f}},
-        {{-1.f, -1.f, -1.f}, {}, {}, {}, {0.f, 0.f}},
-        {{1.f, -1.f, -1.f}, {}, {}, {}, {1.f, 0.f}},
-        {{1.f, 1.f, -1.f}, {}, {}, {}, {1.f, 1.f}},
-        {{-1.f, 1.f, -1.f}, {}, {}, {}, {0.f, 1.f}}
-    };
-    cubeData.indices = {
-        0,2,1,2,0,3,
-        4,5,6,6,7,4,
-        1,6,5,6,1,2,
-        0,4,7,7,3,0,
-        4,1,5,1,4,0,
-        3,6,2,6,3,7
-    };
-    cube.model = std::make_unique<Model>(device, cubeData);
-    cube.textureIndex = 0;
-    cube.transform.translation = {.0f, .0f, .0f};
-    cube.transform.scale = {1.f, 1.f, 1.f};
-    cube.transform.rotation = {.0f, .0f, .0f};
-    env.emplace(cube.getId(), std::move(cube));
 }
 
 void Application::renderImguiContent() {
     static auto counter10Hz = std::chrono::high_resolution_clock::now();
     
-    ImGui::TextUnformatted(device.properties.deviceName);
+    static bool showMaterials = false;
+    ImGui::Checkbox("Show Materials Table", &showMaterials);
+    if (showMaterials && ImGui::BeginTable("material_table", 5, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
+    {
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn(); ImGui::Text("Name");
+        ImGui::TableNextColumn(); ImGui::Text("Color");
+        ImGui::TableNextColumn(); ImGui::Text("Normal");
+        ImGui::TableNextColumn(); ImGui::Text("Occlusion");
+        ImGui::TableNextColumn(); ImGui::Text("Metal/Rough");
+        for (auto& kv: materials) {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", kv.first.c_str());
+            ImGui::TableNextColumn();
+            if ((kv.second.getTextureBitmap() & 0x1) == 0) {ImGui::ColorButton("", ImVec4(kv.second.color.r,kv.second.color.g,kv.second.color.b,kv.second.color.a));}
+            else { ImGui::Text("%s","Texture"); }
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", (kv.second.getTextureBitmap() & 0x2) == 0 ? "NO" : "Texture");
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", (kv.second.getTextureBitmap() & 0x4) == 0 ? "NO" : "Texture");
+            ImGui::TableNextColumn();
+            ImGui::Text("%s", (kv.second.getTextureBitmap() & 0x8) == 0 ? ( "M: " + std::to_string(kv.second.metalness) + ", R: " + std::to_string(kv.second.roughness) ).c_str() : "Texture");
+        }
+        ImGui::EndTable();
+    }
+    
+    ImGui::TextUnformatted(vulkanDevice.properties.deviceName);
     float ddpi;
     SDL_GetDisplayDPI(0, &ddpi, nullptr, nullptr);
     ImGui::Text("Actual window size\t %i x %i", windowExtent.width, windowExtent.height);
@@ -632,7 +649,8 @@ void Application::renderImguiContent() {
         frameTime = frameTimes.back() * 1000.f;
         counter10Hz = std::chrono::high_resolution_clock::now();
     }
-    ImGui::Text("Frametime %.2f", frameTime);
+    ImGui::Text("CPU Time %.2fms", m_Perf.cpuTime * 1000.f);
+    ImGui::Text("GPU Time %.2fms", m_Perf.gpuTime * 1000.f);
     
     ImGui::NewLine();
     ImGui::Text("FIF: %i", SwapChain::MAX_FRAMES_IN_FLIGHT);
@@ -670,14 +688,14 @@ void Application::renderImguiContent() {
     }
     
     ImGui::NewLine();
-    static int aaIndex = ctz(device.msaaSamples);
+    static int aaIndex = ctz(vulkanDevice.msaaSamples);
     ImGui::Text("Anti-Aliasing");
     if (ImGui::Combo("##antialiasing", &aaIndex, aaPresets.data(), (int)aaPresets.size())) {
-        device.msaaSamples = static_cast<VkSampleCountFlagBits>(1 << aaIndex);
+        vulkanDevice.msaaSamples = static_cast<VkSampleCountFlagBits>(1 << aaIndex);
         renderer.recreateOffscreenFlag = true;
         renderer.recreateSwapChain();
-        renderSystem->recreatePipeline(renderer.getOffscreenRenderPass(), device.msaaSamples);
-        skyboxSystem->recreatePipeline(renderer.getOffscreenRenderPass(), device.msaaSamples);
+        renderSystem->recreatePipeline(renderer.getOffscreenRenderPass(), vulkanDevice.msaaSamples);
+        skyboxSystem->recreatePipeline(renderer.getOffscreenRenderPass(), vulkanDevice.msaaSamples);
     }
     
     ImGui::NewLine();

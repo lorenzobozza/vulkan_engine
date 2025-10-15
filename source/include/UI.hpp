@@ -29,6 +29,8 @@ public:
     void newFrame(Application *app);
     void updateBuffers(int frameIndex);
     void draw(VkCommandBuffer commandBuffer, int frameIndex);
+    
+    static ImGuiKey ImGui_SDL2_KeyEventToImGuiKey(SDL_Keycode keycode);
 
 private:
     std::vector<char> readFile(const std::string &filepath);

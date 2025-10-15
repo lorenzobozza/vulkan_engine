@@ -89,10 +89,10 @@ void HDRi::renderFaces() {
         5,4,7,7,6,5
     };
     
-    auto cube = SolidObject::createSolidObject();
-    cube.model = std::make_unique<Model>(device, data);
+    auto cube = Primitive::new_primitive();
+    cube.setModel(std::make_shared<Model>(device, data));
     
-    SolidObject::Map cubeEnvironment;
+    Primitive::Map cubeEnvironment;
     cubeEnvironment.emplace(cube.getId(), std::move(cube));
 
     vulkanImage.createImage(

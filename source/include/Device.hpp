@@ -54,6 +54,7 @@ class Device {
   Device &operator=(Device &&) = delete;
 
   VkCommandPool getCommandPool() { return commandPool; }
+  VkCommandPool getTransferCommandPool() { return m_transferCommandPool; }
   VkDevice device() { return device_; }
   VkSurfaceKHR surface() { return surface_; }
   VkQueue graphicsQueue() { return graphicsQueue_; }
@@ -78,8 +79,6 @@ class Device {
   VkCommandBuffer beginSingleTimeCommands();
   void endSingleTimeCommands(VkCommandBuffer commandBuffer);
   void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
-  void copyBufferToImage(
-      VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t layerCount);
 
   void createImageWithInfo(
       const VkImageCreateInfo &imageInfo,
@@ -97,7 +96,8 @@ class Device {
   void createSurface();
   void pickPhysicalDevice();
   void createLogicalDevice();
-  void createCommandPool();
+  void createGraphicsCommandPool();
+  void createTransferCommandPool();
 
   // helper functions
   VkSampleCountFlagBits getMaxUsableSampleCount();
@@ -115,6 +115,7 @@ class Device {
   VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
   SDLWindow &window;
   VkCommandPool commandPool;
+  VkCommandPool m_transferCommandPool;
   QueueFamilyIndices indices;
 
   VkDevice device_;

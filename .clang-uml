@@ -1,0 +1,20 @@
+# Change to directory where compile_commands.json is
+compilation_database_dir: build/compile_commands
+add_compile_flags:
+  - "-I/Library/Developer/CommandLineTools/SDKs/MacOSX26.0.sdk/usr/include"
+  - "-I/Library/Developer/CommandLineTools/usr/lib/clang/17/include -h"
+# Change to directory where diagram should be written
+output_directory: docs/diagrams
+diagrams:
+  example_class_diagram:
+    type: class
+    glob:
+      - source/*.cpp
+    using_namespace:
+      - myproject
+    include:
+      namespaces:
+        - myproject
+    exclude:
+      namespaces:
+        - myproject::detail

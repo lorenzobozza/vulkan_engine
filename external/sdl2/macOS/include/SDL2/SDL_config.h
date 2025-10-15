@@ -1,7 +1,7 @@
 /* include/SDL_config.h.  Generated from SDL_config.h.in by configure.  */
 /*
   Simple DirectMedia Layer
-  Copyright (C) 1997-2022 Sam Lantinga <slouken@libsdl.org>
+  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
 
   This software is provided 'as-is', without any express or implied
   warranty.  In no event will the authors be held liable for any damages
@@ -54,7 +54,7 @@
 
 /* Comment this if you want to build without any C library requirements */
 #define HAVE_LIBC 1
-#if HAVE_LIBC
+#ifdef HAVE_LIBC
 
 /* Useful headers */
 #define STDC_HEADERS 1
@@ -76,6 +76,7 @@
 #define HAVE_STRING_H 1
 #define HAVE_SYS_TYPES_H 1
 #define HAVE_WCHAR_H 1
+/* #undef HAVE_LINUX_INPUT_H */
 /* #undef HAVE_PTHREAD_NP_H */
 #define HAVE_LIBUNWIND_H 1
 
@@ -143,6 +144,7 @@
 #define HAVE_STRCASECMP 1
 /* #undef HAVE__STRNICMP */
 #define HAVE_STRNCASECMP 1
+#define HAVE_STRCASESTR 1
 /* #undef HAVE_SSCANF */
 #define HAVE_VSSCANF 1
 /* #undef HAVE_SNPRINTF */
@@ -194,6 +196,7 @@
 #define HAVE_FSEEKO 1
 /* #undef HAVE_FSEEKO64 */
 #define HAVE_SIGACTION 1
+/* #undef HAVE_SIGTIMEDWAIT */
 #define HAVE_SA_SIGACTION 1
 #define HAVE_SETJMP 1
 #define HAVE_NANOSLEEP 1
@@ -202,16 +205,20 @@
 /* #undef HAVE_CLOCK_GETTIME */
 /* #undef HAVE_GETPAGESIZE */
 #define HAVE_MPROTECT 1
-#define HAVE_ICONV 1
+/* #undef HAVE_ICONV */
+/* #undef SDL_USE_LIBICONV */
 #define HAVE_PTHREAD_SETNAME_NP 1
 /* #undef HAVE_PTHREAD_SET_NAME_NP */
 /* #undef HAVE_SEM_TIMEDWAIT */
 /* #undef HAVE_GETAUXVAL */
 /* #undef HAVE_ELF_AUX_INFO */
 #define HAVE_POLL 1
+/* #undef HAVE_MEMFD_CREATE */
+/* #undef HAVE_POSIX_FALLOCATE */
 #define HAVE__EXIT 1
 
 #else
+
 #define HAVE_STDARG_H 1
 #define HAVE_STDDEF_H 1
 #define HAVE_STDINT_H 1
@@ -231,7 +238,7 @@
 /* #undef HAVE_LIBUSB */
 /* #undef HAVE_LIBSAMPLERATE_H */
 /* #undef HAVE_LIBDECOR_H */
-/* #undef HAVE_LSXINTRIN_H */
+#define HAVE_LSXINTRIN_H 1
 /* #undef HAVE_LASXINTRIN_H */
 
 /* #undef HAVE_DDRAW_H */
@@ -240,8 +247,6 @@
 /* #undef HAVE_DXGI_H */
 /* #undef HAVE_WINDOWS_GAMING_INPUT_H */
 /* #undef HAVE_XINPUT_H */
-/* #undef HAVE_XINPUT_GAMEPAD_EX */
-/* #undef HAVE_XINPUT_STATE_EX */
 
 /* #undef HAVE_MMDEVICEAPI_H */
 /* #undef HAVE_AUDIOCLIENT_H */
@@ -298,7 +303,6 @@
 /* #undef SDL_AUDIO_DRIVER_NETBSD */
 /* #undef SDL_AUDIO_DRIVER_OPENSLES */
 /* #undef SDL_AUDIO_DRIVER_OSS */
-/* #undef SDL_AUDIO_DRIVER_OSS_SOUNDCARD_H */
 /* #undef SDL_AUDIO_DRIVER_PAUDIO */
 /* #undef SDL_AUDIO_DRIVER_PIPEWIRE */
 /* #undef SDL_AUDIO_DRIVER_PIPEWIRE_DYNAMIC */
@@ -389,7 +393,7 @@
 /* #undef SDL_VIDEO_DRIVER_KMSDRM_DYNAMIC_GBM */
 /* #undef SDL_VIDEO_DRIVER_ANDROID */
 /* #undef SDL_VIDEO_DRIVER_EMSCRIPTEN */
-/* #undef SDL_VIDEO_DRIVER_OFFSCREEN */
+#define SDL_VIDEO_DRIVER_OFFSCREEN 1
 /* #undef SDL_VIDEO_DRIVER_X11_DYNAMIC */
 /* #undef SDL_VIDEO_DRIVER_X11_DYNAMIC_XEXT */
 /* #undef SDL_VIDEO_DRIVER_X11_DYNAMIC_XCURSOR */
@@ -490,5 +494,8 @@
 
 /* Enable dynamic libsamplerate support */
 /* #undef SDL_LIBSAMPLERATE_DYNAMIC */
+
+/* Libdecor get min/max content size functions */
+/* #undef SDL_HAVE_LIBDECOR_GET_MIN_MAX */
 
 #endif /* SDL_config_h_ */

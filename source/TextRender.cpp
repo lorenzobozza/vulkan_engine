@@ -61,8 +61,8 @@ unsigned int TextRender::renderText(std::string text, float x, float y, float sc
             
             rectMesh.indices = {0,3,2,0,2,1};
         
-            auto rect = SolidObject::createSolidObject();
-            rect.model = std::make_shared<Model>(device, rectMesh);
+            auto rect = Primitive::new_primitive();
+            rect.setModel(std::make_shared<Model>(device, rectMesh));
             rect.transform.translation = {x, y, 0.f};
             rect.textureIndex = ch.TextureID;
             

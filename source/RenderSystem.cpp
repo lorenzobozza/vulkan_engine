@@ -12,13 +12,17 @@
 #include <array>
 #include <cassert>
 #include <stdexcept>
+#include <iostream>
 
 struct PushConstantData {
   glm::mat4 modelMatrix{1.f};
   int textureIndex{};
   float metalness{};
   float roughness{};
-  alignas(16) glm::vec3 color{};
+  alignas(16) glm::vec4 color{};
+  int alphaMode{};
+  float alphaCutoff{};
+  int backFace{-1};
 };
 
 RenderSystem::RenderSystem(
@@ -91,7 +95,7 @@ void RenderSystem::createPipeline(VkRenderPass renderPass) {
 void RenderSystem::renderSolidObjects(FrameInfo &frameInfo) {
   pipeline->bind(frameInfo.commandBuffer);
 
-  for (auto &kv : frameInfo.solidObjects) {
+  for (auto &kv : frameInfo.primitives) {
     auto &obj = kv.second;
     
     vkCmdBindDescriptorSets(
@@ -100,17 +104,19 @@ void RenderSystem::renderSolidObjects(FrameInfo &frameInfo) {
         pipelineLayout,
         0,
         1,
-        &frameInfo.globalDescriptorSet[obj.textureIndex],
+        &frameInfo.globalDescriptorSet[obj.material],
         0,
         nullptr
     );
     
     PushConstantData push{};
     push.modelMatrix = obj.transform.mat4();
-    push.textureIndex = obj.textureIndex;
-    push.metalness = obj.metalness;
-    push.roughness = obj.roughness;
-    push.color = obj.color;
+    push.textureIndex = frameInfo.materials[obj.material].getTextureBitmap();
+    push.metalness = frameInfo.materials[obj.material].metalness;
+    push.roughness = frameInfo.materials[obj.material].roughness;
+    push.color = frameInfo.materials[obj.material].color;
+    push.alphaMode = frameInfo.materials[obj.material].alphaMode;
+    push.alphaCutoff = frameInfo.materials[obj.material].alphaCutoff;
 
     vkCmdPushConstants(
         frameInfo.commandBuffer,
