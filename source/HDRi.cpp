@@ -371,8 +371,8 @@ void HDRi::createPipeline() {
   pipelineConfig.rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
   pipeline = std::make_unique<Pipeline>(
       device,
-      binaryPath+"cubemap.vert.spv",
-      binaryPath+shader+".frag.spv",
+      "cubemap.vert",
+      shader+".frag",
       pipelineConfig);
 }
 

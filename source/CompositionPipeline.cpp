@@ -63,8 +63,8 @@ void CompositionPipeline::createPipeline(VkRenderPass renderPass) {
     pipelineConfig.multisampleInfo.minSampleShading = .2f;
     pipeline = std::make_unique<Pipeline>(
       device,
-      shaderPath+".vert.spv",
-      shaderPath+".frag.spv",
+      shaderPath+".vert",
+      shaderPath+".frag",
       pipelineConfig);
       
     Model::Data data;

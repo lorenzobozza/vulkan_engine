@@ -17,7 +17,7 @@
 
 struct PipelineConfigInfo {
     PipelineConfigInfo(const PipelineConfigInfo&) = delete;
-    //PipelineConfigInfo() = default;
+    PipelineConfigInfo() = default;
     PipelineConfigInfo& operator=(const PipelineConfigInfo&) = delete;
     
     //VkViewport viewport;
@@ -55,7 +55,7 @@ private:
     
     void createGraphicsPipeline(const std::string &vertFilepath, const std::string &fragFilepath, const PipelineConfigInfo &configInfo);
     
-    void createShaderModule(const std::vector<char> &code, VkShaderModule *shaderModule);
+    void createShaderModule(std::vector<uint32_t>& vecShader, VkShaderModule *shaderModule);
     
     Device &device;
     VkPipeline graphicsPipeline;

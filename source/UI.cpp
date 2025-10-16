@@ -6,6 +6,7 @@
 //
 
 #include "include/UI.hpp"
+#include "include/ShaderCompiler.hpp"
 
 #include <SDL2/SDL.h>
 
@@ -74,20 +75,26 @@ void UI::createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath) 
     pipelineConfig.pipelineLayout = imguiPipelineLayout;
     pipelineConfig.rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     
-    auto vertCode = readFile(dynamicShaderPath+".vert.spv");
-    auto fragCode = readFile(dynamicShaderPath+".frag.spv");
+    std::vector<uint32_t> vertexShader, fragmentShader;
+    
+    ShaderCompiler glslc;
     
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.codeSize = vertCode.size();
-    createInfo.pCode = reinterpret_cast<const uint32_t*>(vertCode.data());
-    if(vkCreateShaderModule(device.device(), &createInfo, nullptr, &vertShaderModule) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create Shader Module");
+    if (glslc.loadShader("imgui.vert", vertexShader) == ShaderCompiler::State::Valid) {
+        createInfo.codeSize = vertexShader.size() * sizeof(uint32_t);
+        createInfo.pCode = vertexShader.data();
+        if(vkCreateShaderModule(device.device(), &createInfo, nullptr, &vertShaderModule) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create Shader Module");
+        }
     }
-    createInfo.codeSize = fragCode.size();
-    createInfo.pCode = reinterpret_cast<const uint32_t*>(fragCode.data());
-    if(vkCreateShaderModule(device.device(), &createInfo, nullptr, &fragShaderModule) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create Shader Module");
+    
+    if (glslc.loadShader("imgui.frag", fragmentShader) == ShaderCompiler::State::Valid) {
+        createInfo.codeSize = fragmentShader.size() * sizeof(uint32_t);
+        createInfo.pCode = fragmentShader.data();
+        if(vkCreateShaderModule(device.device(), &createInfo, nullptr, &fragShaderModule) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create Shader Module");
+        }
     }
     
     VkPipelineShaderStageCreateInfo shaderStages[2];

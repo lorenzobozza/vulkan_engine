@@ -6,6 +6,7 @@
 //
 
 #include "include/Pipeline.hpp"
+#include "include/ShaderCompiler.hpp"
 
 #include <fstream>
 #include <stdexcept>
@@ -42,11 +43,15 @@ void Pipeline::createGraphicsPipeline(const std::string &vertFilepath, const std
     assert(configInfo.pipelineLayout != VK_NULL_HANDLE && "Cannot create grapics pipeline:: no pipelineLayout provided in configInfo");
     assert(configInfo.renderPass != VK_NULL_HANDLE && "Cannot create grapics pipeline:: no renderPass provided in configInfo");
     
-    auto vertCode = readFile(vertFilepath);
-    auto fragCode = readFile(fragFilepath);
+    std::vector<uint32_t> vertexShader, fragmentShader;
     
-    createShaderModule(vertCode, &vertShaderModule);
-    createShaderModule(fragCode, &fragShaderModule);
+    ShaderCompiler glslc;
+    if (glslc.loadShader(vertFilepath, vertexShader) == ShaderCompiler::State::Valid) {
+        createShaderModule(vertexShader, &vertShaderModule);
+    }
+    if (glslc.loadShader(fragFilepath, fragmentShader) == ShaderCompiler::State::Valid) {
+        createShaderModule(fragmentShader, &fragShaderModule);
+    }
     
     VkPipelineShaderStageCreateInfo shaderStages[2];
     shaderStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -99,11 +104,11 @@ void Pipeline::createGraphicsPipeline(const std::string &vertFilepath, const std
     }
 }
 
-void Pipeline::createShaderModule(const std::vector<char> &code, VkShaderModule *shaderModule) {
+void Pipeline::createShaderModule(std::vector<uint32_t>& vecShader, VkShaderModule *shaderModule) {
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.codeSize = code.size();
-    createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+    createInfo.codeSize = vecShader.size() * sizeof(uint32_t);
+    createInfo.pCode = vecShader.data();
     
     if(vkCreateShaderModule(device.device(), &createInfo, nullptr, shaderModule) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create Shader Module");

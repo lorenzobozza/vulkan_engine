@@ -556,8 +556,8 @@ void Renderer::integrateBrdfLut(std::string shaderPath) {
     pipelineConfig.rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
     Pipeline pipeline{
         device,
-        shaderPath+"brdf.vert.spv",
-        shaderPath+"brdf.frag.spv",
+        "brdf.vert",
+        "brdf.frag",
         pipelineConfig
     };
     
