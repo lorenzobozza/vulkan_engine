@@ -39,15 +39,7 @@ static bool tinygltf_LoadImageDataCallback(
     return true;
 }
 
-static void convertImageData(std::vector<tinygltf::Image>& images) {
-    static std::atomic_int i{-1};
-    i += 1;
-    
-    if (i >= images.size()) {
-        return;
-    }
-    
-    auto& image = images.at(i);
+static void convertImageData(tinygltf::Image& image) {
         
     int w = 0, h = 0, comp = 0, req_comp = 4;
 
@@ -87,6 +79,19 @@ static void convertImageData(std::vector<tinygltf::Image>& images) {
     stbi_image_free(data);
 }
 
+struct ImageParseTaskSet : enki::ITaskSet {
+    ImageParseTaskSet(std::vector<tinygltf::Image>& images) : m_Images(images) { m_SetSize = (uint32_t)m_Images.size(); }
+
+    std::vector<tinygltf::Image>& m_Images;
+    
+    void ExecuteRange( enki::TaskSetPartition range_, uint32_t threadnum_ ) override {
+        for(int i = range_.start; i < range_.end; ++i )
+        {
+            convertImageData(m_Images.at(i));
+        }
+    }
+};
+
 NodeSet::NodeSet(InitStruct& init, std::string filePath)
     : m_Device{init.device}, m_Image{init.image}, m_Materials{init.materials},
     m_Primitives{init.primitives}, m_Textures{init.textures}, m_FilePath{filePath} {
@@ -96,13 +101,11 @@ NodeSet::NodeSet(InitStruct& init, std::string filePath)
     const unsigned int vCpu = enki::GetNumHardwareThreads();
     g_TS.Initialize(vCpu);
     
-    const unsigned int count = (unsigned int)m_gltfModel.images.size();
-    enki::TaskSet task( count, [this]( enki::TaskSetPartition range_, uint32_t threadnum_  ) {
-         convertImageData(this->m_gltfModel.images);
-    }  );
+    ImageParseTaskSet task(m_gltfModel.images);
     g_TS.AddTaskSetToPipe( &task );
     
     g_TS.WaitforTask( &task );
+    
     g_TS.ShutdownNow();
     
     // glTF -> Vulkan, unit quaternion along X to rotate 180° about X

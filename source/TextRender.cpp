@@ -319,7 +319,7 @@ void TextRender::createPipeline(VkRenderPass renderPass) {
     pipelineConfig.multisampleInfo.minSampleShading = .2f;
     pipeline = std::make_unique<Pipeline>(
       device,
-      "font.vert.spv",
-      "font.frag.spv",
+      "font.vert",
+      "font.frag",
       pipelineConfig);
 }

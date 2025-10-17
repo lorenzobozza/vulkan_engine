@@ -73,7 +73,7 @@ void Application::run() {
         vulkanDevice,
         renderer.getSwapChainRenderPass(),
         renderer.getPostProcessingDescriptorSetLayout(),
-        binaryDir + "composition"
+        "composition"
     );
     
     //TextRender font{vulkanDevice, renderer.getSwapChainRenderPass(), "fonts/Disket-Mono-Regular.ttf"};
@@ -273,7 +273,7 @@ void Application::run() {
         vulkanDevice,
         renderer.getOffscreenRenderPass(),
         skyboxSetLayout->getDescriptorSetLayout(),
-        binaryDir+"skybox",
+        "skybox",
         vulkanDevice.msaaSamples
     );
     
@@ -349,7 +349,7 @@ void Application::run() {
         vulkanDevice,
         renderer.getOffscreenRenderPass(),
         globalSetLayout->getDescriptorSetLayout(),
-        binaryDir+"shader",
+        "shader",
         vulkanDevice.msaaSamples
     );
     
