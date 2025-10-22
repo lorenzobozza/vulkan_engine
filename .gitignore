@@ -7,3 +7,6 @@
 *.png
 *.ttf
 build/
+xcode-build/
+assets/
+cache/

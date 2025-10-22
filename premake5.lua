@@ -2,7 +2,6 @@ require "export-compile-commands"
 
 workspace "PrototypeEngine"
 	configurations { "Debug", "Release" }
-	platforms {"arm64"}
 	location "build"
 
 project "Core"

@@ -51,7 +51,7 @@ public:
     static constexpr int HEIGHT = 1080;
     
     Application(const char* binaryPath);
-    ~Application();
+    ~Application() = default;
     
     // Prevent Obj copy
     Application(const Application &) = delete;
@@ -64,8 +64,6 @@ public:
     static int sum(int a) { return a + a; }
     
 private:
-    void loadSolidObjects();
-    void pollWindowEvents(void);
     
     SDLWindow window{WIDTH, HEIGHT, "Vulkan Engine Development"};
     Device vulkanDevice{window};
@@ -75,22 +73,15 @@ private:
     std::unique_ptr<RenderSystem> skyboxSystem;
     std::unique_ptr<CompositionPipeline> postProcessing;
     
-    std::vector<std::unique_ptr<Texture>> testure{};
+    std::vector<std::unique_ptr<Texture>> textures{};
     std::unordered_map<std::string, Material> materials{};
     
-    std::unordered_map<uint32_t, std::unique_ptr<Texture>> textures{};
     std::vector<VkDescriptorImageInfo> textureInfos{};
     bool assetsLoaded = false;
     
-    std::unique_ptr<DescriptorPool> globalPool{};
     Primitive::Map primitives;
     Primitive::Map env;
-    
-    SDL_Event sdl_event;
-    uint8_t movement{0x00};
-    glm::vec3 rotate{.0f};
-    bool running = true;
-    float dpi_scale_fact;
+
     int frameIndex{0};
     std::vector<float> frameTimes{0};
     std::vector<float> framesPerSecond{0};
@@ -108,7 +99,6 @@ private:
             void gpuEnd(void) { gpuStop = std::chrono::high_resolution_clock::now(); gpuTime = std::chrono::duration<float, std::chrono::seconds::period>(gpuStop - cpuStop).count(); }
     } m_Perf;
     
-    uint8_t load_phase{0};
     std::string binaryDir;
     
     GlobalUbo ubo{};

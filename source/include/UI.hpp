@@ -15,10 +15,11 @@
 #include "Pipeline.hpp"
 #include "Descriptors.hpp"
 #include "Image.hpp"
+#include "Renderer.hpp"
 
 class UI {
 public:
-    UI(Device &device, VkRenderPass renderPass, std::string binaryPath);
+    UI(Device &device, Renderer& renderer);
     ~UI();
     
     struct PushConstBlock {
@@ -30,16 +31,22 @@ public:
     void updateBuffers(int frameIndex);
     void draw(VkCommandBuffer commandBuffer, int frameIndex);
     
+    std::vector<VkDescriptorSet>* getDescriptorSets(void) { return imguiDescriptorSets; }
+    
     static ImGuiKey ImGui_SDL2_KeyEventToImGuiKey(SDL_Keycode keycode);
+    static char ImGuiKey_to_Charecter(ImGuiKey imgui_key, bool shift);
+    static void setBessDarkColors(void);
+    static void OnImGui(std::string directoryPath);
 
 private:
     std::vector<char> readFile(const std::string &filepath);
-    void loadFontTexture(std::string binaryPath);
-    void createDescriptors();
+    void loadFontTexture(void);
+    void createDescriptors(void);
     void createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath);
 
     Device &device;
     Image vulkanImage{device};
+    Renderer& m_Renderer;
     
     VkPipeline imguiPipeline;
     VkPipelineLayout imguiPipelineLayout;
@@ -59,6 +66,8 @@ private:
     std::unique_ptr<DescriptorPool> imguiPool;
     std::unique_ptr<DescriptorSetLayout> imguiSetLayout;
     std::vector<VkDescriptorSet> *imguiDescriptorSets;
+    
+    ImGuiContext* context;
 };
 
 #endif /* UI_hpp */

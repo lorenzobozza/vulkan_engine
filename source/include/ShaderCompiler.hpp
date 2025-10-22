@@ -28,7 +28,7 @@ public:
         
         // Check for cached spv
         std::ifstream file;
-        file.open("shaders/cache/" + fileName + ".spv", std::ios::ate | std::ios::binary);
+        file.open("../../../shaders/cache/" + fileName + ".spv", std::ios::ate | std::ios::binary);
         
         if (file.rdstate() == std::ios::goodbit && file.is_open()) {
             size_t filesize = static_cast<size_t>(file.tellg());
@@ -41,7 +41,7 @@ public:
             return State::Valid;
         }
 
-        file.open("shaders/" + fileName, std::ios::ate);
+        file.open("../../../shaders/" + fileName, std::ios::ate);
         
         if (file.rdstate() == std::ios::goodbit && file.is_open()) {
             size_t filesize = static_cast<size_t>(file.tellg());
@@ -108,7 +108,7 @@ private:
         
         if (info.binary.data()[0] == 0x07230203U) {
             std::ofstream cache;
-            cache.open("shaders/cache/" + info.fileName + ".spv", std::ios::binary);
+            cache.open("../../../shaders/cache/" + info.fileName + ".spv", std::ios::binary);
             cache.write((char*)info.binary.data(), info.binary.size() * sizeof(uint32_t));
             cache.close();
             

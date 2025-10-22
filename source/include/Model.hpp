@@ -45,6 +45,8 @@ public:
         void computeTangentBasis(Model::Vertex &v0, Model::Vertex &v1, Model::Vertex &v2, glm::vec3 *tanOut);
         
         void loadModel(const std::string &filePath, bool allUniqueVertices);
+        
+        static Data makeSimpleCube(void);
     };
     
     Model(Device &dev, const Data &data);

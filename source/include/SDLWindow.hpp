@@ -9,6 +9,7 @@
 #define SDLWindow_hpp
 
 #include <vulkan/vulkan.h>
+#include <glm.hpp>
 
 #define SDL_MAIN_HANDLED
 #include <SDL2/SDL.h>
@@ -18,6 +19,7 @@
 // std
 #include <vector>
 #include <string>
+#include <functional>
 
 class SDLWindow {
 public:
@@ -32,10 +34,19 @@ public:
     void createWindowSurface(VkInstance instance, VkSurfaceKHR *surface);
     
     void setWindowExtent(int Width, int Height) { width = Width; height = Height; }
+    void setWindowFullScreen(uint32_t flags);
+    
     VkExtent2D getExtent() { return { static_cast<uint32_t>(width), static_cast<uint32_t>(height)}; }
     SDL_Window *getWindow() const { return window; }
+    uint8_t getMovement(void) { return movement; }
+    glm::vec3 getRotation(void) { return rotate; }
+    bool isWindowOpen(void) { return keepRuning; }
     
-    void setWindowFullScreen(uint32_t flags);
+    void pollWindowEvents(std::function<void()> callback);
+    void closeWindow(void) { keepRuning = false; }
+    
+    std::string openFileDialog(std::string folder);
+    
     
     std::string supportedResNames;
     std::vector<SDL_DisplayMode> supportedModes;
@@ -50,15 +61,13 @@ private:
     
     std::string windowName;
     SDL_Window* window;
+    
+    float dpi_scale_fact;
+    bool keepRuning = true;
+    
+    // Inputs
+    uint8_t movement{0x00};
+    glm::vec3 rotate{.0f};
 };
 
 #endif /* SDLWindow_hpp */
-
-/*
-bool wasWindowResized() { return frameBufferResized; }
-void resetWindowResizeFlag() { frameBufferResized = false; }
-bool frameBufferResized = false;
-    
-GLFWmonitor* monitor;
-bool fullScreen = false;
- */

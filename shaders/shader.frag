@@ -45,9 +45,8 @@ layout(binding = 2) uniform samplerCube prefilteredMap;
 layout(binding = 3) uniform sampler2D brdfLUT;
 layout(binding = 4) uniform sampler2D diffuseMap;
 layout(binding = 5) uniform sampler2D normalMap;
-layout(binding = 6) uniform sampler2D metallicMap;
-layout(binding = 7) uniform sampler2D roughnessMap;
-layout(binding = 8) uniform sampler2D occlusionMap;
+layout(binding = 6) uniform sampler2D metalRoughnessMap;
+layout(binding = 7) uniform sampler2D occlusionMap;
 
 layout(push_constant) uniform Push {
     mat4 modelMatrix;
@@ -115,7 +114,7 @@ void main() {
     
 
     if ( (push.textureBitmap & ROUGH_METAL_TEXTURE) == ROUGH_METAL_TEXTURE ) {
-        vec4 mrx = textureLod(metallicMap, (push.textureBitmap & ROUGH_METAL_UV) == 0 ? vert.texcoord : vert.texcoord1, lod);
+        vec4 mrx = textureLod(metalRoughnessMap, (push.textureBitmap & ROUGH_METAL_UV) == 0 ? vert.texcoord : vert.texcoord1, lod);
         metallic = clamp(mrx.b, 0.0, 1.0);
         perceptualRoughness = clamp(mrx.g, 0.04, 1.0);
     } else {

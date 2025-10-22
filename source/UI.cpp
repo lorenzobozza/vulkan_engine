@@ -10,10 +10,12 @@
 
 #include <SDL2/SDL.h>
 
+#include <imgui_internal.h>
+
 #include <iostream>
 #include <fstream>
 
-UI::UI(Device &device, VkRenderPass renderPass, std::string binaryPath) : device{device} {
+UI::UI(Device &device, Renderer& renderer) : device{device}, m_Renderer{renderer} {
     vertexBuffers = new std::vector<std::unique_ptr<Buffer>>(SwapChain::MAX_FRAMES_IN_FLIGHT);
     indexBuffers = new std::vector<std::unique_ptr<Buffer>>(SwapChain::MAX_FRAMES_IN_FLIGHT);
     
@@ -22,13 +24,14 @@ UI::UI(Device &device, VkRenderPass renderPass, std::string binaryPath) : device
         indexBuffers->at(i) = std::make_unique<Buffer>(device);
     }
 
-    ImGui::CreateContext();
-    
-    loadFontTexture(binaryPath);
-    createDescriptors();
-    createPipeline(renderPass, binaryPath+"imgui");
-    
+    context = ImGui::CreateContext();
     ImGui::StyleColorsDark();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    
+    loadFontTexture();
+    createDescriptors();
+    createPipeline(m_Renderer.getSwapChainRenderPass(), "imgui");
 }
 
 UI::~UI() {
@@ -156,7 +159,7 @@ void UI::createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath) 
     }
 }
 
-void UI::createDescriptors() {
+void UI::createDescriptors(void) {
     imguiPool =
        DescriptorPool::Builder(device)
            .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
@@ -178,25 +181,59 @@ void UI::createDescriptors() {
 
 void UI::newFrame(Application *app) {
     ImGui::NewFrame();
-
-    // Init imGui windows and elements
-
-    // SRS - Set initial position of default Debug window (note: Debug window sets its own initial size, use ImGuiSetCond_Always to override)
-    ImGui::SetWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
-    ImGui::SetWindowSize(ImVec2(300, 300), ImGuiCond_Once);
-    ImGui::TextUnformatted("Vulkan Engine");
-    //ImGui::TextUnformatted(device.properties.deviceName);
     
-    //SRS - Display Vulkan API version and device driver information if available (otherwise blank)
-    ImGui::Text("Vulkan API %i.%i.%i", VK_API_VERSION_MAJOR(device.properties.apiVersion), VK_API_VERSION_MINOR(device.properties.apiVersion), VK_API_VERSION_PATCH(device.properties.apiVersion));
-    ImGui::Text("%i", device.properties.driverVersion);
+    //if (io.ConfigFlags & ImGuiConfigFlags_DockingEnable)
+    /*
+    {
+        ImGuiID dockspace_id = ImGui::GetID("DockSpace");
+        ImGui::DockSpaceOverViewport(dockspace_id, viewport, ImGuiDockNodeFlags_PassthruCentralNode);
+    }
+    */
+    
+    const ImGuiViewport *viewport = ImGui::GetMainViewport();
+
+    ImGui::SetNextWindowPos(viewport->WorkPos);
+    ImGui::SetNextWindowSize(viewport->WorkSize);
+    ImGui::SetNextWindowViewport(viewport->ID);
+    
+    ImGuiWindowFlags windowFlags =
+    ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar |
+    ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+    ImGui::Begin("DockSpace", nullptr, windowFlags);
+
+    const auto mainDockspaceId = ImGui::GetID("MainDockspace");
+    ImGui::DockSpace(mainDockspaceId);
+    
+    
+    static bool firstLoop = true;
+    if (firstLoop) {
+    
+        ImGuiID id = ImGui::GetID("MainDockspace");
+        
+        ImGui::DockBuilderRemoveNode(mainDockspaceId);
+        ImGui::DockBuilderAddNode(mainDockspaceId, ImGuiDockNodeFlags_NoTabBar | ImGuiDockNodeFlags_PassthruCentralNode);
+
+        ImGuiID dock1 = ImGui::DockBuilderSplitNode(id, ImGuiDir_Right, 0.66f, nullptr, &id);
+
+        ImGuiID dock2 = ImGui::DockBuilderSplitNode(id, ImGuiDir_Left, .33f, nullptr, &id);
+
+        ImGuiID dock3 = ImGui::DockBuilderSplitNode(dock2, ImGuiDir_Down, 0.3f, nullptr, &dock2);
+        
+
+        ImGui::DockBuilderDockWindow("Viewport", dock1);
+        ImGui::DockBuilderDockWindow("Settings", dock2);
+        ImGui::DockBuilderDockWindow("Assets", dock3);
+
+
+        ImGui::DockBuilderFinish(id);
+        
+        firstLoop = false;
+    }
     
     app->renderImguiContent();
-
-    //SRS - ShowDemoWindow() sets its own initial position and size, cannot override here
-    //ImGui::ShowDemoWindow();
-
-    // Render to generate draw buffers
+    
+    
+    ImGui::End(); // "DockSpace"
     ImGui::Render();
 }
 
@@ -252,7 +289,6 @@ void UI::updateBuffers(int frameIndex) {
 void UI::draw(VkCommandBuffer commandBuffer, int frameIndex) {
     ImGuiIO& io = ImGui::GetIO();
 
-    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imguiPipelineLayout, 0, 1, &imguiDescriptorSets->at(frameIndex), 0, nullptr);
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imguiPipeline);
     
     VkViewport viewport {
@@ -286,6 +322,10 @@ void UI::draw(VkCommandBuffer commandBuffer, int frameIndex) {
             for (int32_t j = 0; j < cmd_list->CmdBuffer.Size; j++)
             {
                 const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[j];
+
+                VkDescriptorSet dSet = (pcmd->TexRef._TexID == 0) ? imguiDescriptorSets->at(frameIndex) : m_Renderer.getPostProcessingDescriptorSets()->at(frameIndex);
+                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imguiPipelineLayout, 0, 1, &dSet, 0, nullptr);
+                
                 VkRect2D scissorRect;
                 scissorRect.offset.x = std::max((int32_t)(pcmd->ClipRect.x), 0);
                 scissorRect.offset.y = std::max((int32_t)(pcmd->ClipRect.y), 0);
@@ -300,12 +340,15 @@ void UI::draw(VkCommandBuffer commandBuffer, int frameIndex) {
     }
 }
 
-void UI::loadFontTexture(std::string binaryPath) {
+void UI::loadFontTexture(void) {
     unsigned char* fontData;
     int texWidth, texHeight;
     
     ImGuiIO &io = ImGui::GetIO();
-    io.Fonts->AddFontFromFileTTF((binaryPath+"fonts/brassMono.otf").c_str(), 20.f);
+    ImFontConfig c{};
+    c.OversampleH = 4;
+    c.OversampleV = 4;
+    io.Fonts->AddFontFromFileTTF("fonts/Inter.ttf", 20.f, &c);
     io.Fonts->GetTexDataAsRGBA32(&fontData, &texWidth, &texHeight);
 
     if (!fontData) {
@@ -504,4 +547,254 @@ ImGuiKey UI::ImGui_SDL2_KeyEventToImGuiKey(SDL_Keycode keycode)
         default: break;
     }
     return ImGuiKey_None;
+}
+
+char UI::ImGuiKey_to_Charecter(ImGuiKey imgui_key, bool shift)
+{
+    if (!shift) {
+        switch (imgui_key)
+        {
+            case ImGuiKey_0: return '0';
+            case ImGuiKey_1: return '1';
+            case ImGuiKey_2: return '2';
+            case ImGuiKey_3: return '3';
+            case ImGuiKey_4: return '4';
+            case ImGuiKey_5: return '5';
+            case ImGuiKey_6: return '6';
+            case ImGuiKey_7: return '7';
+            case ImGuiKey_8: return '8';
+            case ImGuiKey_9: return '9';
+            case ImGuiKey_A: return 'a';
+            case ImGuiKey_B: return 'b';
+            case ImGuiKey_C: return 'c';
+            case ImGuiKey_D: return 'd';
+            case ImGuiKey_E: return 'e';
+            case ImGuiKey_F: return 'f';
+            case ImGuiKey_G: return 'g';
+            case ImGuiKey_H: return 'h';
+            case ImGuiKey_I: return 'i';
+            case ImGuiKey_J: return 'j';
+            case ImGuiKey_K: return 'k';
+            case ImGuiKey_L: return 'l';
+            case ImGuiKey_M: return 'm';
+            case ImGuiKey_N: return 'n';
+            case ImGuiKey_O: return 'o';
+            case ImGuiKey_P: return 'p';
+            case ImGuiKey_Q: return 'q';
+            case ImGuiKey_R: return 'r';
+            case ImGuiKey_S: return 's';
+            case ImGuiKey_T: return 't';
+            case ImGuiKey_U: return 'u';
+            case ImGuiKey_V: return 'v';
+            case ImGuiKey_W: return 'w';
+            case ImGuiKey_X: return 'x';
+            case ImGuiKey_Y: return 'y';
+            case ImGuiKey_Z: return 'z';
+            case ImGuiKey_Space: return 0x20;
+            default: break;
+        }
+    }
+    else {
+        switch (imgui_key)
+        {
+            case ImGuiKey_A: return 'A';
+            case ImGuiKey_B: return 'B';
+            case ImGuiKey_C: return 'C';
+            case ImGuiKey_D: return 'D';
+            case ImGuiKey_E: return 'E';
+            case ImGuiKey_F: return 'F';
+            case ImGuiKey_G: return 'G';
+            case ImGuiKey_H: return 'H';
+            case ImGuiKey_I: return 'I';
+            case ImGuiKey_J: return 'J';
+            case ImGuiKey_K: return 'K';
+            case ImGuiKey_L: return 'L';
+            case ImGuiKey_M: return 'M';
+            case ImGuiKey_N: return 'N';
+            case ImGuiKey_O: return 'O';
+            case ImGuiKey_P: return 'P';
+            case ImGuiKey_Q: return 'Q';
+            case ImGuiKey_R: return 'R';
+            case ImGuiKey_S: return 'S';
+            case ImGuiKey_T: return 'T';
+            case ImGuiKey_U: return 'U';
+            case ImGuiKey_V: return 'V';
+            case ImGuiKey_W: return 'W';
+            case ImGuiKey_X: return 'X';
+            case ImGuiKey_Y: return 'Y';
+            case ImGuiKey_Z: return 'Z';
+            case ImGuiKey_Space: return 0x20;
+            default: break;
+        }
+    }
+    return '?';
+}
+
+void UI::setBessDarkColors(void) {
+    ImGuiStyle &style = ImGui::GetStyle();
+    ImVec4 *colors = style.Colors;
+
+    // Primary background
+    colors[ImGuiCol_WindowBg] = ImVec4(0.07f, 0.07f, 0.09f, 1.00f);  // #131318
+    colors[ImGuiCol_MenuBarBg] = ImVec4(0.12f, 0.12f, 0.15f, 1.00f); // #131318
+
+    colors[ImGuiCol_PopupBg] = ImVec4(0.18f, 0.18f, 0.22f, 1.00f);
+
+    // Headers
+    colors[ImGuiCol_Header] = ImVec4(0.18f, 0.18f, 0.22f, 1.00f);
+    colors[ImGuiCol_HeaderHovered] = ImVec4(0.30f, 0.30f, 0.40f, 1.00f);
+    colors[ImGuiCol_HeaderActive] = ImVec4(0.25f, 0.25f, 0.35f, 1.00f);
+
+    // Buttons
+    colors[ImGuiCol_Button] = ImVec4(0.20f, 0.22f, 0.27f, 1.00f);
+    colors[ImGuiCol_ButtonHovered] = ImVec4(0.30f, 0.32f, 0.40f, 1.00f);
+    colors[ImGuiCol_ButtonActive] = ImVec4(0.35f, 0.38f, 0.50f, 1.00f);
+
+    // Frame BG
+    colors[ImGuiCol_FrameBg] = ImVec4(0.15f, 0.15f, 0.18f, 1.00f);
+    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.22f, 0.22f, 0.27f, 1.00f);
+    colors[ImGuiCol_FrameBgActive] = ImVec4(0.25f, 0.25f, 0.30f, 1.00f);
+
+    // Tabs
+    colors[ImGuiCol_Tab] = ImVec4(0.18f, 0.18f, 0.22f, 1.00f);
+    colors[ImGuiCol_TabHovered] = ImVec4(0.35f, 0.35f, 0.50f, 1.00f);
+    colors[ImGuiCol_TabActive] = ImVec4(0.25f, 0.25f, 0.38f, 1.00f);
+    colors[ImGuiCol_TabUnfocused] = ImVec4(0.13f, 0.13f, 0.17f, 1.00f);
+    colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.20f, 0.20f, 0.25f, 1.00f);
+
+    // Title
+    colors[ImGuiCol_TitleBg] = ImVec4(0.12f, 0.12f, 0.15f, 1.00f);
+    colors[ImGuiCol_TitleBgActive] = ImVec4(0.15f, 0.15f, 0.20f, 1.00f);
+    colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.10f, 0.10f, 0.12f, 1.00f);
+
+    // Borders
+    colors[ImGuiCol_Border] = ImVec4(0.20f, 0.20f, 0.25f, 0.50f);
+    colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+
+    // Text
+    colors[ImGuiCol_Text] = ImVec4(0.90f, 0.90f, 0.95f, 1.00f);
+    colors[ImGuiCol_TextDisabled] = ImVec4(0.50f, 0.50f, 0.55f, 1.00f);
+
+    // Highlights
+    colors[ImGuiCol_CheckMark] = ImVec4(0.50f, 0.70f, 1.00f, 1.00f);
+    colors[ImGuiCol_SliderGrab] = ImVec4(0.50f, 0.70f, 1.00f, 1.00f);
+    colors[ImGuiCol_SliderGrabActive] = ImVec4(0.60f, 0.80f, 1.00f, 1.00f);
+    colors[ImGuiCol_ResizeGrip] = ImVec4(0.50f, 0.70f, 1.00f, 0.50f);
+    colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.60f, 0.80f, 1.00f, 0.75f);
+    colors[ImGuiCol_ResizeGripActive] = ImVec4(0.70f, 0.90f, 1.00f, 1.00f);
+
+    // Scrollbar
+    colors[ImGuiCol_ScrollbarBg] = ImVec4(0.10f, 0.10f, 0.12f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.30f, 0.30f, 0.35f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.40f, 0.40f, 0.50f, 1.00f);
+    colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.45f, 0.45f, 0.55f, 1.00f);
+
+    // Style tweaks
+    style.WindowRounding = 5.0f;
+    style.FrameRounding = 5.0f;
+    style.GrabRounding = 5.0f;
+    style.TabRounding = 5.0f;
+    style.PopupRounding = 5.0f;
+    style.ScrollbarRounding = 5.0f;
+    style.WindowPadding = ImVec2(10, 10);
+    style.FramePadding = ImVec2(6, 4);
+    style.ItemSpacing = ImVec2(8, 6);
+    style.PopupBorderSize = 0.f;
+}
+
+
+
+#include <filesystem>
+
+#define BIT(x) (1 << x)
+
+static std::pair<bool, uint32_t> DirectoryTreeViewRecursive(const std::filesystem::path& path, uint32_t* count, int* selection_mask)
+{
+	ImGuiTreeNodeFlags base_flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_SpanFullWidth;
+
+	bool any_node_clicked = false;
+	uint32_t node_clicked = 0;
+
+	for (const auto& entry : std::filesystem::directory_iterator(path))
+	{
+		ImGuiTreeNodeFlags node_flags = base_flags;
+		const bool is_selected = (*selection_mask & BIT(*count)) != 0;
+		if (is_selected)
+			node_flags |= ImGuiTreeNodeFlags_Selected;
+
+		std::string name = entry.path().string();
+
+		auto lastSlash = name.find_last_of("/\\");
+		lastSlash = lastSlash == std::string::npos ? 0 : lastSlash + 1;
+		name = name.substr(lastSlash, name.size() - lastSlash);
+
+		bool entryIsFile = !std::filesystem::is_directory(entry.path());
+		if (entryIsFile)
+			node_flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+
+        bool node_open = ImGui::TreeNodeEx((void*)(intptr_t)(*count), node_flags, "%s", name.c_str());
+
+		if (ImGui::IsItemClicked())
+		{
+			node_clicked = *count;
+			any_node_clicked = true;
+		}
+
+		(*count)--;
+
+		if (!entryIsFile)
+		{
+			if (node_open)
+			{
+
+				auto clickState = DirectoryTreeViewRecursive(entry.path(), count, selection_mask);
+
+				if (!any_node_clicked)
+				{
+					any_node_clicked = clickState.first;
+					node_clicked = clickState.second;
+				}
+
+				ImGui::TreePop();
+			}
+			else
+			{
+				for (const auto& e : std::filesystem::recursive_directory_iterator(entry.path()))
+					(*count)--;
+			}
+		}
+	}
+
+	return { any_node_clicked, node_clicked };
+}
+
+void UI::OnImGui(std::string directoryPath)
+{
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0.0f, 0.0f });
+
+	ImGui::Begin("Assets");
+
+	if (ImGui::CollapsingHeader("Assets"))
+	{	
+		uint32_t count = 0;
+		for (const auto& entry : std::filesystem::recursive_directory_iterator(directoryPath))
+			count++;
+
+		static int selection_mask = 0;
+
+		auto clickState = DirectoryTreeViewRecursive(directoryPath, &count, &selection_mask);
+
+		if (clickState.first)
+		{
+			// Update selection state
+			// (process outside of tree loop to avoid visual inconsistencies during the clicking frame)
+			if (ImGui::GetIO().KeyCtrl)
+				selection_mask ^= BIT(clickState.second);          // CTRL+click to toggle
+			else //if (!(selection_mask & (1 << clickState.second))) // Depending on selection behavior you want, may want to preserve selection when clicking on item that is part of the selection
+				selection_mask = BIT(clickState.second);           // Click to single-select
+		}
+	}
+	ImGui::End();
+
+	ImGui::PopStyleVar();
 }

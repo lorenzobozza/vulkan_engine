@@ -34,6 +34,7 @@ public:
     VkRenderPass getSwapChainRenderPass() const { return swapChain->getCompositionRenderPass(); }
     float getAspectRatio() const { return swapChain->extentAspectRatio(); }
     bool isFrameInProgress() const { return  isFrameStarted; }
+    VkDescriptorImageInfo* getOffscreenImageDescriptor(void);
     
     VkCommandBuffer getCurrentCommandBuffer() const {
         assert(isFrameStarted && "Cannot get command buffer when frame not in progress");
@@ -83,6 +84,8 @@ private:
     Device &device;
     std::unique_ptr<SwapChain> swapChain;
     std::vector<VkCommandBuffer> commandBuffers;
+    
+    VkDescriptorImageInfo offscreenImageInfo;
     
     FrameBufferAttachment brdf;
     VkSampler brdfSampler;

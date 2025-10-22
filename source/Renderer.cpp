@@ -437,7 +437,7 @@ void Renderer::createOffscreenPass() {
         throw std::runtime_error("failed to create offscreen sampler!");
     }
     
-    VkDescriptorImageInfo offscreenDescriptorInfo{
+    offscreenImageInfo = VkDescriptorImageInfo{
         offscreen.sampler,
         offscreen.color.view,
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
@@ -458,9 +458,13 @@ void Renderer::createOffscreenPass() {
     postprocDescriptorSets = new std::vector<VkDescriptorSet>(SwapChain::MAX_FRAMES_IN_FLIGHT);
     for (int i = 0; i < postprocDescriptorSets->size(); i++) {
         DescriptorWriter(*postprocSetLayout, *postprocPool)
-            .writeImage(0, &offscreenDescriptorInfo)
+            .writeImage(0, &offscreenImageInfo)
             .build(postprocDescriptorSets->at(i));
     }
+}
+
+VkDescriptorImageInfo* Renderer::getOffscreenImageDescriptor(void) {
+    return &offscreenImageInfo;
 }
 
 void Renderer::destroyOffscreenPass() {
