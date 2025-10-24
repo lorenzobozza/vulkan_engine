@@ -21,7 +21,7 @@ struct PushConstantData {
 CompositionPipeline::CompositionPipeline(
     Device& passDevice,
     VkRenderPass renderPass,
-    VkDescriptorSetLayout compositionSetLayout,
+    const VkDescriptorSetLayout* compositionSetLayout,
     std::string dynamicShaderPath) : device{passDevice}, shaderPath{dynamicShaderPath} {
   createPipelineLayout(compositionSetLayout);
   createPipeline(renderPass);
@@ -31,19 +31,18 @@ CompositionPipeline::~CompositionPipeline() {
   vkDestroyPipelineLayout(device.device(), pipelineLayout, nullptr);
 }
 
-void CompositionPipeline::createPipelineLayout(VkDescriptorSetLayout compositionSetLayout) {
+void CompositionPipeline::createPipelineLayout(const VkDescriptorSetLayout* compositionSetLayout) {
     VkPushConstantRange pushConstantRange;
 
     pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     pushConstantRange.offset = 0;
     pushConstantRange.size = sizeof(PushConstantData);
     
-    std::vector<VkDescriptorSetLayout> descriptorSetLayouts{compositionSetLayout};
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &compositionSetLayout;
+    pipelineLayoutInfo.pSetLayouts = compositionSetLayout;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
     if (vkCreatePipelineLayout(device.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {

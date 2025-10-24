@@ -26,7 +26,7 @@ class RenderSystem {
   RenderSystem(
     Device &passDevice,
     VkRenderPass renderPass,
-    VkDescriptorSetLayout globalSetLayout,
+    const VkDescriptorSetLayout* globalSetLayout,
     std::string dynamicShaderPath,
     VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT);
   ~RenderSystem();
@@ -38,7 +38,7 @@ class RenderSystem {
   virtual void renderSolidObjects(FrameInfo &frameInfo);
 
  private:
-  void createPipelineLayout(VkDescriptorSetLayout globalSetLayout);
+  void createPipelineLayout(const VkDescriptorSetLayout* globalSetLayout);
   void createPipeline(VkRenderPass renderPass);
 
 protected:

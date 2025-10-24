@@ -63,9 +63,8 @@ private:
     uint32_t bitmapSize;
     uint32_t bitmapArea;
     
-    std::unique_ptr<DescriptorPool> textPool;
-    std::unique_ptr<DescriptorSetLayout> textSetLayout;
-    std::vector<VkDescriptorSet> *textDescriptorSets;
+    DescriptorStruct descriptor;
+
     std::unique_ptr<Pipeline> pipeline;
     VkPipelineLayout pipelineLayout;
     

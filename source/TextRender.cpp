@@ -92,7 +92,7 @@ void TextRender::render(VkCommandBuffer commandBuffer, int frameIndex) {
         pipelineLayout,
         0,
         1,
-        &textDescriptorSets->at(frameIndex),
+        &descriptor.v_set.at(frameIndex),
         0,
         nullptr
     );
@@ -180,21 +180,20 @@ void TextRender::createDescriptors() {
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     };
     
-    textPool =
-       DescriptorPool::Builder(device)
+    descriptor.layout = DescriptorSetLayout::Builder(device.device())
+            .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .build_ptr();
+    
+    descriptor.pool = DescriptorPool::Builder(device.device())
            .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .build();
-    textSetLayout =
-        DescriptorSetLayout::Builder(device)
-            .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .build();
-            
-    textDescriptorSets = new std::vector<VkDescriptorSet>(SwapChain::MAX_FRAMES_IN_FLIGHT);
-    for (int i = 0; i < textDescriptorSets->size(); i++) {
-        DescriptorWriter(*textSetLayout, *textPool)
+           .build_ptr();
+    
+    descriptor.v_set.resize(SwapChain::MAX_FRAMES_IN_FLIGHT);
+    for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+        DescriptorWriter(*descriptor.layout, *descriptor.pool)
             .writeImage(0, &fontFaces)
-            .build(textDescriptorSets->at(i));
+            .build(descriptor.v_set.at(i));
     }
 }
 
@@ -294,12 +293,11 @@ void TextRender::createPipelineLayout() {
     pushConstantRange.offset = 0;
     pushConstantRange.size = sizeof(PushConstantData);
     
-    auto setLayout = textSetLayout->getDescriptorSetLayout();
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &setLayout;
+    pipelineLayoutInfo.pSetLayouts = descriptor.layout->getDescriptorSetLayout();
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
     if (vkCreatePipelineLayout(device.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {

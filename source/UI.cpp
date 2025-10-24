@@ -60,12 +60,10 @@ void UI::createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath) 
     pushConstantRanges[0].offset = 0;
     pushConstantRanges[0].size = sizeof(UI::PushConstBlock);
     
-    auto imguiDescriptorSetLayout = imguiSetLayout->getDescriptorSetLayout();
-    
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &imguiDescriptorSetLayout;
+    pipelineLayoutInfo.pSetLayouts = descriptor.layout->getDescriptorSetLayout();
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges;
     if (vkCreatePipelineLayout(device.device(), &pipelineLayoutInfo, nullptr, &imguiPipelineLayout) != VK_SUCCESS) {
@@ -160,22 +158,20 @@ void UI::createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath) 
 }
 
 void UI::createDescriptors(void) {
-    imguiPool =
-       DescriptorPool::Builder(device)
+    descriptor.layout = DescriptorSetLayout::Builder(device.device())
+            .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .build_ptr();
+    
+    descriptor.pool = DescriptorPool::Builder(device.device())
            .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .build();
-    
-    imguiSetLayout =
-        DescriptorSetLayout::Builder(device)
-            .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .build();
+           .build_ptr();
 
-    imguiDescriptorSets = new std::vector<VkDescriptorSet>(SwapChain::MAX_FRAMES_IN_FLIGHT);
-    for (int i = 0; i < imguiDescriptorSets->size(); i++) {
-        DescriptorWriter(*imguiSetLayout, *imguiPool)
+    descriptor.v_set.resize(SwapChain::MAX_FRAMES_IN_FLIGHT);
+    for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+        DescriptorWriter(*descriptor.layout, *descriptor.pool)
             .writeImage(0, &fontDescriptorInfo)
-            .build(imguiDescriptorSets->at(i));
+            .build(descriptor.v_set.at(i));
     }
 }
 
@@ -323,7 +319,7 @@ void UI::draw(VkCommandBuffer commandBuffer, int frameIndex) {
             {
                 const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[j];
 
-                VkDescriptorSet dSet = (pcmd->TexRef._TexID == 0) ? imguiDescriptorSets->at(frameIndex) : m_Renderer.getPostProcessingDescriptorSets()->at(frameIndex);
+                VkDescriptorSet dSet = (pcmd->TexRef._TexID == 0) ? descriptor.v_set.at(frameIndex) : m_Renderer.getDescriptorSets(RenderPass::ScreenSpace)->at(frameIndex);
                 vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imguiPipelineLayout, 0, 1, &dSet, 0, nullptr);
                 
                 VkRect2D scissorRect;

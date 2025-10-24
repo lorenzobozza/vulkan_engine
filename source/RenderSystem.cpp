@@ -28,7 +28,7 @@ struct PushConstantData {
 RenderSystem::RenderSystem(
     Device& passDevice,
     VkRenderPass renderPass,
-    VkDescriptorSetLayout globalSetLayout,
+    const VkDescriptorSetLayout* globalSetLayout,
     std::string dynamicShaderPath,
     VkSampleCountFlagBits samples) : device{passDevice}, shaderPath{dynamicShaderPath}, sampleCount{samples} {
   createPipelineLayout(globalSetLayout);
@@ -45,7 +45,7 @@ void RenderSystem::recreatePipeline(VkRenderPass renderPass, VkSampleCountFlagBi
     createPipeline(renderPass);
 }
 
-void RenderSystem::createPipelineLayout(VkDescriptorSetLayout globalSetLayout) {
+void RenderSystem::createPipelineLayout(const VkDescriptorSetLayout* globalSetLayout) {
   VkPushConstantRange pushConstantRanges[1];
   
   pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
@@ -56,12 +56,10 @@ void RenderSystem::createPipelineLayout(VkDescriptorSetLayout globalSetLayout) {
   //pushConstantRanges[1].offset = sizeof(PushConstantData); // offset by previus push_constant size
   //pushConstantRanges[1].size = sizeof(PushCostant2);
   
-  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{globalSetLayout};
-
   VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
   pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
-  pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+  pipelineLayoutInfo.setLayoutCount = 1;
+  pipelineLayoutInfo.pSetLayouts = globalSetLayout;
   pipelineLayoutInfo.pushConstantRangeCount = 1;
   pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges;
   if (vkCreatePipelineLayout(device.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) !=

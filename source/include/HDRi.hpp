@@ -40,11 +40,7 @@ private:
 		VkDescriptorImageInfo descriptor;
 	} offscreenPass;
  
-    struct Descriptor {
-        std::unique_ptr<DescriptorPool> pool;
-        std::unique_ptr<DescriptorSetLayout> setLayout;
-        VkDescriptorSet set;
-    } descriptor;
+    DescriptorStruct descriptor;
     
     struct CubeUbo {
         glm::mat4 projectionView{1.f};

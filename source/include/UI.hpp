@@ -31,7 +31,7 @@ public:
     void updateBuffers(int frameIndex);
     void draw(VkCommandBuffer commandBuffer, int frameIndex);
     
-    std::vector<VkDescriptorSet>* getDescriptorSets(void) { return imguiDescriptorSets; }
+    std::vector<VkDescriptorSet>* getDescriptorSets(void) { return &descriptor.v_set; }
     
     static ImGuiKey ImGui_SDL2_KeyEventToImGuiKey(SDL_Keycode keycode);
     static char ImGuiKey_to_Charecter(ImGuiKey imgui_key, bool shift);
@@ -63,9 +63,8 @@ private:
     VkSampler fontSampler;
     
     VkDescriptorImageInfo fontDescriptorInfo;
-    std::unique_ptr<DescriptorPool> imguiPool;
-    std::unique_ptr<DescriptorSetLayout> imguiSetLayout;
-    std::vector<VkDescriptorSet> *imguiDescriptorSets;
+    
+    DescriptorStruct descriptor;
     
     ImGuiContext* context;
 };

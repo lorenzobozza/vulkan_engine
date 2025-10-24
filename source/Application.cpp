@@ -62,13 +62,14 @@ void Application::run() {
     camera.setProjection.perspective(aspectRatio, glm::radians(75.f), .01f, 100.f);
     
     Primitive cameraObj = Primitive::new_primitive();
-    cameraObj.transform.translation = {.0f, -2.f, -2.f};
+    cameraObj.transform.translation = {.0f, -2.f, .0f};
+    cameraObj.transform.rotation.y = glm::half_pi<float>();
     bool orth = false;
     
     postProcessing = std::make_unique<CompositionPipeline>(
         vulkanDevice,
-        renderer.getSwapChainRenderPass(),
-        renderer.getPostProcessingDescriptorSetLayout(),
+        renderer.getOffscreenRenderPass(RenderPass::ScreenSpace),
+        renderer.getDescriptorSetLayout(RenderPass::WorldSpace),
         "composition"
     );
     
@@ -130,7 +131,10 @@ void Application::run() {
             imgui.updateBuffers(frameIndex);
             
             //Render
-            renderer.beginOffscreenRenderPass(commandBuffer);
+            renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::WorldSpace);
+            renderer.endOffscreenRenderPass(commandBuffer);
+            
+            renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::ScreenSpace);
             renderer.endOffscreenRenderPass(commandBuffer);
             
             renderer.beginSwapChainRenderPass(commandBuffer);
@@ -176,7 +180,7 @@ void Application::run() {
     auto irradiance = irradianceMap.descriptorInfo();
 
 /**** SkyBox Descriptors */
-    std::unique_ptr<DescriptorSetLayout> skyboxSetLayout = DescriptorSetLayout::Builder(vulkanDevice)
+    DescriptorSetLayout skyboxSetLayout = DescriptorSetLayout::Builder(vulkanDevice.device())
             .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
             .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .build();
@@ -184,13 +188,13 @@ void Application::run() {
     // SkyBox Pipeline
     skyboxSystem = std::make_unique<RenderSystem>(
         vulkanDevice,
-        renderer.getOffscreenRenderPass(),
-        skyboxSetLayout->getDescriptorSetLayout(),
+        renderer.getOffscreenRenderPass(RenderPass::WorldSpace),
+        skyboxSetLayout.getDescriptorSetLayout(),
         "skybox",
         vulkanDevice.msaaSamples
     );
             
-    std::unique_ptr<DescriptorPool> skyboxPool = DescriptorPool::Builder(vulkanDevice)
+    DescriptorPool skyboxPool = DescriptorPool::Builder(vulkanDevice.device())
            .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
@@ -200,7 +204,7 @@ void Application::run() {
     for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
         VkDescriptorSet descriptorSet;
         auto bufferInfo = uboBuffers[i]->descriptorInfo();
-        DescriptorWriter(*skyboxSetLayout, *skyboxPool)
+        DescriptorWriter(skyboxSetLayout, skyboxPool)
             .writeBuffer(0, &bufferInfo)
             .writeImage(1, &environment)
             .build(descriptorSet);
@@ -210,7 +214,7 @@ void Application::run() {
 
     
 /**** Global Pipeline */
-    std::unique_ptr<DescriptorSetLayout> globalSetLayout = DescriptorSetLayout::Builder(vulkanDevice)
+    DescriptorSetLayout globalSetLayout = DescriptorSetLayout::Builder(vulkanDevice.device())
             .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
             .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .addBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
@@ -224,15 +228,15 @@ void Application::run() {
     // Pipeline
     renderSystem = std::make_unique<RenderSystem>(
         vulkanDevice,
-        renderer.getOffscreenRenderPass(),
-        globalSetLayout->getDescriptorSetLayout(),
+        renderer.getOffscreenRenderPass(RenderPass::WorldSpace),
+        globalSetLayout.getDescriptorSetLayout(),
         "shader",
         vulkanDevice.msaaSamples
     );
     
     const uint32_t numOfMaterials = (uint32_t)materials.size();
     
-    std::unique_ptr<DescriptorPool> globalPool = DescriptorPool::Builder(vulkanDevice)
+    DescriptorPool globalPool = DescriptorPool::Builder(vulkanDevice.device())
            .setMaxSets(numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
@@ -258,7 +262,7 @@ void Application::run() {
                                     occlusion = material.getOcclusionTextureIF(),
                                     metalRough = material.getMetalRoughTextureIF();
                                     
-            DescriptorWriter(*globalSetLayout, *globalPool)
+            DescriptorWriter(globalSetLayout, globalPool)
                 .writeBuffer(0, &bufferInfo)
                 .writeImage(1, &irradiance)                 // Irradiance
                 .writeImage(2, &prefiltered)                // Reflection
@@ -385,14 +389,16 @@ void Application::run() {
             imgui.updateBuffers(frameIndex);
             
             // RenderPass
-            renderer.beginOffscreenRenderPass(commandBuffer);
+            renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::WorldSpace);
             skyboxSystem->renderSolidObjects(skyboxInfo);
             renderSystem->renderSolidObjects(frameInfo);
             renderer.endOffscreenRenderPass(commandBuffer);
             
+            renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::ScreenSpace);
+            postProcessing->renderSceneToSwapChain(commandBuffer, renderer.getDescriptorSets(RenderPass::WorldSpace)->at(frameIndex));
+            renderer.endOffscreenRenderPass(commandBuffer);
+            
             renderer.beginSwapChainRenderPass(commandBuffer);
-            //postProcessing->renderSceneToSwapChain(commandBuffer, renderer.getPostProcessingDescriptorSets()->at(frameIndex));
-            //font.render(commandBuffer, frameIndex);
             imgui.draw(commandBuffer, frameIndex);
             renderer.endSwapChainRenderPass(commandBuffer);
             
@@ -518,8 +524,8 @@ void Application::renderImguiContent() {
             vulkanDevice.msaaSamples = static_cast<VkSampleCountFlagBits>(1 << aaIndex);
             renderer.recreateOffscreenFlag = true;
             renderer.recreateSwapChain();
-            renderSystem->recreatePipeline(renderer.getOffscreenRenderPass(), vulkanDevice.msaaSamples);
-            skyboxSystem->recreatePipeline(renderer.getOffscreenRenderPass(), vulkanDevice.msaaSamples);
+            renderSystem->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
+            skyboxSystem->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
         }
         
         ImGui::NewLine();

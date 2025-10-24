@@ -20,7 +20,9 @@ Renderer::Renderer(SDLWindow &passWindow, Device &passDevice) : window{passWindo
 Renderer::~Renderer() {
     freeCommandBuffers();
     
-    destroyOffscreenPass();
+    for (int p = 0; p < RenderPass::TotalCount; p++) {
+        destroyOffscreenPass((RenderPass)p);
+    }
     
     vkDestroySampler(device.device(), brdfSampler, nullptr);
     vkDestroyImageView(device.device(), brdf.view, nullptr);
@@ -38,13 +40,17 @@ void Renderer::recreateSwapChain() {
     
     if (swapChain == nullptr) {
         swapChain = std::make_unique<SwapChain>(device, extent);
-        createOffscreenPass();
+        for (int p = 0; p < RenderPass::TotalCount; p++) {
+            createOffscreenPass((RenderPass)p);
+        }
     } else {
         std::shared_ptr<SwapChain> oldSwapChain = std::move(swapChain);
         swapChain = std::make_unique<SwapChain>(device, extent, std::move(swapChain));
         if(oldSwapChain->getSwapChainExtent().width != extent.width || oldSwapChain->getSwapChainExtent().height != extent.height || recreateOffscreenFlag) {
-            destroyOffscreenPass();
-            createOffscreenPass();
+            for (int p = 0; p < RenderPass::TotalCount; p++) {
+                destroyOffscreenPass((RenderPass)p);
+                createOffscreenPass((RenderPass)p);
+            }
             recreateOffscreenFlag = false;
         }
         //if (!oldSwapChain->compareSwapFormats(*swapChain.get())) {
@@ -124,15 +130,17 @@ void Renderer::endFrame() {
     currentFrameIndex = (currentFrameIndex + 1) % SwapChain::MAX_FRAMES_IN_FLIGHT;
 }
 
-void Renderer::beginOffscreenRenderPass(VkCommandBuffer commandBuffer) {
+void Renderer::beginOffscreenRenderPass(VkCommandBuffer commandBuffer, RenderPass index) {
+    OffscreenPassAttachments& attachments = offscreen[index];
+    
     assert(isFrameStarted && "Can't call endFrame while frame is not in progress");
     assert(commandBuffer == getCurrentCommandBuffer() &&
         "Can't begin render pass on command buffer from a different frame");
     
     VkRenderPassBeginInfo renderpassInfo{};
     renderpassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    renderpassInfo.renderPass = offscreen.renderPass;
-    renderpassInfo.framebuffer = offscreen.frameBuffer;
+    renderpassInfo.renderPass = attachments.renderPass;
+    renderpassInfo.framebuffer = attachments.frameBuffer[currentImageIndex];
     
     renderpassInfo.renderArea.offset = {0, 0};
     renderpassInfo.renderArea.extent = swapChain->getSwapChainExtent();
@@ -204,7 +212,9 @@ void Renderer::endSwapChainRenderPass(VkCommandBuffer commandBuffer) {
     vkCmdEndRenderPass(commandBuffer);
 }
 
-void Renderer::createOffscreenPass() {
+void Renderer::createOffscreenPass(RenderPass index) {
+    OffscreenPassAttachments& attachments = offscreen[index];
+
     // Color Resources
     VkExtent2D swapChainExtent = getSwapChainExtent();
 
@@ -216,7 +226,7 @@ void Renderer::createOffscreenPass() {
     imageInfo.extent.depth = 1;
     imageInfo.mipLevels = 1;
     imageInfo.arrayLayers = 1;
-    imageInfo.format = offscreen.colorFormat;
+    imageInfo.format = attachments.colorFormat;
     imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     imageInfo.usage =  VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
@@ -224,25 +234,27 @@ void Renderer::createOffscreenPass() {
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageInfo.flags = 0;
 
-    device.createImageWithInfo(imageInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, offscreen.color.image, offscreen.color.mem);
+    for (int f = 0; f < SwapChain::MAX_FRAMES_IN_FLIGHT; f++) {
+        device.createImageWithInfo(imageInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, attachments.color.image[f], attachments.color.mem[f]);
 
-    VkImageViewCreateInfo viewInfo{};
-    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    viewInfo.image = offscreen.color.image;
-    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    viewInfo.format = offscreen.colorFormat;
-    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    viewInfo.subresourceRange.baseMipLevel = 0;
-    viewInfo.subresourceRange.levelCount = 1;
-    viewInfo.subresourceRange.baseArrayLayer = 0;
-    viewInfo.subresourceRange.layerCount = 1;
+        VkImageViewCreateInfo viewInfo{};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = attachments.color.image[f];
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = attachments.colorFormat;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = 1;
 
-    if (vkCreateImageView(device.device(), &viewInfo, nullptr, &offscreen.color.view) != VK_SUCCESS) {
-      throw std::runtime_error("failed to create texture image view!");
+        if (vkCreateImageView(device.device(), &viewInfo, nullptr, &attachments.color.view[f]) != VK_SUCCESS) {
+          throw std::runtime_error("failed to create texture image view!");
+        }
     }
     
     // Depth Resources
-    offscreen.depthFormat = swapChain->findDepthFormat();
+    attachments.depthFormat = swapChain->findDepthFormat();
 
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -251,28 +263,31 @@ void Renderer::createOffscreenPass() {
     imageInfo.extent.depth = 1;
     imageInfo.mipLevels = 1;
     imageInfo.arrayLayers = 1;
-    imageInfo.format = offscreen.depthFormat;
+    imageInfo.format = attachments.depthFormat;
     imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
     imageInfo.samples = device.msaaSamples;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageInfo.flags = 0;
+    
+    for (int f = 0; f < SwapChain::MAX_FRAMES_IN_FLIGHT; f++) {
+        device.createImageWithInfo(imageInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, attachments.depth.image[f], attachments.depth.mem[f]);
 
-    device.createImageWithInfo(imageInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, offscreen.depth.image, offscreen.depth.mem);
+        VkImageViewCreateInfo viewInfo{};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = attachments.depth.image[f];
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = attachments.depthFormat;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = 1;
 
-    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    viewInfo.image = offscreen.depth.image;
-    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    viewInfo.format = offscreen.depthFormat;
-    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-    viewInfo.subresourceRange.baseMipLevel = 0;
-    viewInfo.subresourceRange.levelCount = 1;
-    viewInfo.subresourceRange.baseArrayLayer = 0;
-    viewInfo.subresourceRange.layerCount = 1;
-
-    if (vkCreateImageView(device.device(), &viewInfo, nullptr, &offscreen.depth.view) != VK_SUCCESS) {
-      throw std::runtime_error("failed to create texture image view!");
+        if (vkCreateImageView(device.device(), &viewInfo, nullptr, &attachments.depth.view[f]) != VK_SUCCESS) {
+          throw std::runtime_error("failed to create texture image view!");
+        }
     }
     
     // Multisampling Resources
@@ -283,7 +298,7 @@ void Renderer::createOffscreenPass() {
     imageInfo.extent.depth = 1;
     imageInfo.mipLevels = 1;
     imageInfo.arrayLayers = 1;
-    imageInfo.format = offscreen.colorFormat;
+    imageInfo.format = attachments.colorFormat;
     imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     imageInfo.usage =  VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
@@ -291,25 +306,28 @@ void Renderer::createOffscreenPass() {
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageInfo.flags = 0;
 
-    device.createImageWithInfo(imageInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, offscreen.multisampling.image, offscreen.multisampling.mem);
+    for (int f = 0; f < SwapChain::MAX_FRAMES_IN_FLIGHT; f++) {
+        device.createImageWithInfo(imageInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, attachments.multisampling.image[f], attachments.multisampling.mem[f]);
 
-    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    viewInfo.image = offscreen.multisampling.image;
-    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    viewInfo.format = offscreen.colorFormat;
-    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    viewInfo.subresourceRange.baseMipLevel = 0;
-    viewInfo.subresourceRange.levelCount = 1;
-    viewInfo.subresourceRange.baseArrayLayer = 0;
-    viewInfo.subresourceRange.layerCount = 1;
+        VkImageViewCreateInfo viewInfo{};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = attachments.multisampling.image[f];
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = attachments.colorFormat;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = 1;
 
-    if (vkCreateImageView(device.device(), &viewInfo, nullptr, &offscreen.multisampling.view) != VK_SUCCESS) {
-      throw std::runtime_error("failed to create texture image view!");
+        if (vkCreateImageView(device.device(), &viewInfo, nullptr, &attachments.multisampling.view[f]) != VK_SUCCESS) {
+          throw std::runtime_error("failed to create texture image view!");
+        }
     }
     
     // Renderpass
     VkAttachmentDescription colorAttachment = {};
-    colorAttachment.format = offscreen.colorFormat;
+    colorAttachment.format = attachments.colorFormat;
     colorAttachment.samples = device.msaaSamples;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -324,7 +342,7 @@ void Renderer::createOffscreenPass() {
 
 
     VkAttachmentDescription depthAttachment{};
-    depthAttachment.format = offscreen.depthFormat;
+    depthAttachment.format = attachments.depthFormat;
     depthAttachment.samples = device.msaaSamples;
     depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -339,7 +357,7 @@ void Renderer::createOffscreenPass() {
 
 
     VkAttachmentDescription colorAttachmentResolve{};
-    colorAttachmentResolve.format = offscreen.colorFormat;
+    colorAttachmentResolve.format = attachments.colorFormat;
     colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
     colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -368,45 +386,47 @@ void Renderer::createOffscreenPass() {
     dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
       
-    std::vector<VkAttachmentDescription> attachments;
+    std::vector<VkAttachmentDescription> attachmentDescriptions;
     if (device.msaaSamples == VK_SAMPLE_COUNT_1_BIT) {
-        attachments = {colorAttachment, depthAttachment};
+        attachmentDescriptions = {colorAttachment, depthAttachment};
     } else {
-        attachments = {colorAttachment, depthAttachment, colorAttachmentResolve};
+        attachmentDescriptions = {colorAttachment, depthAttachment, colorAttachmentResolve};
     }
 
     VkRenderPassCreateInfo renderPassInfo = {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
-    renderPassInfo.pAttachments = attachments.data();
+    renderPassInfo.attachmentCount = static_cast<uint32_t>(attachmentDescriptions.size());
+    renderPassInfo.pAttachments = attachmentDescriptions.data();
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
     renderPassInfo.dependencyCount = 1;
     renderPassInfo.pDependencies = &dependency;
 
-    if (vkCreateRenderPass(device.device(), &renderPassInfo, nullptr, &offscreen.renderPass) != VK_SUCCESS) {
+    if (vkCreateRenderPass(device.device(), &renderPassInfo, nullptr, &attachments.renderPass) != VK_SUCCESS) {
         throw std::runtime_error("failed to create render pass!");
     }
     
     // Framebuffer
-    std::vector<VkImageView> imageViewAttachments;
-    if (device.msaaSamples == VK_SAMPLE_COUNT_1_BIT) {
-        imageViewAttachments = {offscreen.color.view, offscreen.depth.view};
-    } else {
-        imageViewAttachments = {offscreen.multisampling.view, offscreen.depth.view, offscreen.color.view};
-    }
+    for (int f = 0; f < SwapChain::MAX_FRAMES_IN_FLIGHT; f++) {
+        std::vector<VkImageView> imageViewAttachments;
+        if (device.msaaSamples == VK_SAMPLE_COUNT_1_BIT) {
+            imageViewAttachments = {attachments.color.view[f], attachments.depth.view[f]};
+        } else {
+            imageViewAttachments = {attachments.multisampling.view[f], attachments.depth.view[f], attachments.color.view[f]};
+        }
 
-    VkFramebufferCreateInfo framebufferInfo = {};
-    framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    framebufferInfo.renderPass = offscreen.renderPass;
-    framebufferInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
-    framebufferInfo.pAttachments = imageViewAttachments.data();
-    framebufferInfo.width = swapChainExtent.width;
-    framebufferInfo.height = swapChainExtent.height;
-    framebufferInfo.layers = 1;
+        VkFramebufferCreateInfo framebufferInfo = {};
+        framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferInfo.renderPass = attachments.renderPass;
+        framebufferInfo.attachmentCount = static_cast<uint32_t>(imageViewAttachments.size());
+        framebufferInfo.pAttachments = imageViewAttachments.data();
+        framebufferInfo.width = swapChainExtent.width;
+        framebufferInfo.height = swapChainExtent.height;
+        framebufferInfo.layers = 1;
 
-    if (vkCreateFramebuffer(device.device(), &framebufferInfo, nullptr, &offscreen.frameBuffer) != VK_SUCCESS) {
-      throw std::runtime_error("failed to create framebuffer!");
+        if (vkCreateFramebuffer(device.device(), &framebufferInfo, nullptr, &attachments.frameBuffer[f]) != VK_SUCCESS) {
+          throw std::runtime_error("failed to create framebuffer!");
+        }
     }
     
     // Image Sampler
@@ -433,61 +453,59 @@ void Renderer::createOffscreenPass() {
     samplerInfo.minLod = 0.0f;
     samplerInfo.maxLod = 1.0f;
     
-    if (vkCreateSampler(device.device(), &samplerInfo, nullptr, &offscreen.sampler) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create offscreen sampler!");
+    for (int f = 0; f < SwapChain::MAX_FRAMES_IN_FLIGHT; f++) {
+        if (vkCreateSampler(device.device(), &samplerInfo, nullptr, &attachments.sampler[f]) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create offscreen sampler!");
+        }
+        
+        
+        attachments.descriptorImage[f] = VkDescriptorImageInfo{
+            attachments.sampler[f],
+            attachments.color.view[f],
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        };
     }
     
-    offscreenImageInfo = VkDescriptorImageInfo{
-        offscreen.sampler,
-        offscreen.color.view,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-    };
+    // Descriptor set for next Render Pass
+    attachments.descriptor.layout = DescriptorSetLayout::Builder(device.device())
+            .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .build_ptr();
     
-    // Post-processing Pipeline
-    postprocPool =
-       DescriptorPool::Builder(device)
+    attachments.descriptor.pool = DescriptorPool::Builder(device.device())
            .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .build();
+           .build_ptr();
     
-    postprocSetLayout =
-        DescriptorSetLayout::Builder(device)
-            .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .build();
-    
-    postprocDescriptorSets = new std::vector<VkDescriptorSet>(SwapChain::MAX_FRAMES_IN_FLIGHT);
-    for (int i = 0; i < postprocDescriptorSets->size(); i++) {
-        DescriptorWriter(*postprocSetLayout, *postprocPool)
-            .writeImage(0, &offscreenImageInfo)
-            .build(postprocDescriptorSets->at(i));
+    attachments.descriptor.v_set.resize(SwapChain::MAX_FRAMES_IN_FLIGHT);
+    for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+        DescriptorWriter(*attachments.descriptor.layout, *attachments.descriptor.pool)
+            .writeImage(0, &attachments.descriptorImage[i])
+            .build(attachments.descriptor.v_set.at(i));
     }
 }
 
-VkDescriptorImageInfo* Renderer::getOffscreenImageDescriptor(void) {
-    return &offscreenImageInfo;
-}
 
-void Renderer::destroyOffscreenPass() {
-    vkDestroySampler(device.device(), offscreen.sampler, nullptr);
-    vkDestroyFramebuffer(device.device(), offscreen.frameBuffer, nullptr);
-    vkDestroyRenderPass(device.device(), offscreen.renderPass, nullptr);
+void Renderer::destroyOffscreenPass(RenderPass index) {
+    OffscreenPassAttachments& attachments = offscreen[index];
+    vkDestroyRenderPass(device.device(), attachments.renderPass, nullptr);
     
-    vkDestroyImageView(device.device(), offscreen.color.view, nullptr);
-    vkDestroyImage(device.device(), offscreen.color.image, nullptr);
-    vkFreeMemory(device.device(), offscreen.color.mem, nullptr);
+    for (int f = 0; f < SwapChain::MAX_FRAMES_IN_FLIGHT; f++) {
+        vkDestroySampler(device.device(), attachments.sampler[f], nullptr);
+        vkDestroyFramebuffer(device.device(), attachments.frameBuffer[f], nullptr);
+        
+        vkDestroyImageView(device.device(), attachments.color.view[f], nullptr);
+        vkDestroyImage(device.device(), attachments.color.image[f], nullptr);
+        vkFreeMemory(device.device(), attachments.color.mem[f], nullptr);
 
-    vkDestroyImageView(device.device(), offscreen.depth.view, nullptr);
-    vkDestroyImage(device.device(), offscreen.depth.image, nullptr);
-    vkFreeMemory(device.device(), offscreen.depth.mem, nullptr);
+        vkDestroyImageView(device.device(), attachments.depth.view[f], nullptr);
+        vkDestroyImage(device.device(), attachments.depth.image[f], nullptr);
+        vkFreeMemory(device.device(), attachments.depth.mem[f], nullptr);
+        
+        vkDestroyImageView(device.device(), attachments.multisampling.view[f], nullptr);
+        vkDestroyImage(device.device(), attachments.multisampling.image[f], nullptr);
+        vkFreeMemory(device.device(), attachments.multisampling.mem[f], nullptr);
+    }
     
-    vkDestroyImageView(device.device(), offscreen.multisampling.view, nullptr);
-    vkDestroyImage(device.device(), offscreen.multisampling.image, nullptr);
-    vkFreeMemory(device.device(), offscreen.multisampling.mem, nullptr);
-    
-    // TODO: migrate all deletions to unique_ptr = nullptr
-    delete(postprocDescriptorSets);
-    postprocSetLayout.reset();
-    postprocPool.reset();
 }
 
 void Renderer::integrateBrdfLut(std::string shaderPath) {
