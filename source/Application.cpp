@@ -131,15 +131,18 @@ void Application::run() {
             imgui.updateBuffers(frameIndex);
             
             //Render
+            renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::DepthPass);
+            renderer.endRenderPass(commandBuffer);
+            
             renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::WorldSpace);
-            renderer.endOffscreenRenderPass(commandBuffer);
+            renderer.endRenderPass(commandBuffer);
             
             renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::ScreenSpace);
-            renderer.endOffscreenRenderPass(commandBuffer);
+            renderer.endRenderPass(commandBuffer);
             
             renderer.beginSwapChainRenderPass(commandBuffer);
             imgui.draw(commandBuffer, frameIndex);
-            renderer.endSwapChainRenderPass(commandBuffer);
+            renderer.endRenderPass(commandBuffer);
             
             renderer.endFrame();
         }
@@ -210,6 +213,37 @@ void Application::run() {
             .build(descriptorSet);
             
         skyboxDescriptorSets[i].emplace("SKY", std::move(descriptorSet));
+    }
+    
+    
+    //Depth only pass
+    DescriptorSetLayout depthSetLayout = DescriptorSetLayout::Builder(vulkanDevice.device())
+            .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
+            .build();
+            
+    // Pipeline
+    depthSystem = std::make_unique<RenderSystem>(
+        vulkanDevice,
+        renderer.getOffscreenRenderPass(RenderPass::DepthPass),
+        depthSetLayout.getDescriptorSetLayout(),
+        "depth",
+        vulkanDevice.msaaSamples
+    );
+    
+    DescriptorPool depthPool = DescriptorPool::Builder(vulkanDevice.device())
+           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .build();
+    
+    // Create a Descriptor Map for each frame in flight
+    VkDescriptorSet depthDescriptorSets[SwapChain::MAX_FRAMES_IN_FLIGHT];
+    
+    for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+        auto bufferInfo = uboBuffers[i]->descriptorInfo();
+                                    
+        DescriptorWriter(depthSetLayout, depthPool)
+            .writeBuffer(0, &bufferInfo)
+            .build(depthDescriptorSets[i]);
     }
 
     
@@ -357,6 +391,15 @@ void Application::run() {
         
         if (auto commandBuffer = renderer.beginFrame()) {
             frameIndex = renderer.getFrameIndex();
+            FrameInfoNoMaterials depthInfo{
+                frameIndex,
+                frameTime,
+                commandBuffer,
+                camera,
+                depthDescriptorSets[frameIndex],
+                primitives
+            };
+            
             FrameInfo frameInfo{
                 frameIndex,
                 frameTime,
@@ -389,18 +432,22 @@ void Application::run() {
             imgui.updateBuffers(frameIndex);
             
             // RenderPass
+            renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::DepthPass);
+            depthSystem->renderSolidObjects(depthInfo);
+            renderer.endRenderPass(commandBuffer);
+            
             renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::WorldSpace);
             skyboxSystem->renderSolidObjects(skyboxInfo);
             renderSystem->renderSolidObjects(frameInfo);
-            renderer.endOffscreenRenderPass(commandBuffer);
+            renderer.endRenderPass(commandBuffer);
             
             renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::ScreenSpace);
             postProcessing->renderSceneToSwapChain(commandBuffer, renderer.getDescriptorSets(RenderPass::WorldSpace)->at(frameIndex));
-            renderer.endOffscreenRenderPass(commandBuffer);
+            renderer.endRenderPass(commandBuffer);
             
             renderer.beginSwapChainRenderPass(commandBuffer);
             imgui.draw(commandBuffer, frameIndex);
-            renderer.endSwapChainRenderPass(commandBuffer);
+            renderer.endRenderPass(commandBuffer);
             
             renderer.endFrame();
         }

@@ -69,6 +69,7 @@ private:
     Device vulkanDevice{window};
     Renderer renderer{window, vulkanDevice};
     Image vulkanImage{vulkanDevice};
+    std::unique_ptr<RenderSystem> depthSystem;
     std::unique_ptr<RenderSystem> renderSystem;
     std::unique_ptr<RenderSystem> skyboxSystem;
     std::unique_ptr<CompositionPipeline> postProcessing;

@@ -36,6 +36,7 @@ class RenderSystem {
   
   void recreatePipeline(VkRenderPass renderPass, VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT);
   virtual void renderSolidObjects(FrameInfo &frameInfo);
+  virtual void renderSolidObjects(FrameInfoNoMaterials &frameInfo);
 
  private:
   void createPipelineLayout(const VkDescriptorSetLayout* globalSetLayout);

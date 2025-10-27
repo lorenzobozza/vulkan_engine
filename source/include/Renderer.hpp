@@ -23,8 +23,16 @@
 enum RenderPass : unsigned int{
     WorldSpace = 0,
     ScreenSpace,
+    DepthPass,
+    
     TotalCount
 };
+
+RenderPass& operator++(RenderPass& orig)
+{
+  orig = (orig < RenderPass::TotalCount) ? static_cast<RenderPass>(orig + 1) : RenderPass::TotalCount;
+  return orig;
+}
 
 class Renderer {
 private:
@@ -84,9 +92,8 @@ public:
     VkCommandBuffer beginFrame();
     void endFrame();
     void beginSwapChainRenderPass(VkCommandBuffer commandBuffer);
-    void endSwapChainRenderPass(VkCommandBuffer commandBuffer);
     void beginOffscreenRenderPass(VkCommandBuffer commandBuffer, RenderPass index);
-    void endOffscreenRenderPass(VkCommandBuffer commandBuffer);
+    void endRenderPass(VkCommandBuffer commandBuffer);
     
 
     const VkDescriptorSetLayout* getDescriptorSetLayout(RenderPass index) { return offscreen[index].descriptor.layout->getDescriptorSetLayout(); }
@@ -94,11 +101,20 @@ public:
     
 private:
     
-    void createCommandBuffers();
-    void freeCommandBuffers();
+    void createCommandBuffers(void);
+    void freeCommandBuffers(void);
+    
+    void createRenderPasses(void);
+    void destroyRenderPasses(void);
     
     void createOffscreenPass(RenderPass index);
     void destroyOffscreenPass(RenderPass index);
+    
+    void createDepthPass(RenderPass index);
+    void destroyDepthPass(RenderPass index);
+    
+    void destroyBrdfLut(void);
+    bool wasBrdfRequested = false;
     
     struct FrameBufferAttachment {
         VkImage image;

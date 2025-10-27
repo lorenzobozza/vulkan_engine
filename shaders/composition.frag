@@ -11,6 +11,7 @@ layout(push_constant) uniform Push {
     float exposure;
     float peak_brightness;
     float gamma;
+    uint debug;
 } push;
 
 vec3 aces_approx(vec3 v)
@@ -22,6 +23,14 @@ vec3 aces_approx(vec3 v)
     float d = 0.59f;
     float e = 0.14f;
     return clamp((v*(a*v+b))/(v*(c*v+d)+e), 0.0f, 1.0f);
+}
+
+float LinearizeDepth(float depth)
+{
+  float n = 0.01;
+  float f = 100.0;
+  float z = depth;
+  return (2.0 * n) / (f + n - z * (f - n));	
 }
 
 void main() {
@@ -42,4 +51,9 @@ void main() {
     color += noise * 0.02;
     
     outColor = vec4(color, 1.0);
+    
+    if (push.debug > 0) {
+        float depth = texture(frame, texCoord).r;
+        outColor = vec4(vec3(1.0-LinearizeDepth(depth)), 1.0);
+    }
 }

@@ -148,9 +148,14 @@ void main() {
 
 	vec3 n = vert.TBN * normal;
 	vec3 v = normalize(vert.tangentViewPos - vert.tangentPos);    // Vector from surface point to camera
+    vec3 reflection = normalize(reflect(-v, n));
+ 
+PBRInfo pbrInputs;
+vec3 color = vec3(0);
+for (int i = 0; i < 2; i++) {
+
 	vec3 l = normalize(ubo.lightPosition[0].xyz - vert.tangentPos);     // Vector from surface point to light
 	vec3 h = normalize(l+v);                        // Half vector between both l and v
-	vec3 reflection = normalize(reflect(-v, n));
 
 	float NdotL = clamp(dot(n, l), 0.001, 1.0);
 	float NdotV = clamp(abs(dot(n, v)), 0.001, 1.0);
@@ -158,7 +163,7 @@ void main() {
 	float LdotH = clamp(dot(l, h), 0.0, 1.0);
 	float VdotH = clamp(dot(v, h), 0.0, 1.0);
     
-    PBRInfo pbrInputs = PBRInfo(
+    pbrInputs = PBRInfo(
 		NdotL,
 		NdotV,
 		NdotH,
@@ -178,15 +183,18 @@ void main() {
 	float G = geometricOcclusion(pbrInputs);
 	float D = microfacetDistribution(pbrInputs);
 
-    float lightDist = length(ubo.lightPosition[0].xyz - vert.tangentPos);
+    float lightDist = length(ubo.lightPosition[i].xyz - vert.tangentPos);
     float attenuation = ubo.lightColor.a / (lightDist * lightDist);
 	const vec3 u_LightColor = ubo.lightColor.rgb * attenuation;
 
 	// Calculation of analytical lighting contribution
 	vec3 diffuseContrib = (1.0 - F) * diffuse(pbrInputs);
 	vec3 specContrib = F * G * D / (4.0 * NdotL * NdotV);
+    
 	// Obtain final intensity as reflectance (BRDF) scaled by the energy of the light (cosine law)
-	vec3 color = NdotL * u_LightColor * (diffuseContrib + specContrib);
+	color += NdotL * u_LightColor * (diffuseContrib + specContrib);
+
+}
 
 	// Calculate lighting contribution from image based lighting source (IBL)
 	color += getIBLContribution(pbrInputs, n, reflection);
@@ -238,7 +246,7 @@ vec3 getIBLContribution(PBRInfo pbrInputs, vec3 n, vec3 reflection)
 	vec3 specular = specularLight * (pbrInputs.specularColor * brdf.x + brdf.y);
 
 	// For presentation, this allows us to disable IBL terms
-	diffuse *= 1.0;
+	diffuse *= 0.5;
 	specular *= 1.0;
 
 	return diffuse + specular;

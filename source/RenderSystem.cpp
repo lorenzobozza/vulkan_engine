@@ -102,7 +102,7 @@ void RenderSystem::renderSolidObjects(FrameInfo &frameInfo) {
         pipelineLayout,
         0,
         1,
-        &frameInfo.globalDescriptorSet[obj.material],
+        &frameInfo.descriptorSet[obj.material],
         0,
         nullptr
     );
@@ -124,15 +124,38 @@ void RenderSystem::renderSolidObjects(FrameInfo &frameInfo) {
         sizeof(PushConstantData),
         &push);
         
-    /*
+    obj.model->bind(frameInfo.commandBuffer);
+    obj.model->draw(frameInfo.commandBuffer);
+  }
+}
+
+void RenderSystem::renderSolidObjects(FrameInfoNoMaterials &frameInfo) {
+  pipeline->bind(frameInfo.commandBuffer);
+
+  for (auto &kv : frameInfo.primitives) {
+    auto &obj = kv.second;
+    
+    vkCmdBindDescriptorSets(
+        frameInfo.commandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        pipelineLayout,
+        0,
+        1,
+        &frameInfo.descriptorSet,
+        0,
+        nullptr
+    );
+    
+    PushConstantData push{};
+    push.modelMatrix = obj.transform.mat4();
+
     vkCmdPushConstants(
         frameInfo.commandBuffer,
         pipelineLayout,
-        VK_SHADER_STAGE_FRAGMENT_BIT,
-        sizeof(PushConstantData), // offset by previus push_constant size
-        sizeof(PushConstant2),
-        &push2);
-    */
+        VK_SHADER_STAGE_ALL_GRAPHICS,
+        0,
+        sizeof(PushConstantData),
+        &push);
         
     obj.model->bind(frameInfo.commandBuffer);
     obj.model->draw(frameInfo.commandBuffer);

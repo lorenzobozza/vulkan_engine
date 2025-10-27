@@ -46,12 +46,15 @@ void Pipeline::createGraphicsPipeline(const std::string &vertFilepath, const std
     std::vector<uint32_t> vertexShader, fragmentShader;
     
     ShaderCompiler glslc;
-    if (glslc.loadShader(vertFilepath, vertexShader) == ShaderCompiler::State::Valid) {
-        createShaderModule(vertexShader, &vertShaderModule);
+    if (glslc.loadShader(vertFilepath, vertexShader) != ShaderCompiler::State::Valid) {
+        return;
     }
-    if (glslc.loadShader(fragFilepath, fragmentShader) == ShaderCompiler::State::Valid) {
-        createShaderModule(fragmentShader, &fragShaderModule);
+    if (glslc.loadShader(fragFilepath, fragmentShader) != ShaderCompiler::State::Valid) {
+        return;
     }
+    
+    createShaderModule(vertexShader, &vertShaderModule);
+    createShaderModule(fragmentShader, &fragShaderModule);
     
     VkPipelineShaderStageCreateInfo shaderStages[2];
     shaderStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;

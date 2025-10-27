@@ -16,6 +16,7 @@ struct PushConstantData {
     float exposure{};
     float peak_brightness{};
     float gamma{};
+    uint32_t debug{};
 };
 
 CompositionPipeline::CompositionPipeline(
@@ -98,6 +99,7 @@ void CompositionPipeline::renderSceneToSwapChain(VkCommandBuffer commandBuffer, 
     push.exposure = exposure;
     push.peak_brightness = peak_brightness;
     push.gamma = gamma;
+    push.debug = 0U;
     
     vkCmdPushConstants(
         commandBuffer,
