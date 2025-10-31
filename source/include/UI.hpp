@@ -17,6 +17,8 @@
 #include "Image.hpp"
 #include "Renderer.hpp"
 
+#include <functional>
+
 class UI {
 public:
     UI(Device &device, Renderer& renderer);
@@ -26,6 +28,13 @@ public:
 		glm::vec2 scale;
 		glm::vec2 translate;
 	} pushConstBlock;
+ 
+    enum Widget {
+        Viewport = 0,
+        Log,
+        
+        TotalCount
+    };
     
     void newFrame(Application *app);
     void updateBuffers(int frameIndex);
@@ -67,6 +76,31 @@ private:
     DescriptorStruct descriptor;
     
     ImGuiContext* context;
+    
+    
+    struct Widget_s {
+        Widget_s(bool showWidget, std::function<void()> callback) : m_callback(callback), isVisible(showWidget) {};
+        Widget_s() = default;
+        
+        bool isVisible = false;
+        void bind(std::function<void()> f) { m_callback = f; }
+        void draw(void) { if (isVisible && m_callback != nullptr) m_callback(); }
+
+    private:
+        std::function<void()> m_callback;
+    };
+    
+    std::array<Widget_s, Widget::TotalCount> widgets;
+    
+    void buildWidgets(void);
+    
+public:
+    void showWidget(Widget id) { if (id < Widget::TotalCount) widgets[id].isVisible = true; }
+    void hideWidget(Widget id) { if (id < Widget::TotalCount) widgets[id].isVisible = false; }
+    void toggleWidget(Widget id) { if (id < Widget::TotalCount) widgets[id].isVisible ^= true; }
+    
+    void bindWidget(Widget id, std::function<void()> f) { if (id < Widget::TotalCount) widgets[id].bind(f); }
+    
 };
 
 #endif /* UI_hpp */

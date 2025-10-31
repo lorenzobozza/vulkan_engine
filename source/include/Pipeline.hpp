@@ -51,9 +51,11 @@ public:
     static void defaultPipelineConfigInfo(PipelineConfigInfo& configInfo);
     
 private:
-    static std::vector<char> readFile(const std::string &filepath);
-    
-    void createGraphicsPipeline(const std::string &vertFilepath, const std::string &fragFilepath, const PipelineConfigInfo &configInfo);
+    enum CreatePipelineResult {
+        OK = 0,
+        Error
+    };
+    CreatePipelineResult createGraphicsPipeline(const std::string &vertFilepath, const std::string &fragFilepath, const PipelineConfigInfo &configInfo);
     
     void createShaderModule(std::vector<uint32_t>& vecShader, VkShaderModule *shaderModule);
     

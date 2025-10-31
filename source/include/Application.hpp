@@ -61,6 +61,9 @@ public:
     void simulate();
     void renderImguiContent();
     
+    // UI
+    void renderViewport(void);
+    
     static int sum(int a) { return a + a; }
     
 private:

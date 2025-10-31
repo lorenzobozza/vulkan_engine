@@ -27,6 +27,7 @@
 #include <chrono>
 #include <iostream>
 #include <future>
+#include <functional>
 
 #include <imgui_internal.h>
 
@@ -53,18 +54,20 @@ Application::Application(const char* binaryPath) : binaryDir{binaryPath} {
 }
 
 void Application::run() {
+    UI imgui(vulkanDevice, renderer);
 
-    // GAMELOOP TIMING
-    auto currentTime = std::chrono::high_resolution_clock::now();
 
-    Camera camera{};
-    float aspectRatio = renderer.getAspectRatio();
-    camera.setProjection.perspective(aspectRatio, glm::radians(75.f), .01f, 100.f);
-    
-    Primitive cameraObj = Primitive::new_primitive();
-    cameraObj.transform.translation = {.0f, -2.f, .0f};
-    cameraObj.transform.rotation.y = glm::half_pi<float>();
-    bool orth = false;
+        // GAMELOOP TIMING
+        auto currentTime = std::chrono::high_resolution_clock::now();
+
+        Camera camera{};
+        float aspectRatio = renderer.getAspectRatio();
+        camera.setProjection.perspective(aspectRatio, glm::radians(75.f), .01f, 100.f);
+        
+        Primitive cameraObj = Primitive::new_primitive();
+        cameraObj.transform.translation = {.0f, -2.f, .0f};
+        cameraObj.transform.rotation.y = glm::half_pi<float>();
+        bool orth = false;
     
     postProcessing = std::make_unique<CompositionPipeline>(
         vulkanDevice,
@@ -73,8 +76,6 @@ void Application::run() {
         "composition"
     );
     
-    //TextRender font{vulkanDevice, renderer.getSwapChainRenderPass(), "fonts/Disket-Mono-Regular.ttf"};
-    UI imgui(vulkanDevice, renderer);
     
     // GUI Style and Sizes definition
     {
@@ -459,9 +460,7 @@ void Application::run() {
     
 }
 
-void Application::renderImguiContent() {
-    static auto counter10Hz = std::chrono::high_resolution_clock::now();
-    
+void Application::renderViewport(void) {
     int flags = ImGui::IsKeyDown(ImGuiKey_LeftCtrl) ? 0 : ImGuiWindowFlags_NoMouseInputs;
     flags |= ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground;
     float height = (float)renderer.getSwapChainExtent().height * .66f;
@@ -475,7 +474,12 @@ void Application::renderImguiContent() {
 
         ImGui::End();
     }
+}
 
+void Application::renderImguiContent() {
+    static auto counter10Hz = std::chrono::high_resolution_clock::now();
+    
+    renderViewport();
     
     UI::OnImGui(binaryDir);
     

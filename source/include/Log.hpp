@@ -8,7 +8,9 @@
 #ifndef Log_h
 #define Log_h
 
+#include <format>
 #include <print>
+#include <sstream>
 
 class Log {
 public:
@@ -19,32 +21,48 @@ public:
     
     template <class... _Args>
     void info(std::format_string<_Args...> __fmt, _Args&&... __args) {
-        std::print("[Info] ");
-        std::println(__fmt, std::forward<_Args>(__args)...);
+        if (print_terminal) {
+            std::print("[Info] ");
+            std::println(__fmt, std::forward<_Args>(__args)...);
+        }
+        
+        stream << "[Info] " << std::format(__fmt, std::forward<_Args>(__args)...) << '\n';
     }
     
     void info(const std::string& s) {
-        std::println("[Info] {}", s);
+        info("{}", s);
     }
     
     template <class... _Args>
     void warn(std::format_string<_Args...> __fmt, _Args&&... __args) {
-        std::print("[Warning] ");
-        std::println(__fmt, std::forward<_Args>(__args)...);
+        if (print_terminal) {
+            std::print("[Warning] ");
+            std::println(__fmt, std::forward<_Args>(__args)...);
+        }
+        
+        stream << "[Warning] " << std::format(__fmt, std::forward<_Args>(__args)...) << '\n';
     }
     
     void warn(const std::string& s) {
-        std::println("[Warning] {}", s);
+        warn("{}", s);
     }
     
     template <class... _Args>
     void error(std::format_string<_Args...> __fmt, _Args&&... __args) {
-        std::print("[Error] ");
-        std::println(__fmt, std::forward<_Args>(__args)...);
+        if (print_terminal) {
+            std::print("[Error] ");
+            std::println(__fmt, std::forward<_Args>(__args)...);
+        }
+        
+        stream << "[Error] " << std::format(__fmt, std::forward<_Args>(__args)...) << '\n';
     }
     
     void error(const std::string& s) {
-        std::println("[Error] {}", s);
+        error("{}", s);
+    }
+    
+    const char* getBuffer(void) {
+        return stream.view().data();
     }
 
 private:
@@ -53,6 +71,9 @@ private:
 public:
     Log(Log& conLogt) = delete;
     void operator=(Log& conLogt) = delete;
+    
+    bool print_terminal = false;
+    std::stringstream stream;
 };
 
 #endif /* Log_h */

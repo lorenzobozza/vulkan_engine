@@ -5,8 +5,10 @@
 //  Created by Lorenzo Bozza on 15/12/22.
 //
 
-#include "include/UI.hpp"
-#include "include/ShaderCompiler.hpp"
+#include "UI.hpp"
+#include "ShaderCompiler.hpp"
+#include "ImGuiShaders.h"
+#include "Log.hpp"
 
 #include <SDL2/SDL.h>
 
@@ -32,6 +34,8 @@ UI::UI(Device &device, Renderer& renderer) : device{device}, m_Renderer{renderer
     loadFontTexture();
     createDescriptors();
     createPipeline(m_Renderer.getSwapChainRenderPass(), "imgui");
+    
+    buildWidgets();
 }
 
 UI::~UI() {
@@ -76,26 +80,33 @@ void UI::createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath) 
     pipelineConfig.pipelineLayout = imguiPipelineLayout;
     pipelineConfig.rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     
-    std::vector<uint32_t> vertexShader, fragmentShader;
+//    std::vector<uint32_t> vertexShader, fragmentShader;
     
-    ShaderCompiler glslc;
+//    ShaderCompiler glslc;
     
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    if (glslc.loadShader("imgui.vert", vertexShader) == ShaderCompiler::State::Valid) {
-        createInfo.codeSize = vertexShader.size() * sizeof(uint32_t);
-        createInfo.pCode = vertexShader.data();
-        if(vkCreateShaderModule(device.device(), &createInfo, nullptr, &vertShaderModule) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create Shader Module");
-        }
+//    if (glslc.loadShader("imgui.vert", vertexShader) != ShaderCompiler::State::Valid) {
+//        throw std::runtime_error("Failed loading basic UI shader");
+//    }
+//    createInfo.codeSize = vertexShader.size() * sizeof(uint32_t);
+//    createInfo.pCode = vertexShader.data();
+    createInfo.codeSize = imgui_vert_spv_len;
+    createInfo.pCode = reinterpret_cast<const uint32_t*>(imgui_vert_spv);
+    if(vkCreateShaderModule(device.device(), &createInfo, nullptr, &vertShaderModule) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create Shader Module");
     }
+
     
-    if (glslc.loadShader("imgui.frag", fragmentShader) == ShaderCompiler::State::Valid) {
-        createInfo.codeSize = fragmentShader.size() * sizeof(uint32_t);
-        createInfo.pCode = fragmentShader.data();
-        if(vkCreateShaderModule(device.device(), &createInfo, nullptr, &fragShaderModule) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create Shader Module");
-        }
+//    if (glslc.loadShader("imgui.frag", fragmentShader) != ShaderCompiler::State::Valid) {
+//        throw std::runtime_error("Failed loading basic UI shader");
+//    }
+//    createInfo.codeSize = fragmentShader.size() * sizeof(uint32_t);
+//    createInfo.pCode = fragmentShader.data();
+    createInfo.codeSize = imgui_frag_spv_len;
+    createInfo.pCode = reinterpret_cast<const uint32_t*>(imgui_frag_spv);
+    if(vkCreateShaderModule(device.device(), &createInfo, nullptr, &fragShaderModule) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create Shader Module");
     }
     
     VkPipelineShaderStageCreateInfo shaderStages[2];
@@ -173,18 +184,34 @@ void UI::createDescriptors(void) {
             .writeImage(0, &fontDescriptorInfo)
             .build(descriptor.v_set.at(i));
     }
+    
+    Log::getInstance()->info("{}BENE",1);
+}
+
+
+static void logWidget(void) {
+    ImGui::Begin("Log Console", nullptr, ImGuiWindowFlags_NoCollapse);
+    ImGui::TextUnformatted(Log::getInstance()->getBuffer());
+    ImGui::End();
+}
+
+void UI::buildWidgets(void) {
+    //widgets[Widget::Viewport] = Widget_s(false, std::bind(logWidget));
+    widgets[Widget::Log] = Widget_s(false, std::bind(logWidget));
 }
 
 void UI::newFrame(Application *app) {
     ImGui::NewFrame();
     
-    //if (io.ConfigFlags & ImGuiConfigFlags_DockingEnable)
-    /*
-    {
-        ImGuiID dockspace_id = ImGui::GetID("DockSpace");
-        ImGui::DockSpaceOverViewport(dockspace_id, viewport, ImGuiDockNodeFlags_PassthruCentralNode);
+    ImGui::BeginMainMenuBar();
+    
+    
+    if (ImGui::Button("Log Console")) {
+        toggleWidget(Widget::Log);
     }
-    */
+    
+    
+    ImGui::EndMainMenuBar();
     
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
 
@@ -226,8 +253,11 @@ void UI::newFrame(Application *app) {
         firstLoop = false;
     }
     
-    app->renderImguiContent();
+    for (int i = 0; i < Widget::TotalCount; i++) {
+        widgets[i].draw();
+    }
     
+    app->renderImguiContent();
     
     ImGui::End(); // "DockSpace"
     ImGui::Render();
@@ -626,64 +656,93 @@ char UI::ImGuiKey_to_Charecter(ImGuiKey imgui_key, bool shift)
     return '?';
 }
 
+static consteval float hueToRgb(float p, float q, float t) {
+  if (t < 0.f) t += 1.f;
+  if (t > 1.f) t -= 1.f;
+  if (t < 1.f/6.f) return p + (q - p) * 6.f * t;
+  if (t < 1.f/2.f) return q;
+  if (t < 2.f/3.f) return p + (q - p) * (2.f/3.f - t) * 6.f;
+  return p;
+}
+
+static consteval ImVec4 hslToRgb(const float h, const float s, const float l) {
+  float r, g, b;
+
+  if (s == 0.f) {
+    r = g = b = l;
+  } else {
+    const float q = l < 0.5f ? l * (1.f + s) : l + s - l * s;
+    const float p = 2.f * l - q;
+    r = hueToRgb(p, q, h + 1.f/3.f);
+    g = hueToRgb(p, q, h);
+    b = hueToRgb(p, q, h - 1.f/3.f);
+  }
+
+  return ImVec4(r, g, b, 1.f);
+}
+
 void UI::setBessDarkColors(void) {
     ImGuiStyle &style = ImGui::GetStyle();
     ImVec4 *colors = style.Colors;
+    
+    constexpr float baseHue = 0.67f;
 
     // Primary background
-    colors[ImGuiCol_WindowBg] = ImVec4(0.07f, 0.07f, 0.09f, 1.00f);  // #131318
-    colors[ImGuiCol_MenuBarBg] = ImVec4(0.12f, 0.12f, 0.15f, 1.00f); // #131318
-
-    colors[ImGuiCol_PopupBg] = ImVec4(0.18f, 0.18f, 0.22f, 1.00f);
+    colors[ImGuiCol_WindowBg] =             hslToRgb(baseHue, 0.12f, 0.08f);
+    colors[ImGuiCol_MenuBarBg] =            hslToRgb(baseHue, 0.11f, 0.13f);
+    colors[ImGuiCol_PopupBg] =              hslToRgb(baseHue, 0.10f, 0.20f);
 
     // Headers
-    colors[ImGuiCol_Header] = ImVec4(0.18f, 0.18f, 0.22f, 1.00f);
-    colors[ImGuiCol_HeaderHovered] = ImVec4(0.30f, 0.30f, 0.40f, 1.00f);
-    colors[ImGuiCol_HeaderActive] = ImVec4(0.25f, 0.25f, 0.35f, 1.00f);
+    colors[ImGuiCol_Header] =               hslToRgb(baseHue, 0.10f, 0.20f);
+    colors[ImGuiCol_HeaderHovered] =        hslToRgb(baseHue, 0.14f, 0.35f);
+    colors[ImGuiCol_HeaderActive] =         hslToRgb(baseHue, 0.16f, 0.30f);
 
     // Buttons
-    colors[ImGuiCol_Button] = ImVec4(0.20f, 0.22f, 0.27f, 1.00f);
-    colors[ImGuiCol_ButtonHovered] = ImVec4(0.30f, 0.32f, 0.40f, 1.00f);
-    colors[ImGuiCol_ButtonActive] = ImVec4(0.35f, 0.38f, 0.50f, 1.00f);
+    colors[ImGuiCol_Button] =               hslToRgb(0.62f, 0.14f, 0.23f);
+    colors[ImGuiCol_ButtonHovered] =        hslToRgb(0.63f, 0.14f, 0.35f);
+    colors[ImGuiCol_ButtonActive] =         hslToRgb(0.63f, 0.17f, 0.42f);
 
     // Frame BG
-    colors[ImGuiCol_FrameBg] = ImVec4(0.15f, 0.15f, 0.18f, 1.00f);
-    colors[ImGuiCol_FrameBgHovered] = ImVec4(0.22f, 0.22f, 0.27f, 1.00f);
-    colors[ImGuiCol_FrameBgActive] = ImVec4(0.25f, 0.25f, 0.30f, 1.00f);
+    colors[ImGuiCol_FrameBg] =              hslToRgb(baseHue, 0.09f, 0.16f);
+    colors[ImGuiCol_FrameBgHovered] =       hslToRgb(baseHue, 0.10f, 0.24f);
+    colors[ImGuiCol_FrameBgActive] =        hslToRgb(baseHue, 0.09f, 0.27f);
 
     // Tabs
-    colors[ImGuiCol_Tab] = ImVec4(0.18f, 0.18f, 0.22f, 1.00f);
-    colors[ImGuiCol_TabHovered] = ImVec4(0.35f, 0.35f, 0.50f, 1.00f);
-    colors[ImGuiCol_TabActive] = ImVec4(0.25f, 0.25f, 0.38f, 1.00f);
-    colors[ImGuiCol_TabUnfocused] = ImVec4(0.13f, 0.13f, 0.17f, 1.00f);
-    colors[ImGuiCol_TabUnfocusedActive] = ImVec4(0.20f, 0.20f, 0.25f, 1.00f);
+    colors[ImGuiCol_Tab] =                  hslToRgb(baseHue, 0.10f, 0.20f);
+    colors[ImGuiCol_TabHovered] =           hslToRgb(baseHue, 0.17f, 0.42f);
+    colors[ImGuiCol_TabActive] =            hslToRgb(baseHue, 0.20f, 0.31f);
+    colors[ImGuiCol_TabUnfocused] =         hslToRgb(baseHue, 0.13f, 0.15f);
+    colors[ImGuiCol_TabUnfocusedActive] =   hslToRgb(baseHue, 0.11f, 0.22f);
 
     // Title
-    colors[ImGuiCol_TitleBg] = ImVec4(0.12f, 0.12f, 0.15f, 1.00f);
-    colors[ImGuiCol_TitleBgActive] = ImVec4(0.15f, 0.15f, 0.20f, 1.00f);
-    colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.10f, 0.10f, 0.12f, 1.00f);
+    colors[ImGuiCol_TitleBg] =              hslToRgb(baseHue, 0.11f, 0.13f);
+    colors[ImGuiCol_TitleBgActive] =        hslToRgb(baseHue, 0.14f, 0.17f);
+    colors[ImGuiCol_TitleBgCollapsed] =     hslToRgb(baseHue, 0.09f, 0.11f);
 
     // Borders
-    colors[ImGuiCol_Border] = ImVec4(0.20f, 0.20f, 0.25f, 0.50f);
-    colors[ImGuiCol_BorderShadow] = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    colors[ImGuiCol_Border] =               hslToRgb(baseHue, 0.11f, 0.22f);
+    colors[ImGuiCol_BorderShadow] =         hslToRgb(0.00f, 0.00f, 0.00f);
 
     // Text
-    colors[ImGuiCol_Text] = ImVec4(0.90f, 0.90f, 0.95f, 1.00f);
-    colors[ImGuiCol_TextDisabled] = ImVec4(0.50f, 0.50f, 0.55f, 1.00f);
+    colors[ImGuiCol_Text] =                 hslToRgb(baseHue, 0.33f, 0.92f);
+    colors[ImGuiCol_TextDisabled] =         hslToRgb(baseHue, 0.05f, 0.52f);
 
     // Highlights
-    colors[ImGuiCol_CheckMark] = ImVec4(0.50f, 0.70f, 1.00f, 1.00f);
-    colors[ImGuiCol_SliderGrab] = ImVec4(0.50f, 0.70f, 1.00f, 1.00f);
-    colors[ImGuiCol_SliderGrabActive] = ImVec4(0.60f, 0.80f, 1.00f, 1.00f);
-    colors[ImGuiCol_ResizeGrip] = ImVec4(0.50f, 0.70f, 1.00f, 0.50f);
-    colors[ImGuiCol_ResizeGripHovered] = ImVec4(0.60f, 0.80f, 1.00f, 0.75f);
-    colors[ImGuiCol_ResizeGripActive] = ImVec4(0.70f, 0.90f, 1.00f, 1.00f);
+    colors[ImGuiCol_CheckMark] =            hslToRgb(0.60f, 1.00f, 0.60f);
+    colors[ImGuiCol_SliderGrab] =           hslToRgb(0.60f, 1.00f, 0.60f);
+    colors[ImGuiCol_SliderGrabActive] =     hslToRgb(0.58f, 1.00f, 0.65f);
+    colors[ImGuiCol_ResizeGrip] =           hslToRgb(0.60f, 1.00f, 0.60f);
+    colors[ImGuiCol_ResizeGripHovered] =    hslToRgb(0.58f, 1.00f, 0.65f);
+    colors[ImGuiCol_ResizeGripActive] =     hslToRgb(0.55f, 1.00f, 0.70f);
+    
+    colors[ImGuiCol_DockingPreview] =       hslToRgb(0.60f, 0.50f, 0.30f);
+    colors[ImGuiCol_PlotLines] =            hslToRgb(0.60f, 0.80f, 0.70f);
 
     // Scrollbar
-    colors[ImGuiCol_ScrollbarBg] = ImVec4(0.10f, 0.10f, 0.12f, 1.00f);
-    colors[ImGuiCol_ScrollbarGrab] = ImVec4(0.30f, 0.30f, 0.35f, 1.00f);
-    colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.40f, 0.40f, 0.50f, 1.00f);
-    colors[ImGuiCol_ScrollbarGrabActive] = ImVec4(0.45f, 0.45f, 0.55f, 1.00f);
+    colors[ImGuiCol_ScrollbarBg] =          hslToRgb(baseHue, 0.09f, 0.11f);
+    colors[ImGuiCol_ScrollbarGrab] =        hslToRgb(baseHue, 0.07f, 0.32f);
+    colors[ImGuiCol_ScrollbarGrabHovered] = hslToRgb(baseHue, 0.11f, 0.45f);
+    colors[ImGuiCol_ScrollbarGrabActive] =  hslToRgb(baseHue, 0.10f, 0.50f);
 
     // Style tweaks
     style.WindowRounding = 5.0f;
