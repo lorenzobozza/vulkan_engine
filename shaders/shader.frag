@@ -107,7 +107,7 @@ void main() {
         alpha = color4.w;
     }
     
-    if ((push.alphaMode == ALPHAMODE_MASK) && (alpha < push.alphaCutoff)) { discard; }
+    if ((push.alphaMode == ALPHAMODE_MASK) && (alpha < push.alphaCutoff)) { alpha = 0.0; }
     if (push.alphaMode == ALPHAMODE_OPAQUE) { alpha = 1.0; }
     
     vec3 normal = (push.textureBitmap & NORMAL_TEXTURE) == 0 ? vec3(0.0, 0.0, 1.0) : textureLod(normalMap, (push.textureBitmap & NORMAL_UV) == 0 ? vert.texcoord : vert.texcoord1, lod).rgb * 2.0 - 1.0;

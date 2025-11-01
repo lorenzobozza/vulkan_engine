@@ -22,7 +22,7 @@
 
 
 class RenderSystem {
- public:
+public:
   RenderSystem(
     Device &passDevice,
     VkRenderPass renderPass,
@@ -37,8 +37,10 @@ class RenderSystem {
   void recreatePipeline(VkRenderPass renderPass, VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT);
   virtual void renderSolidObjects(FrameInfo &frameInfo);
   virtual void renderSolidObjects(FrameInfoNoMaterials &frameInfo);
+  
+  Pipeline::Status getPipelineStatus(void) { return (pipeline != nullptr ? pipeline->getInternalStatus() : Pipeline::Status::ERR); }
 
- private:
+private:
   void createPipelineLayout(const VkDescriptorSetLayout* globalSetLayout);
   void createPipeline(VkRenderPass renderPass);
 

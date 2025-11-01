@@ -196,12 +196,18 @@ static void logWidget(void) {
 }
 
 void UI::buildWidgets(void) {
-    //widgets[Widget::Viewport] = Widget_s(false, std::bind(logWidget));
+    widgets[Widget::Assets] = Widget_s(true, std::bind(treeAssetsWidget));
     widgets[Widget::Log] = Widget_s(false, std::bind(logWidget));
 }
 
 void UI::newFrame(Application *app) {
     ImGui::NewFrame();
+    
+    if (Log::getInstance()->notifyErrors()) {
+        ImGuiWindow* log = ImGui::FindWindowByName("Log Console");
+        if (log != nullptr) ImGui::SetScrollY(log, 1000.f);
+        showWidget(Widget::Log);
+    }
     
     ImGui::BeginMainMenuBar();
     
@@ -823,14 +829,16 @@ static std::pair<bool, uint32_t> DirectoryTreeViewRecursive(const std::filesyste
 	return { any_node_clicked, node_clicked };
 }
 
-void UI::OnImGui(std::string directoryPath)
+void UI::treeAssetsWidget(void)
 {
+    std::string directoryPath = "../../../shaders/";
+
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0.0f, 0.0f });
 
 	ImGui::Begin("Assets");
 
-	if (ImGui::CollapsingHeader("Assets"))
-	{	
+	if (ImGui::CollapsingHeader("Shaders"))
+	{
 		uint32_t count = 0;
 		for (const auto& entry : std::filesystem::recursive_directory_iterator(directoryPath))
 			count++;

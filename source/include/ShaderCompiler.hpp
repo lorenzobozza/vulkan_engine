@@ -64,7 +64,7 @@ public:
             return compileShader(sinfo);
         }
         else {
-            log->error("The file {} was not found", fileName);
+            log->error("Shader: The file {} was not found", fileName);
         }
         
         return State::Error;
@@ -115,7 +115,7 @@ private:
             return State::Valid;
         }
         
-        log->error("{} wrong Spir-V magic number", info.fileName);
+        log->error("Shader: {} wrong Spir-V magic number", info.fileName);
         return State::Error;
     }
 

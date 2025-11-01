@@ -75,8 +75,14 @@ private:
     std::unique_ptr<RenderSystem> depthSystem;
     std::unique_ptr<RenderSystem> renderSystem;
     std::unique_ptr<RenderSystem> skyboxSystem;
-    std::unique_ptr<CompositionPipeline> postProcessing;
-    
+
+    struct RenderSystems_s {
+        std::unique_ptr<RenderSystem> depth;
+        std::unique_ptr<RenderSystem> pbr;
+        std::unique_ptr<RenderSystem> skybox;
+        std::unique_ptr<CompositionPipeline> composit;
+    } renderSystems;
+
     std::vector<std::unique_ptr<Texture>> textures{};
     std::unordered_map<std::string, Material> materials{};
     

@@ -55,6 +55,8 @@ public:
         }
         
         stream << "[Error] " << std::format(__fmt, std::forward<_Args>(__args)...) << '\n';
+        
+        error_notification = true;
     }
     
     void error(const std::string& s) {
@@ -64,16 +66,24 @@ public:
     const char* getBuffer(void) {
         return stream.view().data();
     }
+    bool notifyErrors(void) {
+        if (error_notification) {
+            error_notification = false;
+            return true;
+        }
+        return false;
+    }
 
 private:
     Log() {}
+    
+    bool error_notification = false;
+    bool print_terminal = false;
+    std::stringstream stream;
 
 public:
     Log(Log& conLogt) = delete;
     void operator=(Log& conLogt) = delete;
-    
-    bool print_terminal = false;
-    std::stringstream stream;
 };
 
 #endif /* Log_h */

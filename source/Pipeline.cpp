@@ -13,7 +13,7 @@
 #include <iostream>
 
 Pipeline::Pipeline(Device &dev, const std::string &vertFilepath, const std::string &fragFilepath, const PipelineConfigInfo &configInfo) : device{dev} {
-    createGraphicsPipeline(vertFilepath, fragFilepath, configInfo);
+    m_internalStatus = createGraphicsPipeline(vertFilepath, fragFilepath, configInfo);
 }
 
 Pipeline::~Pipeline() {
@@ -22,7 +22,7 @@ Pipeline::~Pipeline() {
     vkDestroyPipeline(device.device(), graphicsPipeline, nullptr);
 }
 
-Pipeline::CreatePipelineResult Pipeline::createGraphicsPipeline(const std::string &vertFilepath, const std::string &fragFilepath, const PipelineConfigInfo &configInfo) {
+Pipeline::Status Pipeline::createGraphicsPipeline(const std::string &vertFilepath, const std::string &fragFilepath, const PipelineConfigInfo &configInfo) {
     assert(configInfo.pipelineLayout != VK_NULL_HANDLE && "Cannot create grapics pipeline:: no pipelineLayout provided in configInfo");
     assert(configInfo.renderPass != VK_NULL_HANDLE && "Cannot create grapics pipeline:: no renderPass provided in configInfo");
     
@@ -30,10 +30,10 @@ Pipeline::CreatePipelineResult Pipeline::createGraphicsPipeline(const std::strin
     
     ShaderCompiler glslc;
     if (glslc.loadShader(vertFilepath, vertexShader) != ShaderCompiler::State::Valid) {
-        return CreatePipelineResult::Error;
+        return Status::ERR;
     }
     if (glslc.loadShader(fragFilepath, fragmentShader) != ShaderCompiler::State::Valid) {
-        return CreatePipelineResult::Error;
+        return Status::ERR;
     }
     
     createShaderModule(vertexShader, &vertShaderModule);
@@ -86,10 +86,10 @@ Pipeline::CreatePipelineResult Pipeline::createGraphicsPipeline(const std::strin
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
     
     if(vkCreateGraphicsPipelines(device.device(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
-        return CreatePipelineResult::Error;
+        return Status::ERR;
     }
     
-    return CreatePipelineResult::OK;
+    return Status::OK;
 }
 
 void Pipeline::createShaderModule(std::vector<uint32_t>& vecShader, VkShaderModule *shaderModule) {

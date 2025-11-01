@@ -69,7 +69,7 @@ void Application::run() {
         cameraObj.transform.rotation.y = glm::half_pi<float>();
         bool orth = false;
     
-    postProcessing = std::make_unique<CompositionPipeline>(
+    renderSystems.composit = std::make_unique<CompositionPipeline>(
         vulkanDevice,
         renderer.getOffscreenRenderPass(RenderPass::ScreenSpace),
         renderer.getDescriptorSetLayout(RenderPass::WorldSpace),
@@ -190,7 +190,7 @@ void Application::run() {
             .build();
     
     // SkyBox Pipeline
-    skyboxSystem = std::make_unique<RenderSystem>(
+    renderSystems.skybox = std::make_unique<RenderSystem>(
         vulkanDevice,
         renderer.getOffscreenRenderPass(RenderPass::WorldSpace),
         skyboxSetLayout.getDescriptorSetLayout(),
@@ -223,7 +223,7 @@ void Application::run() {
             .build();
             
     // Pipeline
-    depthSystem = std::make_unique<RenderSystem>(
+    renderSystems.depth = std::make_unique<RenderSystem>(
         vulkanDevice,
         renderer.getOffscreenRenderPass(RenderPass::DepthPass),
         depthSetLayout.getDescriptorSetLayout(),
@@ -261,7 +261,7 @@ void Application::run() {
             .build();
             
     // Pipeline
-    renderSystem = std::make_unique<RenderSystem>(
+    renderSystems.pbr = std::make_unique<RenderSystem>(
         vulkanDevice,
         renderer.getOffscreenRenderPass(RenderPass::WorldSpace),
         globalSetLayout.getDescriptorSetLayout(),
@@ -434,16 +434,16 @@ void Application::run() {
             
             // RenderPass
             renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::DepthPass);
-            depthSystem->renderSolidObjects(depthInfo);
+            renderSystems.depth->renderSolidObjects(depthInfo);
             renderer.endRenderPass(commandBuffer);
             
             renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::WorldSpace);
-            skyboxSystem->renderSolidObjects(skyboxInfo);
-            renderSystem->renderSolidObjects(frameInfo);
+            renderSystems.skybox->renderSolidObjects(skyboxInfo);
+            renderSystems.pbr->renderSolidObjects(frameInfo);
             renderer.endRenderPass(commandBuffer);
             
             renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::ScreenSpace);
-            postProcessing->renderSceneToSwapChain(commandBuffer, renderer.getDescriptorSets(RenderPass::WorldSpace)->at(frameIndex));
+            renderSystems.composit->renderSceneToSwapChain(commandBuffer, renderer.getDescriptorSets(RenderPass::WorldSpace)->at(frameIndex));
             renderer.endRenderPass(commandBuffer);
             
             renderer.beginSwapChainRenderPass(commandBuffer);
@@ -480,8 +480,6 @@ void Application::renderImguiContent() {
     static auto counter10Hz = std::chrono::high_resolution_clock::now();
     
     renderViewport();
-    
-    UI::OnImGui(binaryDir);
     
     static bool showMaterials = false;
     if (ImGui::Begin("Materials")) {
@@ -575,17 +573,24 @@ void Application::renderImguiContent() {
             vulkanDevice.msaaSamples = static_cast<VkSampleCountFlagBits>(1 << aaIndex);
             renderer.recreateOffscreenFlag = true;
             renderer.recreateSwapChain();
-            renderSystem->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
-            skyboxSystem->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
+            renderSystems.pbr->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
+            renderSystems.skybox->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
+        }
+        
+        ImGui::NewLine();
+        if (ImGui::Button("Refresh pipelines")) {
+            vkDeviceWaitIdle(vulkanDevice.device());
+            renderSystems.pbr->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
+            renderSystems.skybox->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
         }
         
         ImGui::NewLine();
         ImGui::Text("Exposure");
-        ImGui::SliderFloat("##exposure", &postProcessing->exposure, 1.f, 5.f);
+        ImGui::SliderFloat("##exposure", &renderSystems.composit->exposure, 1.f, 5.f);
         ImGui::Text("Peak White Brightness");
-        ImGui::SliderFloat("##brightness", &postProcessing->peak_brightness, 1.f, 15.f);
+        ImGui::SliderFloat("##brightness", &renderSystems.composit->peak_brightness, 1.f, 15.f);
         ImGui::Text("Gamma Correction");
-        ImGui::SliderFloat("##gamma", &postProcessing->gamma, 1.f, 3.f);
+        ImGui::SliderFloat("##gamma", &renderSystems.composit->gamma, 1.f, 3.f);
         
         ImGui::NewLine();
         float color[4] = {ubo.lightColor.r, ubo.lightColor.g, ubo.lightColor.b, ubo.lightColor.a};

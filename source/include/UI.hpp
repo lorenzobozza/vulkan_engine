@@ -32,6 +32,7 @@ public:
     enum Widget {
         Viewport = 0,
         Log,
+        Assets,
         
         TotalCount
     };
@@ -45,7 +46,6 @@ public:
     static ImGuiKey ImGui_SDL2_KeyEventToImGuiKey(SDL_Keycode keycode);
     static char ImGuiKey_to_Charecter(ImGuiKey imgui_key, bool shift);
     static void setBessDarkColors(void);
-    static void OnImGui(std::string directoryPath);
 
 private:
     std::vector<char> readFile(const std::string &filepath);
@@ -77,6 +77,7 @@ private:
     
     ImGuiContext* context;
     
+    static void treeAssetsWidget(void);
     
     struct Widget_s {
         Widget_s(bool showWidget, std::function<void()> callback) : m_callback(callback), isVisible(showWidget) {};

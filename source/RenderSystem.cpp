@@ -88,9 +88,13 @@ void RenderSystem::createPipeline(VkRenderPass renderPass) {
         shaderPath+".vert",
         shaderPath+".frag",
         pipelineConfig);
-    }
+}
 
 void RenderSystem::renderSolidObjects(FrameInfo &frameInfo) {
+  if (getPipelineStatus() != Pipeline::Status::OK) {
+    return;
+  }
+  
   pipeline->bind(frameInfo.commandBuffer);
 
   for (auto &kv : frameInfo.primitives) {
@@ -130,6 +134,10 @@ void RenderSystem::renderSolidObjects(FrameInfo &frameInfo) {
 }
 
 void RenderSystem::renderSolidObjects(FrameInfoNoMaterials &frameInfo) {
+  if (getPipelineStatus() != Pipeline::Status::OK) {
+    return;
+  }
+
   pipeline->bind(frameInfo.commandBuffer);
 
   for (auto &kv : frameInfo.primitives) {

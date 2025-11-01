@@ -46,16 +46,19 @@ public:
     Pipeline(const Pipeline &) = delete;
     Pipeline &operator=(const Pipeline &) = delete;
     
+    enum Status {
+        OK = 0,
+        ERR
+    };
+    
     void bind(VkCommandBuffer commandBuffer);
+    
+    Status getInternalStatus(void) { return m_internalStatus; }
 
     static void defaultPipelineConfigInfo(PipelineConfigInfo& configInfo);
     
 private:
-    enum CreatePipelineResult {
-        OK = 0,
-        Error
-    };
-    CreatePipelineResult createGraphicsPipeline(const std::string &vertFilepath, const std::string &fragFilepath, const PipelineConfigInfo &configInfo);
+    Status createGraphicsPipeline(const std::string &vertFilepath, const std::string &fragFilepath, const PipelineConfigInfo &configInfo);
     
     void createShaderModule(std::vector<uint32_t>& vecShader, VkShaderModule *shaderModule);
     
@@ -63,6 +66,8 @@ private:
     VkPipeline graphicsPipeline;
     VkShaderModule vertShaderModule;
     VkShaderModule fragShaderModule;
+    
+    Status m_internalStatus;
 };
 
 #endif /* Pipeline_hpp */
