@@ -13,6 +13,51 @@
 
 #include "Log.hpp"
 
+class ShaderIncluderInterface : public shaderc::CompileOptions::IncluderInterface {
+public:
+    shaderc_include_result* GetInclude(const char* requested_source, shaderc_include_type type, const char* requesting_source, size_t include_depth) override {
+    
+        const std::string name = std::string(requested_source);
+        std::string source;
+        
+        std::ifstream file;
+        file.open("../../../shaders/" + name, std::ios::ate | std::ios::binary);
+            
+        if (file.rdstate() == std::ios::goodbit && file.is_open()) {
+            size_t filesize = static_cast<size_t>(file.tellg());
+            source.resize(filesize);
+            
+            file.seekg(0);
+            file.read(source.data(), filesize);
+            file.close();
+        }
+
+        auto container = new std::array<std::string, 2>;
+        (*container)[0] = std::move(name);
+        (*container)[1] = std::move(source);
+
+        auto data = new shaderc_include_result;
+
+        data->user_data = container;
+
+        data->source_name = (*container)[0].data();
+        data->source_name_length = (*container)[0].size();
+
+        data->content = (*container)[1].data();
+        data->content_length = (*container)[1].size();
+    
+        return data;
+    }
+
+    void ReleaseInclude(shaderc_include_result* data) override {
+        delete static_cast<std::array<std::string, 2>*>(data->user_data);
+        delete data;
+    }
+    
+    ~ShaderIncluderInterface() = default;
+};
+
+
 class ShaderCompiler {
 public:
     ShaderCompiler() = default;
@@ -41,7 +86,7 @@ public:
             return State::Valid;
         }
 
-        file.open("../../../shaders/" + fileName, std::ios::ate);
+        file.open("../../../shaders/" + fileName, std::ios::ate | std::ios::binary);
         
         if (file.rdstate() == std::ios::goodbit && file.is_open()) {
             size_t filesize = static_cast<size_t>(file.tellg());
@@ -60,6 +105,7 @@ public:
             };
             
             sinfo.options.SetOptimizationLevel(shaderc_optimization_level_performance);
+            sinfo.options.SetIncluder(std::make_unique<ShaderIncluderInterface>());
             
             return compileShader(sinfo);
         }

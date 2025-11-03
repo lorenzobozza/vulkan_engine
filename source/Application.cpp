@@ -10,14 +10,18 @@
 #include "include/UI.hpp"
 #include "include/Buffer.hpp"
 #include "include/importGLTF.hpp"
-
 #include "include/Material.hpp"
+
+#define UTILS_IMPL
+#include "include/utils.h"
 
 //libs
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
+
+#include <imgui_internal.h>
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -29,25 +33,6 @@
 #include <future>
 #include <functional>
 
-#include <imgui_internal.h>
-
-#define ENHANCED_MT
-
-// Count Trailing Zeros
-unsigned ctz(int n) {
-    unsigned bits = 0, x = n;
-    if (x) {
-        /* mask the 8 low order bits, add 8 and shift them out if they are all 0 */
-        if (!(x & 0x000000FF)) { bits +=  8; x >>=  8; }
-        /* mask the 4 low order bits, add 4 and shift them out if they are all 0 */
-        if (!(x & 0x0000000F)) { bits +=  4; x >>=  4; }
-        /* mask the 2 low order bits, add 2 and shift them out if they are all 0 */
-        if (!(x & 0x00000003)) { bits +=  2; x >>=  2; }
-        /* mask the low order bit and add 1 if it is 0 */
-        bits += (x & 1) ^ 1;
-    }
-    return bits;
-}
 
 Application::Application(const char* binaryPath) : binaryDir{binaryPath} {
     while(binaryDir.back() != '/' && !binaryDir.empty()) binaryDir.pop_back();

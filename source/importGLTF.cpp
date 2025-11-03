@@ -10,7 +10,7 @@
 #define TINYGLTF_IMPLEMENTATION
 
 #include <tinygltf/tiny_gltf.h>
-#include "include/mikktspace.h"
+#include "mikktspace.h"
 
 #include "TaskScheduler.h"
 

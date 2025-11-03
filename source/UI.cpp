@@ -184,8 +184,6 @@ void UI::createDescriptors(void) {
             .writeImage(0, &fontDescriptorInfo)
             .build(descriptor.v_set.at(i));
     }
-    
-    Log::getInstance()->info("{}BENE",1);
 }
 
 
