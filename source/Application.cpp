@@ -96,7 +96,7 @@ void Application::run() {
         textures.push_back(std::make_unique<Texture>(
             this->vulkanDevice,
             vulkanImage,
-            "../../../assets/textures/symmetrical_garden_02_8k.hdr",
+            "../../../assets/textures/mondello_4k.hdr",
             false,
             VK_FORMAT_R32G32B32A32_SFLOAT
         ));
@@ -107,7 +107,7 @@ void Application::run() {
     
         // Multithreaded job, migliorare la creazione dei task-sets
         NodeSet::InitStruct initNodeStruct{vulkanDevice, vulkanImage, primitives, textures, materials};
-        NodeSet(initNodeStruct, binaryDir + "Sponza.glb");
+        NodeSet(initNodeStruct, binaryDir + "../../../assets/models/Sponza.glb");
 
         // Cubemap 3D canvas
         auto cube = Primitive::new_primitive();

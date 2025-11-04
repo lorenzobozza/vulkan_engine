@@ -346,7 +346,7 @@ void UI::loadFontTexture(void) {
     ImFontConfig c{};
     c.OversampleH = 4;
     c.OversampleV = 4;
-    io.Fonts->AddFontFromFileTTF("fonts/Inter.ttf", 20.f, &c);
+    io.Fonts->AddFontFromFileTTF("../../../assets/fonts/Inter.ttf", 20.f, &c);
     io.Fonts->GetTexDataAsRGBA32(&fontData, &texWidth, &texHeight);
 
     if (!fontData) {
