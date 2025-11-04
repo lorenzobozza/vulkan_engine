@@ -26,6 +26,12 @@ Renderer::~Renderer() {
     destroyBrdfLut();
 }
 
+RenderPass& operator++(RenderPass& orig)
+{
+  orig = (orig < RenderPass::TotalCount) ? static_cast<RenderPass>(orig + 1) : RenderPass::TotalCount;
+  return orig;
+}
+
 void Renderer::createRenderPasses(void) {
     for (RenderPass p{}; p < RenderPass::TotalCount; ++p) {
         switch (p) {

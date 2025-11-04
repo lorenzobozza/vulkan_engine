@@ -28,12 +28,6 @@ enum RenderPass : unsigned int{
     TotalCount
 };
 
-RenderPass& operator++(RenderPass& orig)
-{
-  orig = (orig < RenderPass::TotalCount) ? static_cast<RenderPass>(orig + 1) : RenderPass::TotalCount;
-  return orig;
-}
-
 class Renderer {
 private:
     struct MultiFrameBufferAttachment {

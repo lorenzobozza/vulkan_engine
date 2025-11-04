@@ -51,8 +51,8 @@ private:
     std::chrono::high_resolution_clock::time_point cpuStop{};
     std::chrono::high_resolution_clock::time_point gpuStop{};
 public:
-    float cpuTime{0};
-    float gpuTime{16.f};
+    float cpuTime{.001f};
+    float gpuTime{.016f};
     void startFrame(void) { start = std::chrono::high_resolution_clock::now(); }
     void cpuEnd(void) { cpuStop = std::chrono::high_resolution_clock::now(); cpuTime = std::chrono::duration<float, std::chrono::seconds::period>(cpuStop - start).count(); }
     void gpuEnd(void) { gpuStop = std::chrono::high_resolution_clock::now(); gpuTime = std::chrono::duration<float, std::chrono::seconds::period>(gpuStop - cpuStop).count(); }

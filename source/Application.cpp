@@ -25,11 +25,7 @@
 #include FT_FREETYPE_H
 
 //std
-#include <cassert>
-#include <chrono>
-#include <iostream>
-#include <future>
-#include <functional>
+#include <thread>
 
 struct WidgetStruct {
     std::shared_ptr<Viewport> view;
