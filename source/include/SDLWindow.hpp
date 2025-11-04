@@ -62,7 +62,7 @@ private:
     std::string windowName;
     SDL_Window* window;
     
-    float dpi_scale_fact;
+    float dpi_scale_fact{1.f};
     bool keepRuning = true;
     
     // Inputs

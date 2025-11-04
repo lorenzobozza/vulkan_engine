@@ -37,11 +37,6 @@ struct WidgetStruct {
 };
 
 
-Application::Application(const char* binaryPath) : binaryDir{binaryPath} {
-    //while(binaryDir.back() != '/' && !binaryDir.empty()) binaryDir.pop_back();
-    binaryDir = "./";
-}
-
 void Application::run() {
     UI ui(vulkanDevice, renderer);
     
@@ -122,7 +117,7 @@ void Application::run() {
         
     while (!assetsLoaded) {
 
-        window.pollWindowEvents([this](){ renderer.recreateSwapChain(); });
+        window.pollWindowEvents([this, widgets](){ renderer.recreateSwapChain(); widgets.view->setExtent(renderer.getSwapChainExtent().width * 0.66f, renderer.getSwapChainExtent().height * 0.66f); });
         
         ui.newFrame();
         
@@ -323,7 +318,7 @@ void Application::run() {
         
         m_Perf.startFrame();
         
-        window.pollWindowEvents([this](){ renderer.recreateSwapChain(); });
+        window.pollWindowEvents([this, widgets](){ renderer.recreateSwapChain(); widgets.view->setExtent(renderer.getSwapChainExtent().width * 0.66f, renderer.getSwapChainExtent().height * 0.66f); });
         
         // Prepare next GUI Frame
         ui.newFrame();

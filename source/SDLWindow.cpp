@@ -198,7 +198,7 @@ void SDLWindow::pollWindowEvents(std::function<void()> callback) {
                 }
                 break;
             case SDL_MOUSEWHEEL:
-                io.AddMouseWheelEvent(sdl_event.wheel.preciseX, sdl_event.wheel.preciseX);
+                io.AddMouseWheelEvent(sdl_event.wheel.preciseX, sdl_event.wheel.preciseY);
                 break;
         }
     }

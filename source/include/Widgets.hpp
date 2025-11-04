@@ -46,7 +46,7 @@ class LogView : public Widget {
     }
     void content(void) override {
         ImGui::Begin("Log Console", nullptr, ImGuiWindowFlags_NoCollapse);
-        ImGui::TextUnformatted(Log::getInstance()->getBuffer());
+        ImGui::TextWrapped(Log::getInstance()->getBuffer());
         ImGui::End();
     }
 };

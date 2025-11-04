@@ -64,7 +64,7 @@ public:
     static constexpr int WIDTH = 1920;
     static constexpr int HEIGHT = 1080;
     
-    Application(const char* binaryPath);
+    Application() = default;
     ~Application() = default;
     
     // Prevent Obj copy
@@ -100,7 +100,7 @@ private:
     
     Perf m_Perf;
     
-    std::string binaryDir;
+    const std::string binaryDir = "./";
     
     GlobalUbo ubo{};
     

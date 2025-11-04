@@ -61,22 +61,21 @@ void Renderer::destroyRenderPasses(void) {
 }
 
 void Renderer::recreateSwapChain() {
-    auto extent = window.getExtent();
-    while (extent.width == 0 || extent.height == 0) {
-        extent = window.getExtent();
-        //glfwWaitEvents();
+    VkExtent2D actualExtent = window.getExtent();
+    while (actualExtent.width == 0 || actualExtent.height == 0) {
+        actualExtent = window.getExtent();
     }
     vkDeviceWaitIdle(device.device());
     
     if (swapChain == nullptr) {
-        swapChain = std::make_unique<SwapChain>(device, extent);
+        swapChain = std::make_unique<SwapChain>(device, actualExtent);
         
         createRenderPasses();
         
     } else {
-        std::shared_ptr<SwapChain> oldSwapChain = std::move(swapChain);
-        swapChain = std::make_unique<SwapChain>(device, extent, std::move(swapChain));
-        if(oldSwapChain->getSwapChainExtent().width != extent.width || oldSwapChain->getSwapChainExtent().height != extent.height || recreateOffscreenFlag) {
+        VkExtent2D oldExtent = swapChain->getSwapChainExtent();
+        swapChain = std::make_unique<SwapChain>(device, actualExtent, std::move(swapChain));
+        if(oldExtent.width != actualExtent.width || oldExtent.height != actualExtent.height || recreateOffscreenFlag) {
             
             destroyRenderPasses();
             createRenderPasses();
