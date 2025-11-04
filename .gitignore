@@ -4,7 +4,6 @@
 *.ilk
 *.bat
 *.cmake
-*.png
 build/
 xcode-build/
 cache/

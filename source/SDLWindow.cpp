@@ -54,7 +54,7 @@ void SDLWindow::initWindow() {
         SDL_WINDOW_VULKAN | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_RESIZABLE
     );
     
-    SDL_Surface *surface = IMG_Load("3d.png");
+    SDL_Surface *surface = IMG_Load("../../../assets/icon.png");
     SDL_SetWindowIcon(window, surface);
     SDL_FreeSurface(surface);
     
