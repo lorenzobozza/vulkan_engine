@@ -19,6 +19,24 @@
 
 #include <functional>
 
+class Widget {
+public:
+    void draw(void) {
+        header();
+        if(getVisibility()) {
+            content();
+        }
+    }
+    bool& getVisibility(void) { return private_visibility; }
+    const std::string getName(void) { return typeid(*this).name(); }
+    ~Widget() = default;
+
+private:
+    virtual void content(void) = 0;
+    virtual void header(void) {}
+    bool private_visibility = true;
+};
+
 class UI {
 public:
     UI(Device &device, Renderer& renderer);
@@ -28,16 +46,8 @@ public:
 		glm::vec2 scale;
 		glm::vec2 translate;
 	} pushConstBlock;
- 
-    enum Widget {
-        Viewport = 0,
-        Log,
-        Assets,
-        
-        TotalCount
-    };
     
-    void newFrame(Application *app);
+    void newFrame(void);
     void updateBuffers(int frameIndex);
     void draw(VkCommandBuffer commandBuffer, int frameIndex);
     
@@ -46,6 +56,15 @@ public:
     static ImGuiKey ImGui_SDL2_KeyEventToImGuiKey(SDL_Keycode keycode);
     static char ImGuiKey_to_Charecter(ImGuiKey imgui_key, bool shift);
     static void setBessDarkColors(void);
+    
+    static void treeAssetsWidget(void);
+    
+    template <typename... Args>
+    void addWidgets(Args ...arg) {
+        static_assert(std::conjunction<std::is_base_of<Widget, typename std::remove_reference<decltype(*arg)>::type>...>::value,
+            "\nThe addWidget function only accepts shared_ptr<Widget>");
+        (widgets.push_back(arg), ...);
+    }
 
 private:
     std::vector<char> readFile(const std::string &filepath);
@@ -77,31 +96,7 @@ private:
     
     ImGuiContext* context;
     
-    static void treeAssetsWidget(void);
-    
-    struct Widget_s {
-        Widget_s(bool showWidget, std::function<void()> callback) : m_callback(callback), isVisible(showWidget) {};
-        Widget_s() = default;
-        
-        bool isVisible = false;
-        void bind(std::function<void()> f) { m_callback = f; }
-        void draw(void) { if (isVisible && m_callback != nullptr) m_callback(); }
-
-    private:
-        std::function<void()> m_callback;
-    };
-    
-    std::array<Widget_s, Widget::TotalCount> widgets;
-    
-    void buildWidgets(void);
-    
-public:
-    void showWidget(Widget id) { if (id < Widget::TotalCount) widgets[id].isVisible = true; }
-    void hideWidget(Widget id) { if (id < Widget::TotalCount) widgets[id].isVisible = false; }
-    void toggleWidget(Widget id) { if (id < Widget::TotalCount) widgets[id].isVisible ^= true; }
-    
-    void bindWidget(Widget id, std::function<void()> f) { if (id < Widget::TotalCount) widgets[id].bind(f); }
-    
+    std::vector<std::shared_ptr<Widget>> widgets;
 };
 
 #endif /* UI_hpp */

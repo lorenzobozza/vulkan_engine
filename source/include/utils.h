@@ -8,19 +8,13 @@
 #ifndef utils_hpp
 #define utils_hpp
 
-#ifndef UTILS_IMPL
 template <typename T, typename... Rest>
-void hashCombine(std::size_t& seed, const T& v, const Rest&... rest);
-
-unsigned ctz(int n);
-#else
-template <typename T, typename... Rest>
-void hashCombine(std::size_t& seed, const T& v, const Rest&... rest) {
+static void hashCombine(std::size_t& seed, const T& v, const Rest&... rest) {
   seed ^= std::hash<T>{}(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
   (hashCombine(seed, rest), ...);
 };
 
-unsigned ctz(int n) {
+static unsigned ctz(int n) {
     unsigned bits = 0, x = n;
     if (x) {
         /* mask the 8 low order bits, add 8 and shift them out if they are all 0 */
@@ -34,6 +28,5 @@ unsigned ctz(int n) {
     }
     return bits;
 }
-#endif
 
 #endif /* utils_hpp */

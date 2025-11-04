@@ -11,9 +11,7 @@
 #include "include/Buffer.hpp"
 #include "include/importGLTF.hpp"
 #include "include/Material.hpp"
-
-#define UTILS_IMPL
-#include "include/utils.h"
+#include "Widgets.hpp"
 
 //libs
 #define GLM_FORCE_RADIANS
@@ -33,17 +31,37 @@
 #include <future>
 #include <functional>
 
+struct WidgetStruct {
+    std::shared_ptr<Viewport> view;
+    std::shared_ptr<LogView> log;
+    std::shared_ptr<AssetTree> assets;
+    std::shared_ptr<MeterialViewer> material;
+    std::shared_ptr<Settings> settings;
+    std::shared_ptr<Menu> menu;
+};
+
 
 Application::Application(const char* binaryPath) : binaryDir{binaryPath} {
     while(binaryDir.back() != '/' && !binaryDir.empty()) binaryDir.pop_back();
 }
 
 void Application::run() {
-    UI imgui(vulkanDevice, renderer);
-
-
-        // GAMELOOP TIMING
-        auto currentTime = std::chrono::high_resolution_clock::now();
+    UI ui(vulkanDevice, renderer);
+    
+    WidgetStruct widgets {
+        .view = std::make_shared<Viewport>(),
+        .log = std::make_shared<LogView>(),
+        .assets = std::make_shared<AssetTree>(),
+        .material = std::make_shared<MeterialViewer>(materials),
+        .settings = std::make_shared<Settings>(vulkanDevice,window,renderer,m_Perf)
+    };
+    widgets.menu = std::make_shared<Menu>(widgets.log->getVisibility(), widgets.material->getVisibility());
+    ui.addWidgets(widgets.view, widgets.log, widgets.assets, widgets.material, widgets.settings, widgets.menu);
+    
+    widgets.log->getVisibility() = false;
+    widgets.material->getVisibility() = false;
+    widgets.view->setExtent(renderer.getSwapChainExtent().width * 0.66f, renderer.getSwapChainExtent().height * 0.66f);
+    widgets.view->addFlags(ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_AlwaysAutoResize|ImGuiWindowFlags_NoBackground);
 
         Camera camera{};
         float aspectRatio = renderer.getAspectRatio();
@@ -109,12 +127,12 @@ void Application::run() {
 
         window.pollWindowEvents([this](){ renderer.recreateSwapChain(); });
         
-        imgui.newFrame(this);
+        ui.newFrame();
         
         if (auto commandBuffer = renderer.beginFrame()) {
             frameIndex = renderer.getFrameIndex();
             
-            imgui.updateBuffers(frameIndex);
+            ui.updateBuffers(frameIndex);
             
             //Render
             renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::DepthPass);
@@ -127,7 +145,7 @@ void Application::run() {
             renderer.endRenderPass(commandBuffer);
             
             renderer.beginSwapChainRenderPass(commandBuffer);
-            imgui.draw(commandBuffer, frameIndex);
+            ui.draw(commandBuffer, frameIndex);
             renderer.endRenderPass(commandBuffer);
             
             renderer.endFrame();
@@ -297,43 +315,21 @@ void Application::run() {
         }
     }
     
-    
-    
-    // Hide not supported anti-aliasing presets from GUI
-    aaPresets.resize(1 + ctz(vulkanDevice.maxSampleCount));
-    
-    auto counter4Hz = std::chrono::high_resolution_clock::now();
+    widgets.settings->recreatePipelinesCallback([this](void){
+        renderSystems.pbr->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
+        renderSystems.skybox->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
+    });
+
     
     while(window.isWindowOpen())
     {
-        // Compute frame latency and store the value
-        auto newTime = std::chrono::high_resolution_clock::now();
-        
-        float frameTime = std::chrono::duration<float, std::chrono::seconds::period>(newTime -  currentTime).count();
-        currentTime = newTime;
-        frameTimes.push_back(frameTime);
-        if (frameTimes.size() > 50) {
-            frameTimes.erase(frameTimes.begin());
-        }
-        frameTime = glm::min(frameTime, .05f); // Prevent movement glitches when resizing
-        if (std::chrono::duration<float, std::chrono::seconds::period>(newTime -  counter4Hz).count() > .25f) {
-            counter4Hz = newTime;
-            float avg = 0;
-            for (int k = 0; k < frameTimes.size(); k++) { avg += frameTimes[k]; }
-            avg = avg / frameTimes.size();
-            avg = 1.f / avg;
-            framesPerSecond.push_back(avg);
-            if (framesPerSecond.size() > 75) {
-                framesPerSecond.erase(framesPerSecond.begin());
-            }
-        }
         
         m_Perf.startFrame();
         
         window.pollWindowEvents([this](){ renderer.recreateSwapChain(); });
         
         // Prepare next GUI Frame
-        imgui.newFrame(this);
+        ui.newFrame();
         
         glm::vec3 rotate = window.getRotation();
         if (glm::dot(rotate, rotate) > glm::epsilon<float>()) {
@@ -356,7 +352,7 @@ void Application::run() {
             if (movement & 0x10) { moveDir -= upDir; }
             if (movement & 0x20) { moveDir += upDir; }
             if (glm::dot(moveDir, moveDir) > glm::epsilon<float>()) {
-                cameraObj.transform.translation += 8.f * frameTime * glm::normalize(moveDir);
+                cameraObj.transform.translation += 8.f * m_Perf.gpuTime * glm::normalize(moveDir);
             }
         }
         
@@ -379,7 +375,7 @@ void Application::run() {
             frameIndex = renderer.getFrameIndex();
             FrameInfoNoMaterials depthInfo{
                 frameIndex,
-                frameTime,
+                m_Perf.gpuTime,
                 commandBuffer,
                 camera,
                 depthDescriptorSets[frameIndex],
@@ -388,7 +384,7 @@ void Application::run() {
             
             FrameInfo frameInfo{
                 frameIndex,
-                frameTime,
+                m_Perf.gpuTime,
                 commandBuffer,
                 camera,
                 inFlightDescriptorSets[frameIndex],
@@ -398,7 +394,7 @@ void Application::run() {
             
             FrameInfo skyboxInfo{
                 frameIndex,
-                frameTime,
+                m_Perf.gpuTime,
                 commandBuffer,
                 camera,
                 skyboxDescriptorSets[frameIndex],
@@ -415,7 +411,7 @@ void Application::run() {
             uboBuffers[frameIndex]->flush();
             
             // Update UI Buffer
-            imgui.updateBuffers(frameIndex);
+            ui.updateBuffers(frameIndex);
             
             // RenderPass
             renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::DepthPass);
@@ -432,7 +428,7 @@ void Application::run() {
             renderer.endRenderPass(commandBuffer);
             
             renderer.beginSwapChainRenderPass(commandBuffer);
-            imgui.draw(commandBuffer, frameIndex);
+            ui.draw(commandBuffer, frameIndex);
             renderer.endRenderPass(commandBuffer);
             
             renderer.endFrame();
@@ -443,153 +439,4 @@ void Application::run() {
     }
     vkDeviceWaitIdle(vulkanDevice.device());
     
-}
-
-void Application::renderViewport(void) {
-    int flags = ImGui::IsKeyDown(ImGuiKey_LeftCtrl) ? 0 : ImGuiWindowFlags_NoMouseInputs;
-    flags |= ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBackground;
-    float height = (float)renderer.getSwapChainExtent().height * .66f;
-    float width = (float)renderer.getSwapChainExtent().width * .66f;
-    ImGui::SetNextWindowContentSize(ImVec2(width, height));
-    if (ImGui::Begin("Viewport", nullptr, flags)) {
-        ImGuiDockNode* id = ImGui::GetWindowDockNode();
-        id->LocalFlags |= ImGuiDockNodeFlags_NoResize;
-        
-        ImGui::Image( (void*)(intptr_t) 1, ImVec2(width, height) );
-
-        ImGui::End();
-    }
-}
-
-void Application::renderImguiContent() {
-    static auto counter10Hz = std::chrono::high_resolution_clock::now();
-    
-    renderViewport();
-    
-    static bool showMaterials = false;
-    if (ImGui::Begin("Materials")) {
-        ImGui::Checkbox("Show Materials Table", &showMaterials);
-        if (showMaterials && ImGui::BeginTable("material_table", 5, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
-        {
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn(); ImGui::Text("Name");
-            ImGui::TableNextColumn(); ImGui::Text("Color");
-            ImGui::TableNextColumn(); ImGui::Text("Normal");
-            ImGui::TableNextColumn(); ImGui::Text("Occlusion");
-            ImGui::TableNextColumn(); ImGui::Text("Metal/Rough");
-            for (auto& kv: materials) {
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", kv.first.c_str());
-                ImGui::TableNextColumn();
-                if ((kv.second.getTextureBitmap() & 0x1) == 0) {ImGui::ColorButton("", ImVec4(kv.second.color.r,kv.second.color.g,kv.second.color.b,kv.second.color.a));}
-                else { ImGui::Text("%s","Texture"); }
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", (kv.second.getTextureBitmap() & 0x2) == 0 ? "NO" : "Texture");
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", (kv.second.getTextureBitmap() & 0x4) == 0 ? "NO" : "Texture");
-                ImGui::TableNextColumn();
-                ImGui::Text("%s", (kv.second.getTextureBitmap() & 0x8) == 0 ? ( "M: " + std::to_string(kv.second.metalness) + ", R: " + std::to_string(kv.second.roughness) ).c_str() : "Texture");
-            }
-            ImGui::EndTable();
-        }
-        if (ImGui::Button("Open...")) {
-            std::string file = window.openFileDialog("/");
-        }
-        ImGui::End();
-    }
-    
-    float ddpi;
-    SDL_GetDisplayDPI(0, &ddpi, nullptr, nullptr);
-    
-    /**** SETTINGS WINDOW **/
-    if (ImGui::Begin("Settings")) {
-    
-        std::string label = std::to_string((int)framesPerSecond.rbegin()[0]) + " FPS";
-        ImGui::PlotLines(label.c_str(), framesPerSecond.data(), (int)framesPerSecond.size(), 0, NULL, 0, FLT_MAX, {0, 100});
-        
-        static float frameTime = frameTimes.back() * 1000.f;
-        if(std::chrono::duration<float, std::chrono::milliseconds::period>(std::chrono::high_resolution_clock::now() - counter10Hz).count() > 100.f) {
-            frameTime = frameTimes.back() * 1000.f;
-            counter10Hz = std::chrono::high_resolution_clock::now();
-        }
-        ImGui::Text("CPU Time %.2fms", m_Perf.cpuTime * 1000.f);
-        ImGui::Text("GPU Time %.2fms", m_Perf.gpuTime * 1000.f);
-        
-        ImGui::NewLine();
-        ImGui::Text("FIF: %i", SwapChain::MAX_FRAMES_IN_FLIGHT);
-        
-        ImGui::NewLine();
-        static int windowMode = 0;
-        if (ImGui::Combo("##fullscreen", &windowMode, "Windowed\0Windowed Borderless\0Full Screen\0")) {
-            switch (windowMode) {
-                case 0:
-                window.setWindowFullScreen(0);
-                renderer.recreateOffscreenFlag = VK_TRUE;
-                    break;
-                case 1:
-                window.setWindowFullScreen(SDL_WINDOW_FULLSCREEN_DESKTOP);
-                    break;
-                case 2:
-                window.setWindowFullScreen(SDL_WINDOW_FULLSCREEN);
-                    break;
-            }
-        }
-        static int res = 0;
-        if (ImGui::Combo("##resolution", &res, window.supportedResNames.c_str())) {
-            window.setWindowExtent(window.supportedModes[res].w, window.supportedModes[res].h);
-            if (windowMode == 2) {
-                window.setWindowFullScreen(SDL_WINDOW_FULLSCREEN);
-            }
-        }
-        
-        ImGui::NewLine();
-        static bool vsync = SwapChain::enableVSync;
-        ImGui::Checkbox(vsync ? "VSync Enabled" : "VSync Disabled", &vsync);
-        if (SwapChain::enableVSync != vsync) {
-            SwapChain::enableVSync = vsync;
-            renderer.recreateSwapChain();
-        }
-        
-        ImGui::NewLine();
-        static int aaIndex = ctz(vulkanDevice.msaaSamples);
-        ImGui::Text("Anti-Aliasing");
-        if (ImGui::Combo("##antialiasing", &aaIndex, aaPresets.data(), (int)aaPresets.size())) {
-            vulkanDevice.msaaSamples = static_cast<VkSampleCountFlagBits>(1 << aaIndex);
-            renderer.recreateOffscreenFlag = true;
-            renderer.recreateSwapChain();
-            renderSystems.pbr->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
-            renderSystems.skybox->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
-        }
-        
-        ImGui::NewLine();
-        if (ImGui::Button("Refresh pipelines")) {
-            vkDeviceWaitIdle(vulkanDevice.device());
-            renderSystems.pbr->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
-            renderSystems.skybox->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
-        }
-        
-        ImGui::NewLine();
-        ImGui::Text("Exposure");
-        ImGui::SliderFloat("##exposure", &renderSystems.composit->exposure, 1.f, 5.f);
-        ImGui::Text("Peak White Brightness");
-        ImGui::SliderFloat("##brightness", &renderSystems.composit->peak_brightness, 1.f, 15.f);
-        ImGui::Text("Gamma Correction");
-        ImGui::SliderFloat("##gamma", &renderSystems.composit->gamma, 1.f, 3.f);
-        
-        ImGui::NewLine();
-        float color[4] = {ubo.lightColor.r, ubo.lightColor.g, ubo.lightColor.b, ubo.lightColor.a};
-        ImGui::ColorEdit3("Light Color", color);
-        ImGui::SliderFloat("##strength", &color[3], 1.f, 100.f);
-        ubo.lightColor = {color[0], color[1], color[2], color[3]};
-        
-        glm::vec4 lightPos = ubo.lightPosition[0];
-        ImGui::SliderFloat("LPosX", &lightPos.x, -3.f, 3.f);
-        ImGui::SliderFloat("LPosY", &lightPos.y, -.5f, -5.f);
-        ImGui::SliderFloat("LPosZ", &lightPos.z, -4.f, 4.f);
-        ubo.lightPosition[0] = lightPos;
-        ubo.lightPosition[1].z = - lightPos.z;
-
-        ImGui::End();
-    }
 }

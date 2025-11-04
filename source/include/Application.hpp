@@ -45,6 +45,19 @@ struct GlobalUbo {
     glm::mat4 invViewMatrix{1.f};
 };
 
+struct Perf {
+private:
+    std::chrono::high_resolution_clock::time_point start{};
+    std::chrono::high_resolution_clock::time_point cpuStop{};
+    std::chrono::high_resolution_clock::time_point gpuStop{};
+public:
+    float cpuTime{0};
+    float gpuTime{16.f};
+    void startFrame(void) { start = std::chrono::high_resolution_clock::now(); }
+    void cpuEnd(void) { cpuStop = std::chrono::high_resolution_clock::now(); cpuTime = std::chrono::duration<float, std::chrono::seconds::period>(cpuStop - start).count(); }
+    void gpuEnd(void) { gpuStop = std::chrono::high_resolution_clock::now(); gpuTime = std::chrono::duration<float, std::chrono::seconds::period>(gpuStop - cpuStop).count(); }
+};
+
 class Application {
 public:
     static constexpr int WIDTH = 1920;
@@ -59,12 +72,6 @@ public:
     
     void run();
     void simulate();
-    void renderImguiContent();
-    
-    // UI
-    void renderViewport(void);
-    
-    static int sum(int a) { return a + a; }
     
 private:
     
@@ -72,9 +79,6 @@ private:
     Device vulkanDevice{window};
     Renderer renderer{window, vulkanDevice};
     Image vulkanImage{vulkanDevice};
-    std::unique_ptr<RenderSystem> depthSystem;
-    std::unique_ptr<RenderSystem> renderSystem;
-    std::unique_ptr<RenderSystem> skyboxSystem;
 
     struct RenderSystems_s {
         std::unique_ptr<RenderSystem> depth;
@@ -86,35 +90,18 @@ private:
     std::vector<std::unique_ptr<Texture>> textures{};
     std::unordered_map<std::string, Material> materials{};
     
-    std::vector<VkDescriptorImageInfo> textureInfos{};
     bool assetsLoaded = false;
     
     Primitive::Map primitives;
     Primitive::Map env;
 
     int frameIndex{0};
-    std::vector<float> frameTimes{0};
-    std::vector<float> framesPerSecond{0};
     
-    struct {
-        private:
-            std::chrono::high_resolution_clock::time_point start{};
-            std::chrono::high_resolution_clock::time_point cpuStop{};
-            std::chrono::high_resolution_clock::time_point gpuStop{};
-        public:
-            float cpuTime{0};
-            float gpuTime{0};
-            void startFrame(void) { start = std::chrono::high_resolution_clock::now(); }
-            void cpuEnd(void) { cpuStop = std::chrono::high_resolution_clock::now(); cpuTime = std::chrono::duration<float, std::chrono::seconds::period>(cpuStop - start).count(); }
-            void gpuEnd(void) { gpuStop = std::chrono::high_resolution_clock::now(); gpuTime = std::chrono::duration<float, std::chrono::seconds::period>(gpuStop - cpuStop).count(); }
-    } m_Perf;
+    Perf m_Perf;
     
     std::string binaryDir;
     
     GlobalUbo ubo{};
-    int materialIndex = 0;
-    
-    std::vector<const char*> aaPresets = {"No AA", "MSAA 2X", "MSAA 4X", "MSAA 8X", "MSAA 16X"};
     
     struct{
         int width;

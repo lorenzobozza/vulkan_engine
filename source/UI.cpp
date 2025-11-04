@@ -34,8 +34,6 @@ UI::UI(Device &device, Renderer& renderer) : device{device}, m_Renderer{renderer
     loadFontTexture();
     createDescriptors();
     createPipeline(m_Renderer.getSwapChainRenderPass(), "imgui");
-    
-    buildWidgets();
 }
 
 UI::~UI() {
@@ -186,36 +184,8 @@ void UI::createDescriptors(void) {
     }
 }
 
-
-static void logWidget(void) {
-    ImGui::Begin("Log Console", nullptr, ImGuiWindowFlags_NoCollapse);
-    ImGui::TextUnformatted(Log::getInstance()->getBuffer());
-    ImGui::End();
-}
-
-void UI::buildWidgets(void) {
-    widgets[Widget::Assets] = Widget_s(true, std::bind(treeAssetsWidget));
-    widgets[Widget::Log] = Widget_s(false, std::bind(logWidget));
-}
-
-void UI::newFrame(Application *app) {
+void UI::newFrame(void) {
     ImGui::NewFrame();
-    
-    if (Log::getInstance()->notifyErrors()) {
-        ImGuiWindow* log = ImGui::FindWindowByName("Log Console");
-        if (log != nullptr) ImGui::SetScrollY(log, 1000.f);
-        showWidget(Widget::Log);
-    }
-    
-    ImGui::BeginMainMenuBar();
-    
-    
-    if (ImGui::Button("Log Console")) {
-        toggleWidget(Widget::Log);
-    }
-    
-    
-    ImGui::EndMainMenuBar();
     
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
 
@@ -257,11 +227,9 @@ void UI::newFrame(Application *app) {
         firstLoop = false;
     }
     
-    for (int i = 0; i < Widget::TotalCount; i++) {
-        widgets[i].draw();
+    for (auto& widget : widgets) {
+        widget->draw();
     }
-    
-    app->renderImguiContent();
     
     ImGui::End(); // "DockSpace"
     ImGui::Render();
