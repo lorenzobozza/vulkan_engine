@@ -6,6 +6,7 @@
 //
 
 #include "Renderer.hpp"
+#include <array>
 
 void Renderer::integrateBrdfLut(std::string shaderPath) {
     VkAttachmentDescription attachment = {};
@@ -241,7 +242,7 @@ void Renderer::integrateBrdfLut(std::string shaderPath) {
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer;
     
-    if (vkQueueSubmit(device.graphicsQueue(), 1, &submitInfo, nullptr) != VK_SUCCESS) {
+    if (vkQueueSubmit(device.graphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
         throw std::runtime_error("failed to submit draw command buffer!");
     }
     

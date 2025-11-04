@@ -6,6 +6,7 @@
 //
 
 #include "Renderer.hpp"
+#include <array>
 
 void Renderer::createOffscreenPass(RenderPass index) {
     OffscreenPassAttachments& attachments = offscreen[index];

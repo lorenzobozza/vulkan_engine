@@ -53,9 +53,9 @@ SwapChain::~SwapChain() {
     vkDestroyImage(device.device(), depthStencil.image, nullptr);
     vkFreeMemory(device.device(), depthStencil.mem, nullptr);
 
-    if (swapChain != nullptr) {
+    if (swapChain != VK_NULL_HANDLE) {
         vkDestroySwapchainKHR(device.device(), swapChain, nullptr);
-        swapChain = nullptr;
+        swapChain = VK_NULL_HANDLE;
     }
     
     vkDestroyRenderPass(device.device(), compositionRenderPass, nullptr);

@@ -10,6 +10,7 @@
 
 #include <shaderc/shaderc.hpp>
 #include <fstream>
+#include <array>
 
 #include "Log.hpp"
 

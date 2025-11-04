@@ -141,13 +141,13 @@ void TextRender::loadFaces(const char firstChar, const char lastChar) {
 
     bitmaps = (unsigned char*) malloc(sizeof(unsigned char) * maxArea * layers);
     
-    for(unsigned int c = firstChar; c < lastChar; c++) {
+    for(char c = firstChar; c < lastChar; c++) {
         FT_Load_Char(face, c, FT_LOAD_RENDER);
-        int charWidth = face->glyph->bitmap.width;
-        int charHeight = face->glyph->bitmap.rows;
+        unsigned int charWidth = face->glyph->bitmap.width;
+        unsigned int charHeight = face->glyph->bitmap.rows;
         
-        for (int i = 0, row = 0, charI = 0; i < maxArea; i++) {
-            int col = (i % maxSize);
+        for (unsigned int i = 0, row = 0, charI = 0; i < maxArea; i++) {
+            unsigned int col = (i % maxSize);
             if (col < charWidth && row >= (maxSize - charHeight)) {
                 bitmaps[i+((c - firstChar) * maxArea)] = face->glyph->bitmap.buffer[charI++];
             } else {
@@ -159,7 +159,7 @@ void TextRender::loadFaces(const char firstChar, const char lastChar) {
         }
         
         Character character = {
-            c - firstChar,
+            unsigned int(c - firstChar),
             glm::ivec2(face->glyph->bitmap.width, face->glyph->bitmap.rows),
             glm::ivec2(face->glyph->bitmap_left, face->glyph->bitmap_top),
             face->glyph->advance.x,
@@ -306,7 +306,7 @@ void TextRender::createPipelineLayout() {
 }
 
 void TextRender::createPipeline(VkRenderPass renderPass) {
-    assert(pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
+    assert(pipelineLayout != VK_NULL_HANDLE && "Cannot create pipeline before pipeline layout");
 
     PipelineConfigInfo pipelineConfig{};
     Pipeline::defaultPipelineConfigInfo(pipelineConfig);

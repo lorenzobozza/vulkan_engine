@@ -85,7 +85,7 @@ struct ImageParseTaskSet : enki::ITaskSet {
     std::vector<tinygltf::Image>& m_Images;
     
     void ExecuteRange( enki::TaskSetPartition range_, uint32_t threadnum_ ) override {
-        for(int i = range_.start; i < range_.end; ++i )
+        for(unsigned int i = range_.start; i < range_.end; ++i )
         {
             convertImageData(m_Images.at(i));
         }
@@ -170,7 +170,7 @@ void NodeSet::loadNodeFromModel(int nodeIndex, Node* parentNode) {
     }
     if (gltfNode.rotation.size() == 4) {
         // by default glm uses w,x,y,z while glTF uses x,y,z,w
-        newNode->Quat = glm::quat(gltfNode.rotation[3],gltfNode.rotation[0],gltfNode.rotation[1],gltfNode.rotation[2]);
+        newNode->Quat = glm::quat((float)gltfNode.rotation[3], (float)gltfNode.rotation[0], (float)gltfNode.rotation[1], (float)gltfNode.rotation[2]);
     }
     if (gltfNode.matrix.size() == 16) {
         newNode->Matrix = glm::make_mat4x4(gltfNode.matrix.data());
@@ -352,8 +352,8 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform)
         };
         
         SMikkTSpaceContext tSpaceContext {
+            .m_pInterface = &myMikkInterface,
             .m_pUserData = (void*)&data,
-            .m_pInterface = &myMikkInterface
         };
         
         genTangSpaceDefault(&tSpaceContext);
@@ -443,7 +443,7 @@ void NodeSet::loadMaterialsToVRAM(void) {
             material.alphaMode = Material::ALPHAMODE_BLEND;
         } else if (gltfMaterial.alphaMode == "MASK") {
             material.alphaMode = Material::ALPHAMODE_MASK;
-            material.alphaCutoff = gltfMaterial.alphaCutoff;
+            material.alphaCutoff = (float)gltfMaterial.alphaCutoff;
         }
         
         material.color = glm::make_vec4(gltfMaterial.pbrMetallicRoughness.baseColorFactor.data());
@@ -516,8 +516,8 @@ void NodeSet::loadMaterialsToVRAM(void) {
             material.setOcclusionTexCoordSet(gltfMaterial.occlusionTexture.texCoord);
         }
         
-        material.metalness = gltfMaterial.pbrMetallicRoughness.metallicFactor;
-        material.roughness = gltfMaterial.pbrMetallicRoughness.roughnessFactor;
+        material.metalness = (float)gltfMaterial.pbrMetallicRoughness.metallicFactor;
+        material.roughness = (float)gltfMaterial.pbrMetallicRoughness.roughnessFactor;
         if (metalRoughTextureIndex > -1) {
             const tinygltf::Image& metalRough = m_gltfModel.images[m_gltfModel.textures[metalRoughTextureIndex].source];
             
@@ -581,7 +581,7 @@ static VkFilter getVkFilterMode(int32_t filterMode) {
 }
 
 void NodeSet::fillSamplerInfo(int textureIndex, VkSamplerCreateInfo *samplerInfo) {
-    if (m_gltfModel.samplers.size() > textureIndex) {
+    if ((int32_t)m_gltfModel.samplers.size() > textureIndex) {
         samplerInfo->magFilter = getVkFilterMode(m_gltfModel.samplers[textureIndex].magFilter);
         samplerInfo->minFilter = getVkFilterMode(m_gltfModel.samplers[textureIndex].minFilter);
 

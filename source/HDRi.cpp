@@ -62,7 +62,7 @@ VkDescriptorImageInfo HDRi::descriptorInfo() {
 void HDRi::renderFaces() {
 
     // Correct mip levels if they exceed the given resolution
-    uint16_t maxMip = std::floor(std::log2(std::max(extent.width, extent.height))) + 1;
+    uint16_t maxMip = (uint16_t)std::floor(std::log2(std::max(extent.width, extent.height))) + 1;
     mipLevels = std::min(maxMip, mipLevels);
     
     Camera cubeCam{};
@@ -142,8 +142,8 @@ void HDRi::renderFaces() {
     
     //Mip iterator
     for (int mip = 0; mip < mipLevels; mip++) {
-        offscreenPass.width  = static_cast<float>(extent.width * std::pow(0.5, mip));
-        offscreenPass.height = static_cast<float>(extent.height * std::pow(0.5, mip));
+        offscreenPass.width  = static_cast<int32_t>((float)extent.width * std::pow(0.5, mip));
+        offscreenPass.height = static_cast<int32_t>((float)extent.height * std::pow(0.5, mip));
         
         createOffscreenFramebuffer();
 
@@ -359,7 +359,7 @@ void HDRi::createPipelineLayout() {
 }
 
 void HDRi::createPipeline() {
-  assert(pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
+  assert(pipelineLayout != VK_NULL_HANDLE && "Cannot create pipeline before pipeline layout");
 
   PipelineConfigInfo pipelineConfig{};
   Pipeline::defaultPipelineConfigInfo(pipelineConfig);
@@ -478,7 +478,7 @@ void HDRi::endFrame() {
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer;
     
-    if (vkQueueSubmit(device.graphicsQueue(), 1, &submitInfo, nullptr) != VK_SUCCESS) {
+    if (vkQueueSubmit(device.graphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
         throw std::runtime_error("failed to submit draw command buffer!");
     }
     

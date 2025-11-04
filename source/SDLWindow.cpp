@@ -103,7 +103,7 @@ void SDLWindow::pollWindowEvents(std::function<void()> callback) {
                     SDL_Vulkan_GetDrawableSize(getWindow(), &surfaceWidth, &surfaceHeight);
                     SDL_GetWindowSize(getWindow(), &windowWidth, &windowHeight);
                     callback(); // Rebuild swapchain
-                    dpi_scale_fact = surfaceWidth / windowWidth;
+                    dpi_scale_fact = (float)surfaceWidth / (float)windowWidth;
                     io.DisplaySize = {(float)surfaceWidth, (float)surfaceHeight};
                     io.FontGlobalScale = dpi_scale_fact * (windowWidth / 1920.f);
                 }
