@@ -53,8 +53,8 @@ void SDLWindow::initWindow() {
     }
     
     SDL_GetDesktopDisplayMode(0, &desktopMode);
-    m_windowExtent.width = desktopMode.w;
-    m_windowExtent.height = desktopMode.h;
+    m_windowExtent.width = (int)(desktopMode.w * 0.9f);
+    m_windowExtent.height = (int)(desktopMode.h * 0.9f);
     
     window = SDL_CreateWindow(
         windowName.c_str(),
@@ -82,7 +82,7 @@ void SDLWindow::setWindowFullScreen(uint32_t flags, const SDL_DisplayMode& displ
     switch (flags) {
         case 0:
             SDL_SetWindowFullscreen(window, 0);
-            SDL_SetWindowSize(window, desktopMode.w, desktopMode.h);
+            SDL_SetWindowSize(window, (int)(desktopMode.w * 0.9f), (int)(desktopMode.h * 0.9f));
             break;
         case SDL_WINDOW_FULLSCREEN_DESKTOP:
             SDL_SetWindowDisplayMode(window, &displayMode);
@@ -117,15 +117,18 @@ void SDLWindow::pollWindowEvents(std::function<void()> callback) {
     
     while(SDL_PollEvent(&sdl_event))
     {
+        uint32_t winData1 = static_cast<uint32_t>(sdl_event.window.data1);
+        uint32_t winData2 = static_cast<uint32_t>(sdl_event.window.data2);
+        
         switch (sdl_event.type) {
             case SDL_WINDOWEVENT:
-                if (sdl_event.window.event == SDL_WINDOWEVENT_RESIZED) {
-                    m_windowExtent.width = sdl_event.window.data1;
-                    m_windowExtent.height = sdl_event.window.data2;
+                if (sdl_event.window.event == SDL_WINDOWEVENT_RESIZED && (m_windowExtent.width != winData1 || m_windowExtent.height != winData2)) {
+                    m_windowExtent.width = winData1;
+                    m_windowExtent.height = winData2;
                     SDL_Vulkan_GetDrawableSize(
                         window,
-                        reinterpret_cast<int*>(&m_surfaceExtent.width),
-                        reinterpret_cast<int*>(&m_surfaceExtent.height)
+                        reinterpret_cast<int32_t*>(&m_surfaceExtent.width),
+                        reinterpret_cast<int32_t*>(&m_surfaceExtent.height)
                     );
                     
                     callback(); // Recreate swapchain

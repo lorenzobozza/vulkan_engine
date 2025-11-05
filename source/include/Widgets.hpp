@@ -22,14 +22,13 @@ public:
 private:
     void content(void) override {
         ImGui::SetNextWindowContentSize(m_extent);
-        if (ImGui::Begin("Viewport", nullptr, m_flags | ImGuiWindowFlags_NoCollapse)) {
-            ImGuiDockNode* id = ImGui::GetWindowDockNode();
-            id->LocalFlags |= ImGuiDockNodeFlags_NoResize;
-            
-            ImGui::Image( (void*)(intptr_t) 1, m_extent);
+        ImGui::Begin("Viewport", nullptr, m_flags | ImGuiWindowFlags_NoCollapse);
+        ImGuiDockNode* id = ImGui::GetWindowDockNode();
+        id->LocalFlags |= ImGuiDockNodeFlags_NoResize;
+        
+        ImGui::Image( (void*)(intptr_t) 1, m_extent);
 
-            ImGui::End();
-        }
+        ImGui::End();
     }
 
     unsigned int m_flags = 0;
@@ -84,8 +83,13 @@ private:
         ImGui::Text("GPU Time %.2fms", m_Perf.gpuTime * 1000.f);
         
         ImGui::NewLine();
-        ImGui::Text("Window:  %ix%i", m_window.getExtent().width, m_window.getExtent().height);
-        ImGui::Text("Surface: %ix%i", m_window.getSurfaceExtent().width, m_window.getSurfaceExtent().height);
+        static bool info = false;
+        if (ImGui::Button("Display Info")) info ^= true;
+        if (info) {
+            ImGui::Text("Window:  %ix%i", m_window.getExtent().width, m_window.getExtent().height);
+            ImGui::Text("Desktop: %ix%i", m_window.getDesktopExtent().width, m_window.getDesktopExtent().height);
+            ImGui::Text("Surface:  %ix%i", m_window.getSurfaceExtent().width, m_window.getSurfaceExtent().height);
+        }
         static int windowMode = 0, res = 0;
         bool setNewMode = false;
         setNewMode = ImGui::Combo("##fullscreen", &windowMode, "Windowed\0Windowed Borderless\0Full Screen\0");
@@ -114,7 +118,7 @@ private:
         ImGui::Checkbox(vsync ? "VSync Enabled" : "VSync Disabled", &vsync);
         if (SwapChain::enableVSync != vsync) {
             SwapChain::enableVSync = vsync;
-            m_renderer.recreateSwapChain(true);
+            m_renderer.recreateSwapChain();
         }
         
         ImGui::NewLine();

@@ -72,8 +72,8 @@ void Renderer::recreateSwapChain(bool forced) {
         createRenderPasses();
     } else {
         VkExtent2D oldExtent = swapChain->getSwapChainExtent();
+        swapChain = std::make_unique<SwapChain>(device, actualExtent, std::move(swapChain));
         if(oldExtent.width != actualExtent.width || oldExtent.height != actualExtent.height || forced) {
-            swapChain = std::make_unique<SwapChain>(device, actualExtent, std::move(swapChain));
             destroyRenderPasses();
             createRenderPasses();
         }
@@ -140,8 +140,7 @@ void Renderer::endFrame() {
     }
     
     auto result = swapChain->submitCommandBuffers(&commandBuffer, &currentImageIndex);
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR/* || window.wasWindowResized()*/) {
-        //window.resetWindowResizeFlag();
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
         recreateSwapChain(true);
     } else if (result != VK_SUCCESS) {
         throw std::runtime_error("Failed to acquire swap chain image");

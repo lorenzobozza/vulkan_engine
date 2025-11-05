@@ -36,8 +36,9 @@ public:
     void setWindowExtent(int Width, int Height) { m_windowExtent.width = Width; m_windowExtent.height = Height; }
     void setWindowFullScreen(uint32_t flags, const SDL_DisplayMode& displayMode);
     
-    VkExtent2D getExtent() const { return { static_cast<uint32_t>(m_windowExtent.width), static_cast<uint32_t>(m_windowExtent.height)}; }
-    VkExtent2D getSurfaceExtent() const { return { static_cast<uint32_t>(m_surfaceExtent.width), static_cast<uint32_t>(m_surfaceExtent.height)}; }
+    VkExtent2D getExtent() const { return m_windowExtent; }
+    VkExtent2D getSurfaceExtent() const { return m_surfaceExtent; }
+    VkExtent2D getDesktopExtent() const { return {(uint32_t)desktopMode.w, (uint32_t)desktopMode.h}; }
     SDL_Window *getWindow() const { return window; }
     uint8_t getMovement(void) { return movement; }
     glm::vec3 getRotation(void) { return rotate; }

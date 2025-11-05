@@ -55,7 +55,7 @@ void Application::run() {
     
     widgets.log->getVisibility() = false;
     widgets.material->getVisibility() = false;
-    widgets.view->setExtent(renderer.getSwapChainExtent().width * 0.66f, renderer.getSwapChainExtent().height * 0.66f);
+    widgets.view->setExtent(renderer.getSwapChainExtent().width * 0.8f, renderer.getSwapChainExtent().height * 0.8f);
     widgets.view->addFlags(ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_AlwaysAutoResize|ImGuiWindowFlags_NoBackground);
 
         Camera camera{};
@@ -105,10 +105,10 @@ void Application::run() {
     }).detach();
         
     while (!assetsLoaded) {
-
-        window.pollWindowEvents([this, widgets](){ renderer.recreateSwapChain(); widgets.view->setExtent(renderer.getSwapChainExtent().width * 0.66f, renderer.getSwapChainExtent().height * 0.66f); });
         
         ui.newFrame();
+
+        window.pollWindowEvents([this, widgets](){ renderer.recreateSwapChain(); widgets.view->setExtent(renderer.getSwapChainExtent().width * 0.8f, renderer.getSwapChainExtent().height * 0.8f); });
         
         if (auto commandBuffer = renderer.beginFrame()) {
             frameIndex = renderer.getFrameIndex();
@@ -307,10 +307,10 @@ void Application::run() {
         
         m_Perf.startFrame();
         
-        window.pollWindowEvents([this, widgets](){ renderer.recreateSwapChain(); widgets.view->setExtent(renderer.getSwapChainExtent().width * 0.66f, renderer.getSwapChainExtent().height * 0.66f); });
-        
         // Prepare next GUI Frame
         ui.newFrame();
+        
+        window.pollWindowEvents([this, widgets](){ renderer.recreateSwapChain(); widgets.view->setExtent(renderer.getSwapChainExtent().width * 0.8f, renderer.getSwapChainExtent().height * 0.8f); });
         
         glm::vec3 rotate = window.getRotation();
         if (glm::dot(rotate, rotate) > glm::epsilon<float>()) {

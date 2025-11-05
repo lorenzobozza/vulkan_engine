@@ -210,16 +210,20 @@ void UI::newFrame(void) {
         ImGui::DockBuilderRemoveNode(mainDockspaceId);
         ImGui::DockBuilderAddNode(mainDockspaceId, ImGuiDockNodeFlags_NoTabBar | ImGuiDockNodeFlags_PassthruCentralNode);
 
-        ImGuiID dock1 = ImGui::DockBuilderSplitNode(id, ImGuiDir_Right, 0.66f, nullptr, &id);
+        ImGuiID dock1 = ImGui::DockBuilderSplitNode(id, ImGuiDir_Right, 0.8f, nullptr, &id);
 
-        ImGuiID dock2 = ImGui::DockBuilderSplitNode(id, ImGuiDir_Left, .33f, nullptr, &id);
+        ImGuiID dock2 = ImGui::DockBuilderSplitNode(id, ImGuiDir_Left, 0.2f, nullptr, &id);
 
-        ImGuiID dock3 = ImGui::DockBuilderSplitNode(dock2, ImGuiDir_Down, 0.3f, nullptr, &dock2);
+        ImGuiID dock3 = ImGui::DockBuilderSplitNode(dock1, ImGuiDir_Down, 0.2f, nullptr, &dock1);
+        
+        ImGuiID dock4 = ImGui::DockBuilderSplitNode(dock2, ImGuiDir_Down, 0.2f, nullptr, &dock2);
         
 
         ImGui::DockBuilderDockWindow("Viewport", dock1);
         ImGui::DockBuilderDockWindow("Settings", dock2);
-        ImGui::DockBuilderDockWindow("Assets", dock3);
+        ImGui::DockBuilderDockWindow("Log Console", dock3);
+        ImGui::DockBuilderDockWindow("Assets", dock4);
+        ImGui::DockBuilderDockWindow("Materials", dock1);
 
 
         ImGui::DockBuilderFinish(id);
