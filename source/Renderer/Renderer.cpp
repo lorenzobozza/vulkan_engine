@@ -60,31 +60,23 @@ void Renderer::destroyRenderPasses(void) {
     }
 }
 
-void Renderer::recreateSwapChain() {
-    VkExtent2D actualExtent = window.getExtent();
+void Renderer::recreateSwapChain(bool forced) {
+    VkExtent2D actualExtent = window.getSurfaceExtent();
     while (actualExtent.width == 0 || actualExtent.height == 0) {
-        actualExtent = window.getExtent();
+        actualExtent = window.getSurfaceExtent();
     }
     vkDeviceWaitIdle(device.device());
     
     if (swapChain == nullptr) {
         swapChain = std::make_unique<SwapChain>(device, actualExtent);
-        
         createRenderPasses();
-        
     } else {
         VkExtent2D oldExtent = swapChain->getSwapChainExtent();
-        swapChain = std::make_unique<SwapChain>(device, actualExtent, std::move(swapChain));
-        if(oldExtent.width != actualExtent.width || oldExtent.height != actualExtent.height || recreateOffscreenFlag) {
-            
+        if(oldExtent.width != actualExtent.width || oldExtent.height != actualExtent.height || forced) {
+            swapChain = std::make_unique<SwapChain>(device, actualExtent, std::move(swapChain));
             destroyRenderPasses();
             createRenderPasses();
-            
-            recreateOffscreenFlag = false;
         }
-        //if (!oldSwapChain->compareSwapFormats(*swapChain.get())) {
-        //    throw std::runtime_error("Swap chain image(or depth) format has changed");
-        //}
     }
 }
 
@@ -118,7 +110,7 @@ VkCommandBuffer Renderer::beginFrame() {
     auto result = swapChain->acquireNextImage(&currentImageIndex);
     
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        recreateSwapChain();
+        recreateSwapChain(true);
         return nullptr;
     }
     
@@ -150,7 +142,7 @@ void Renderer::endFrame() {
     auto result = swapChain->submitCommandBuffers(&commandBuffer, &currentImageIndex);
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR/* || window.wasWindowResized()*/) {
         //window.resetWindowResizeFlag();
-        recreateSwapChain();
+        recreateSwapChain(true);
     } else if (result != VK_SUCCESS) {
         throw std::runtime_error("Failed to acquire swap chain image");
     }

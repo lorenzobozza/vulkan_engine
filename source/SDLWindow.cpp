@@ -16,7 +16,9 @@
 #include <nfd.h>
 #include <nfd_sdl2.h>
 
-SDLWindow::SDLWindow(int w, int h, std::string name) :  width{w}, height{h}, windowName{name} {
+SDLWindow::SDLWindow(int w, int h, std::string name) : windowName{name} {
+    m_windowExtent.width = (uint32_t)w;
+    m_windowExtent.height = (uint32_t)h;
     initWindow();
 }
 
@@ -44,15 +46,30 @@ void SDLWindow::initWindow() {
     supportedModes.resize(supportedResCount);
     for (int mode = 0; mode < supportedResCount; mode++) {
         SDL_GetDisplayMode(0, mode, &supportedModes[mode]);
-        supportedResNames += (std::to_string(supportedModes[mode].w) + " x " + std::to_string(supportedModes[mode].h) + '\0');
+        supportedResNames += std::to_string(supportedModes[mode].w) + " x " + std::to_string(supportedModes[mode].h);
+        supportedResNames += " " + std::to_string(supportedModes[mode].refresh_rate) + "Hz";
+        supportedResNames += SDL_PIXELLAYOUT(supportedModes[mode].format) == SDL_PACKEDLAYOUT_8888 ? " 8bit" : " 10bit";
+        supportedResNames += '\0';
     }
+    
+    SDL_GetDesktopDisplayMode(0, &desktopMode);
+    m_windowExtent.width = desktopMode.w;
+    m_windowExtent.height = desktopMode.h;
     
     window = SDL_CreateWindow(
         windowName.c_str(),
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        width, height,
+        m_windowExtent.width, m_windowExtent.height,
         SDL_WINDOW_VULKAN | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_RESIZABLE
     );
+    
+    SDL_Vulkan_GetDrawableSize(
+        window,
+        reinterpret_cast<int*>(&m_surfaceExtent.width),
+        reinterpret_cast<int*>(&m_surfaceExtent.height)
+    );
+    
+    dpi_scale_fact = (float)m_surfaceExtent.width / (float)m_windowExtent.width;
     
     SDL_Surface *surface = IMG_Load("../../../assets/icon.png");
     SDL_SetWindowIcon(window, surface);
@@ -61,36 +78,39 @@ void SDLWindow::initWindow() {
     NFD_Init();
 }
 
-void SDLWindow::setWindowFullScreen(uint32_t flags) {
-    SDL_DisplayMode displayMode = {
-        SDL_PIXELFORMAT_ARGB8888,   // Pixel format
-        width,                      // Width
-        height,                     // Height
-        60,                         // Refresh rate
-        nullptr                     // Driver data
-    };
+void SDLWindow::setWindowFullScreen(uint32_t flags, const SDL_DisplayMode& displayMode) {
     switch (flags) {
         case 0:
-        SDL_SetWindowFullscreen(window, 0);
-        SDL_SetWindowSize(window, width, height);
+            SDL_SetWindowFullscreen(window, 0);
+            SDL_SetWindowSize(window, desktopMode.w, desktopMode.h);
             break;
         case SDL_WINDOW_FULLSCREEN_DESKTOP:
-        SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+            SDL_SetWindowDisplayMode(window, &displayMode);
+            SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN_DESKTOP);
             break;
         case SDL_WINDOW_FULLSCREEN:
-        if (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) { SDL_SetWindowFullscreen(window, 0); }
-        SDL_SetWindowDisplayMode(window, &displayMode);
-        SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN);
+            if (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) {
+                SDL_SetWindowFullscreen(window, 0);
+            }
+            SDL_SetWindowDisplayMode(window, &displayMode);
+            SDL_SetWindowFullscreen(window, SDL_WINDOW_FULLSCREEN);
             break;
         default:
             break;
     }
 }
 
+void SDLWindow::updateUiScaling(void) {
+    dpi_scale_fact = (float)m_surfaceExtent.width / (float)m_windowExtent.width;
+    
+    ImGuiIO& io = ImGui::GetIO();
+    io.DisplaySize = {(float)m_surfaceExtent.width, (float)m_surfaceExtent.height};
+    io.FontGlobalScale = dpi_scale_fact * m_windowExtent.width * 0.0005f;
+}
+
 void SDLWindow::pollWindowEvents(std::function<void()> callback) {
     static SDL_Event sdl_event;
     ImGuiIO& io = ImGui::GetIO();
-    int surfaceWidth, surfaceHeight, windowWidth, windowHeight;
     
     ImGuiKey imgui_key;
     static bool mouseLeft = false;
@@ -100,12 +120,16 @@ void SDLWindow::pollWindowEvents(std::function<void()> callback) {
         switch (sdl_event.type) {
             case SDL_WINDOWEVENT:
                 if (sdl_event.window.event == SDL_WINDOWEVENT_RESIZED) {
-                    SDL_Vulkan_GetDrawableSize(getWindow(), &surfaceWidth, &surfaceHeight);
-                    SDL_GetWindowSize(getWindow(), &windowWidth, &windowHeight);
-                    callback(); // Rebuild swapchain
-                    dpi_scale_fact = (float)surfaceWidth / (float)windowWidth;
-                    io.DisplaySize = {(float)surfaceWidth, (float)surfaceHeight};
-                    io.FontGlobalScale = dpi_scale_fact * (windowWidth / 1920.f);
+                    m_windowExtent.width = sdl_event.window.data1;
+                    m_windowExtent.height = sdl_event.window.data2;
+                    SDL_Vulkan_GetDrawableSize(
+                        window,
+                        reinterpret_cast<int*>(&m_surfaceExtent.width),
+                        reinterpret_cast<int*>(&m_surfaceExtent.height)
+                    );
+                    
+                    callback(); // Recreate swapchain
+                    updateUiScaling();
                 }
                 break;
             case SDL_QUIT:

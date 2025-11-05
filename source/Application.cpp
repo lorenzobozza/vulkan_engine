@@ -39,6 +39,9 @@ struct WidgetStruct {
 
 void Application::run() {
     UI ui(vulkanDevice, renderer);
+    UI::setBessDarkColors();
+    
+    window.updateUiScaling();
     
     WidgetStruct widgets {
         .view = std::make_shared<Viewport>(),
@@ -70,20 +73,6 @@ void Application::run() {
         renderer.getDescriptorSetLayout(RenderPass::WorldSpace),
         "composition"
     );
-    
-    
-    // GUI Style and Sizes definition
-    {
-        SDL_Vulkan_GetDrawableSize(window.getWindow(), &surfaceExtent.width, &surfaceExtent.height);
-        SDL_GetWindowSize(window.getWindow(), &windowExtent.width, &windowExtent.height);
-        float dpi_scale_fact = (float)surfaceExtent.width / (float)windowExtent.width;
-        ImGuiIO& io = ImGui::GetIO();
-        io.DisplaySize = {(float)surfaceExtent.width, (float)surfaceExtent.height};
-        io.FontGlobalScale = dpi_scale_fact * (windowExtent.width / 1920.f);
-        ImGuiStyle& style = ImGui::GetStyle();
-        style.ScaleAllSizes(dpi_scale_fact * 0.8f);
-        UI::setBessDarkColors();
-    }
     
     
     std::thread([this]() {

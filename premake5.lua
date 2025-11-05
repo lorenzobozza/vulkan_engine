@@ -41,6 +41,7 @@ project "Core"
 
 	filter "system:windows"
 		files { "external/nfd/nfd_win.cpp" }
+		architecture "x86_64"
 
 	filter "system:macosx"
 		files { "external/nfd/nfd_cocoa.m" }

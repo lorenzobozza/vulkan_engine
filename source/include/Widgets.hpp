@@ -46,7 +46,7 @@ class LogView : public Widget {
     }
     void content(void) override {
         ImGui::Begin("Log Console", nullptr, ImGuiWindowFlags_NoCollapse);
-        ImGui::TextWrapped(Log::getInstance()->getBuffer());
+        ImGui::TextWrapped("%s", Log::getInstance()->getBuffer());
         ImGui::End();
     }
 };
@@ -84,38 +84,37 @@ private:
         ImGui::Text("GPU Time %.2fms", m_Perf.gpuTime * 1000.f);
         
         ImGui::NewLine();
-        ImGui::Text("FIF: %i", SwapChain::MAX_FRAMES_IN_FLIGHT);
-        
-        ImGui::NewLine();
-        static int windowMode = 0;
-        if (ImGui::Combo("##fullscreen", &windowMode, "Windowed\0Windowed Borderless\0Full Screen\0")) {
+        ImGui::Text("Window:  %ix%i", m_window.getExtent().width, m_window.getExtent().height);
+        ImGui::Text("Surface: %ix%i", m_window.getSurfaceExtent().width, m_window.getSurfaceExtent().height);
+        static int windowMode = 0, res = 0;
+        bool setNewMode = false;
+        setNewMode = ImGui::Combo("##fullscreen", &windowMode, "Windowed\0Windowed Borderless\0Full Screen\0");
+        setNewMode = setNewMode || ImGui::Combo("##resolution", &res, m_window.supportedResNames.c_str());
+        if (setNewMode) {
             switch (windowMode) {
                 case 0:
-                m_window.setWindowFullScreen(0);
-                m_renderer.recreateOffscreenFlag = VK_TRUE;
+                    m_window.setWindowFullScreen(0, m_window.supportedModes[res]);
                     break;
                 case 1:
-                m_window.setWindowFullScreen(SDL_WINDOW_FULLSCREEN_DESKTOP);
+                    m_window.setWindowFullScreen(SDL_WINDOW_FULLSCREEN_DESKTOP, m_window.supportedModes[res]);
                     break;
                 case 2:
-                m_window.setWindowFullScreen(SDL_WINDOW_FULLSCREEN);
+                    m_window.setWindowFullScreen(SDL_WINDOW_FULLSCREEN, m_window.supportedModes[res]);
                     break;
-            }
-        }
-        static int res = 0;
-        if (ImGui::Combo("##resolution", &res, m_window.supportedResNames.c_str())) {
-            m_window.setWindowExtent(m_window.supportedModes[res].w, m_window.supportedModes[res].h);
-            if (windowMode == 2) {
-                m_window.setWindowFullScreen(SDL_WINDOW_FULLSCREEN);
             }
         }
         
         ImGui::NewLine();
+        if (ImGui::Button("Refresh pipelines")) {
+            vkDeviceWaitIdle(m_device.device());
+            recreatePipelines();
+        }
+        ImGui::SameLine();
         static bool vsync = SwapChain::enableVSync;
         ImGui::Checkbox(vsync ? "VSync Enabled" : "VSync Disabled", &vsync);
         if (SwapChain::enableVSync != vsync) {
             SwapChain::enableVSync = vsync;
-            m_renderer.recreateSwapChain();
+            m_renderer.recreateSwapChain(true);
         }
         
         ImGui::NewLine();
@@ -123,14 +122,7 @@ private:
         ImGui::Text("Anti-Aliasing");
         if (ImGui::Combo("##antialiasing", &aaIndex, aaPresets.data(), (int)aaPresets.size())) {
             m_device.msaaSamples = static_cast<VkSampleCountFlagBits>(1 << aaIndex);
-            m_renderer.recreateOffscreenFlag = true;
-            m_renderer.recreateSwapChain();
-            recreatePipelines();
-        }
-        
-        ImGui::NewLine();
-        if (ImGui::Button("Refresh pipelines")) {
-            vkDeviceWaitIdle(m_device.device());
+            m_renderer.recreateSwapChain(true);
             recreatePipelines();
         }
         

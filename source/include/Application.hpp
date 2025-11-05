@@ -104,10 +104,6 @@ private:
     
     GlobalUbo ubo{};
     
-    struct{
-        int width;
-        int height;
-    } surfaceExtent, windowExtent;
 };
 
 #endif /* Application_hpp */

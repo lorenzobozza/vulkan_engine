@@ -80,8 +80,7 @@ public:
     VkDescriptorImageInfo* getBrdfLutInfo() { return &brdfImageInfo; }
 
     bool isVSyncEnabled() { return swapChain->isVSyncEnabled(); }
-    void recreateSwapChain();
-    bool recreateOffscreenFlag = false;
+    void recreateSwapChain(bool forced = false);
     
     VkCommandBuffer beginFrame();
     void endFrame();

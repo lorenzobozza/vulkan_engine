@@ -33,14 +33,16 @@ public:
     
     void createWindowSurface(VkInstance instance, VkSurfaceKHR *surface);
     
-    void setWindowExtent(int Width, int Height) { width = Width; height = Height; }
-    void setWindowFullScreen(uint32_t flags);
+    void setWindowExtent(int Width, int Height) { m_windowExtent.width = Width; m_windowExtent.height = Height; }
+    void setWindowFullScreen(uint32_t flags, const SDL_DisplayMode& displayMode);
     
-    VkExtent2D getExtent() { return { static_cast<uint32_t>(width), static_cast<uint32_t>(height)}; }
+    VkExtent2D getExtent() const { return { static_cast<uint32_t>(m_windowExtent.width), static_cast<uint32_t>(m_windowExtent.height)}; }
+    VkExtent2D getSurfaceExtent() const { return { static_cast<uint32_t>(m_surfaceExtent.width), static_cast<uint32_t>(m_surfaceExtent.height)}; }
     SDL_Window *getWindow() const { return window; }
     uint8_t getMovement(void) { return movement; }
     glm::vec3 getRotation(void) { return rotate; }
     bool isWindowOpen(void) { return keepRuning; }
+    void updateUiScaling(void);
     
     void pollWindowEvents(std::function<void()> callback);
     void closeWindow(void) { keepRuning = false; }
@@ -50,12 +52,13 @@ public:
     
     std::string supportedResNames;
     std::vector<SDL_DisplayMode> supportedModes;
+    SDL_DisplayMode desktopMode;
     
 private:
     void initWindow();
     
-    int width;
-    int height;
+    VkExtent2D m_windowExtent;
+    VkExtent2D m_surfaceExtent;
     
     bool fullScreen = false;
     
