@@ -11,8 +11,6 @@ layout(location = 5) in vec2 uv1;
 layout(location = 0) out VertexShader {
     vec3 color;
     vec3 worldPos;
-    vec3 tangentPos;
-    vec3 tangentViewPos;
     vec2 texcoord0;
     vec2 texcoord1;
     mat3 TBN;
@@ -25,6 +23,7 @@ layout(binding = 0) uniform GlobalUbo {
     vec4 lightColor;
     mat4 viewMatrix;
     mat4 invViewMatrix;
+    uint debugMode;
 } ubo;
 
 layout(push_constant) uniform Push {
@@ -33,6 +32,9 @@ layout(push_constant) uniform Push {
     float metalness;
     float roughness;
     vec3 color;
+    int alphaMode;
+    float alphaCutoff;
+    int debugMode;
 } push;
 
 void main() {
@@ -41,15 +43,12 @@ void main() {
     vec3 T = normalize( vec3(push.modelMatrix * vec4(tangent.xyz, 0.0)) );
     vec3 N = normalize( vec3(push.modelMatrix * vec4(normal, 0.0)) );
     vec3 B = cross(N, T) * tangent.w;
-    mat3 TBN = mat3(T, B, N);
 
-    frag.color = tangent.xyz;
+    frag.color = color;
     frag.worldPos = positionWorld.xyz;
-    frag.tangentPos = positionWorld.xyz;
-    frag.tangentViewPos = ubo.invViewMatrix[3].xyz;
     frag.texcoord0 = uv;
     frag.texcoord1 = uv1;
-    frag.TBN = TBN;
+    frag.TBN = mat3(T, B, N);
 
     gl_Position = ubo.projectionViewMatrix * ubo.viewMatrix * positionWorld;
 }

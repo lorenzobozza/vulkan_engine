@@ -8,6 +8,7 @@
 #ifndef Widgets_h
 #define Widgets_h
 
+#include "RenderSystem.hpp"
 #include "UI.hpp"
 #include "Log.hpp"
 #include "utils.h"
@@ -63,9 +64,9 @@ public:
         float exposure = 1.5f;
         float peak_brightness = 2.f;
         float gamma = 2.2f;
-        glm::vec4 light{1.f};
-        glm::vec3 lightPos{0.f};
     } data;
+    
+    GlobalUbo uniformBuffer{};
     
 private:
     Device& m_device;
@@ -109,16 +110,14 @@ private:
         }
         
         ImGui::NewLine();
-        if (ImGui::Button("Refresh pipelines")) {
+        static int debugMode = 0;
+        ImGui::Text("Shader Control");
+        if (ImGui::Combo("##debugMode", &debugMode, "Shaded\0Normal\0Roughness\0Metallic\0")) {
+            uniformBuffer.debugMode = debugMode;
+        }
+        if (ImGui::Button("Compile Shaders")) {
             vkDeviceWaitIdle(m_device.device());
             recreatePipelines();
-        }
-        ImGui::SameLine();
-        static bool vsync = SwapChain::enableVSync;
-        ImGui::Checkbox(vsync ? "VSync Enabled" : "VSync Disabled", &vsync);
-        if (SwapChain::enableVSync != vsync) {
-            SwapChain::enableVSync = vsync;
-            m_renderer.recreateSwapChain();
         }
         
         ImGui::NewLine();
@@ -128,6 +127,12 @@ private:
             m_device.msaaSamples = static_cast<VkSampleCountFlagBits>(1 << aaIndex);
             m_renderer.recreateSwapChain(true);
             recreatePipelines();
+        }
+        static bool vsync = SwapChain::enableVSync;
+        ImGui::Checkbox(vsync ? "VSync Enabled" : "VSync Disabled", &vsync);
+        if (SwapChain::enableVSync != vsync) {
+            SwapChain::enableVSync = vsync;
+            m_renderer.recreateSwapChain();
         }
         
         ImGui::NewLine();
@@ -139,14 +144,14 @@ private:
         ImGui::SliderFloat("##gamma", &data.gamma, 1.f, 3.f);
         
         ImGui::NewLine();
-        float color[4] = {data.light.r, data.light.g, data.light.b, data.light.a};
+        float color[4] = {uniformBuffer.lightColor.r, uniformBuffer.lightColor.g, uniformBuffer.lightColor.b, uniformBuffer.lightColor.a};
         ImGui::ColorEdit3("Light Color", color);
         ImGui::SliderFloat("##strength", &color[3], 1.f, 100.f);
-        data.light = {color[0], color[1], color[2], color[3]};
+        uniformBuffer.lightColor = {color[0], color[1], color[2], color[3]};
         
-        ImGui::SliderFloat("LPosX", &data.lightPos.x, -3.f, 3.f);
-        ImGui::SliderFloat("LPosY", &data.lightPos.y, -.5f, -5.f);
-        ImGui::SliderFloat("LPosZ", &data.lightPos.z, -4.f, 4.f);
+        ImGui::SliderFloat("LPosX", &uniformBuffer.lightPosition[0].x, -3.f, 3.f);
+        ImGui::SliderFloat("LPosY", &uniformBuffer.lightPosition[0].y, -.5f, -5.f);
+        ImGui::SliderFloat("LPosZ", &uniformBuffer.lightPosition[0].z, -4.f, 4.f);
 
         ImGui::End();
     }

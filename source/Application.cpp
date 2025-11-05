@@ -6,7 +6,6 @@
 //
 
 #include "include/Application.hpp"
-#include "include/RenderSystem.hpp"
 #include "include/UI.hpp"
 #include "include/Buffer.hpp"
 #include "include/importGLTF.hpp"
@@ -387,6 +386,9 @@ void Application::run() {
             ubo.projectionView = frameInfo.camera.getProjection();
             ubo.viewMatrix = frameInfo.camera.getView();
             ubo.invViewMatrix = frameInfo.camera.getInverseView();
+            ubo.debugMode = widgets.settings->uniformBuffer.debugMode;
+            ubo.lightColor = widgets.settings->uniformBuffer.lightColor;
+            ubo.lightPosition[0] = widgets.settings->uniformBuffer.lightPosition[0];
             //ubo.lightPosition = pos;
             uboBuffers[frameIndex]->writeToBuffer(&ubo);
             uboBuffers[frameIndex]->flush();
