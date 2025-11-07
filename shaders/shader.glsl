@@ -1,8 +1,8 @@
 #define M_PI 3.1415926535897932384626433832795
 
-layout(binding = 1) uniform samplerCube irradianceMap;
-layout(binding = 2) uniform samplerCube prefilteredMap;
-layout(binding = 3) uniform sampler2D brdfLUT;
+layout(set = 0, binding = 1) uniform samplerCube irradianceMap;
+layout(set = 0, binding = 2) uniform samplerCube prefilteredMap;
+layout(set = 0, binding = 3) uniform sampler2D brdfLUT;
 
 struct PBRInfo
 {

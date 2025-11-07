@@ -59,7 +59,7 @@ public:
     float roughness{.4f};
     TransformComponent transform{};
     
-    std::string material;
+    std::string material{"Global_Default_Material"};
     
 private:
     Primitive(id_t objId) : id{objId} {}

@@ -85,7 +85,7 @@ void Application::run() {
         ));
         
         Material globalMaterial(&textures);
-        globalMaterial.color = {1.f, 0.f, 1.f, 1.f};
+        globalMaterial.color = {1.f, 1.f, 1.f, 1.f};
         materials.emplace("Global_Default_Material", globalMaterial);
     
         // Multithreaded job, migliorare la creazione dei task-sets
@@ -98,6 +98,13 @@ void Application::run() {
         cube.textureIndex = 1;
         cube.material = "SKY";
         env.emplace(cube.getId(), std::move(cube));
+        
+        auto light = Primitive::new_primitive();
+        light.setModel(std::make_shared<Model>(vulkanDevice, Model::Data::makeSimpleCube()));
+        light.transform.scale = glm::vec3(0.1f);
+        light.transform.translation = ubo.lightPosition[0];
+        light_id = light.getId();
+        primitives.emplace(light.getId(), std::move(light));
         
         assetsLoaded = true;
         
@@ -176,8 +183,9 @@ void Application::run() {
     renderSystems.skybox = std::make_unique<RenderSystem>(
         vulkanDevice,
         renderer.getOffscreenRenderPass(RenderPass::WorldSpace),
-        skyboxSetLayout.getDescriptorSetLayout(),
         "skybox",
+        skyboxSetLayout.getDescriptorSetLayout(),
+        1,
         vulkanDevice.msaaSamples
     );
             
@@ -187,7 +195,7 @@ void Application::run() {
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
            .build();
             
-    std::unordered_map<std::string, VkDescriptorSet> skyboxDescriptorSets[SwapChain::MAX_FRAMES_IN_FLIGHT];
+    VkDescriptorSet skyboxDescriptorSet[SwapChain::MAX_FRAMES_IN_FLIGHT];
     for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
         VkDescriptorSet descriptorSet;
         auto bufferInfo = uboBuffers[i]->descriptorInfo();
@@ -196,7 +204,7 @@ void Application::run() {
             .writeImage(1, &environment)
             .build(descriptorSet);
             
-        skyboxDescriptorSets[i].emplace("SKY", std::move(descriptorSet));
+        skyboxDescriptorSet[i] = descriptorSet;
     }
     
     
@@ -209,8 +217,9 @@ void Application::run() {
     renderSystems.depth = std::make_unique<RenderSystem>(
         vulkanDevice,
         renderer.getOffscreenRenderPass(RenderPass::DepthPass),
-        depthSetLayout.getDescriptorSetLayout(),
         "depth",
+        depthSetLayout.getDescriptorSetLayout(),
+        1,
         vulkanDevice.msaaSamples
     );
     
@@ -232,34 +241,44 @@ void Application::run() {
 
     
 /**** Global Pipeline */
-    DescriptorSetLayout globalSetLayout = DescriptorSetLayout::Builder(vulkanDevice.device())
+    DescriptorSetLayout mainSetLayout = DescriptorSetLayout::Builder(vulkanDevice.device())
             .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
             .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .addBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .addBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .addBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .addBinding(5, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .addBinding(6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .addBinding(7, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .build();
+            
+    DescriptorSetLayout materialSetLayout = DescriptorSetLayout::Builder(vulkanDevice.device())
+            .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .addBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .addBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .build();
+            
+    VkDescriptorSetLayout layouts[2] = {*mainSetLayout.getDescriptorSetLayout(), *materialSetLayout.getDescriptorSetLayout()};
             
     // Pipeline
     renderSystems.pbr = std::make_unique<RenderSystem>(
         vulkanDevice,
         renderer.getOffscreenRenderPass(RenderPass::WorldSpace),
-        globalSetLayout.getDescriptorSetLayout(),
         "shader",
+        layouts,
+        2,
         vulkanDevice.msaaSamples
     );
     
     const uint32_t numOfMaterials = (uint32_t)materials.size();
     
-    DescriptorPool globalPool = DescriptorPool::Builder(vulkanDevice.device())
+    DescriptorPool mainPool = DescriptorPool::Builder(vulkanDevice.device())
+           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .build();
+           
+    DescriptorPool materialPool = DescriptorPool::Builder(vulkanDevice.device())
            .setMaxSets(numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
@@ -267,31 +286,37 @@ void Application::run() {
            .build();
     
     // Create a Descriptor Map for each frame in flight
-    std::unordered_map<std::string, VkDescriptorSet> inFlightDescriptorSets[SwapChain::MAX_FRAMES_IN_FLIGHT];
+    VkDescriptorSet mainDescriptorSet[SwapChain::MAX_FRAMES_IN_FLIGHT];
+    std::unordered_map<std::string, VkDescriptorSet> materialDescriptorSets[SwapChain::MAX_FRAMES_IN_FLIGHT];
     
     for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+        VkDescriptorSet descriptorSet;
         auto bufferInfo = uboBuffers[i]->descriptorInfo();
+        DescriptorWriter(mainSetLayout, mainPool)
+                .writeBuffer(0, &bufferInfo)
+                .writeImage(1, &irradiance)                 // Irradiance
+                .writeImage(2, &prefiltered)                // Reflection
+                .writeImage(3, renderer.getBrdfLutInfo())   // BRDF Lut
+                .build(descriptorSet);
+                
+        mainDescriptorSet[i] = descriptorSet;
+        
         for (auto& kv : materials) {
             auto& name = kv.first;
             auto& material = kv.second;
-            VkDescriptorSet descriptorSet;
             VkDescriptorImageInfo   emissive = material.getColorTextureIF(),
                                     normal = material.getNormalTextureIF(),
                                     occlusion = material.getOcclusionTextureIF(),
                                     metalRough = material.getMetalRoughTextureIF();
                                     
-            DescriptorWriter(globalSetLayout, globalPool)
-                .writeBuffer(0, &bufferInfo)
-                .writeImage(1, &irradiance)                 // Irradiance
-                .writeImage(2, &prefiltered)                // Reflection
-                .writeImage(3, renderer.getBrdfLutInfo())   // BRDF Lut
-                .writeImage(4, &emissive)       // Diffuse
-                .writeImage(5, &normal)         // Normal
-                .writeImage(6, &metalRough)     // Metallic-Roughness
-                .writeImage(7, &occlusion)      // Occlusion
+            DescriptorWriter(materialSetLayout, materialPool)
+                .writeImage(0, &emissive)       // Diffuse
+                .writeImage(1, &normal)         // Normal
+                .writeImage(2, &metalRough)     // Metallic-Roughness
+                .writeImage(3, &occlusion)      // Occlusion
                 .build(descriptorSet);
                 
-            inFlightDescriptorSets[i].emplace(name, std::move(descriptorSet));
+            materialDescriptorSets[i].emplace(name, descriptorSet);
         }
     }
     
@@ -358,8 +383,8 @@ void Application::run() {
                 m_Perf.gpuTime,
                 commandBuffer,
                 camera,
-                depthDescriptorSets[frameIndex],
-                primitives
+                primitives,
+                depthDescriptorSets[frameIndex]
             };
             
             FrameInfo frameInfo{
@@ -367,9 +392,10 @@ void Application::run() {
                 m_Perf.gpuTime,
                 commandBuffer,
                 camera,
-                inFlightDescriptorSets[frameIndex],
                 primitives,
-                materials
+                mainDescriptorSet[frameIndex],
+                materials,
+                materialDescriptorSets[frameIndex]
             };
             
             FrameInfo skyboxInfo{
@@ -377,19 +403,28 @@ void Application::run() {
                 m_Perf.gpuTime,
                 commandBuffer,
                 camera,
-                skyboxDescriptorSets[frameIndex],
                 env,
-                materials
+                skyboxDescriptorSet[frameIndex],
+                materials,
+                std::unordered_map<std::string, VkDescriptorSet>()
             };
             
-            // Update UBO
-            ubo.projectionView = frameInfo.camera.getProjection();
-            ubo.viewMatrix = frameInfo.camera.getView();
-            ubo.invViewMatrix = frameInfo.camera.getInverseView();
+            // Update Uniform Buffer Object
+            ubo.projectionView = camera.getProjection();
+            ubo.viewMatrix = camera.getView();
+            ubo.invViewMatrix = camera.getInverseView();
+            
             ubo.debugMode = widgets.settings->uniformBuffer.debugMode;
             ubo.lightColor = widgets.settings->uniformBuffer.lightColor;
             ubo.lightPosition[0] = widgets.settings->uniformBuffer.lightPosition[0];
-            //ubo.lightPosition = pos;
+            
+            renderSystems.composit->exposure = widgets.settings->otherData.exposure;
+            renderSystems.composit->gamma = widgets.settings->otherData.gamma;
+            renderSystems.composit->peak_brightness = widgets.settings->otherData.peak_brightness;
+            renderSystems.composit->debugMode = widgets.settings->otherData.debugMode;
+            
+            primitives.at(light_id).transform.translation = ubo.lightPosition[0];
+
             uboBuffers[frameIndex]->writeToBuffer(&ubo);
             uboBuffers[frameIndex]->flush();
             

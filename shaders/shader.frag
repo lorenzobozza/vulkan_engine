@@ -27,7 +27,7 @@ layout(location = 0) in VertexShader {
 } vert;
 
 
-layout(binding = 0) uniform GlobalUbo {
+layout(set = 0, binding = 0) uniform GlobalUbo {
     mat4 projectionViewMatrix;
     vec4 ambientLightColor;
     vec4 lightPosition[2];
@@ -36,10 +36,10 @@ layout(binding = 0) uniform GlobalUbo {
     mat4 invViewMatrix;
     uint debugMode;
 } ubo;
-layout(binding = 4) uniform sampler2D diffuseMap;
-layout(binding = 5) uniform sampler2D normalMap;
-layout(binding = 6) uniform sampler2D metalRoughnessMap;
-layout(binding = 7) uniform sampler2D occlusionMap;
+layout(set = 1, binding = 0) uniform sampler2D diffuseMap;
+layout(set = 1, binding = 1) uniform sampler2D normalMap;
+layout(set = 1, binding = 2) uniform sampler2D metalRoughnessMap;
+layout(set = 1, binding = 3) uniform sampler2D occlusionMap;
 
 layout(push_constant) uniform Push {
     mat4 modelMatrix;

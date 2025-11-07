@@ -41,7 +41,7 @@ public:
     VkExtent2D getDesktopExtent() const { return {(uint32_t)desktopMode.w, (uint32_t)desktopMode.h}; }
     SDL_Window *getWindow() const { return window; }
     uint8_t getMovement(void) { return movement; }
-    glm::vec3 getRotation(void) { return rotate; }
+    glm::vec3 getRotation(void) { glm::vec3 tmp = rotate; rotate = {}; return tmp; }
     bool isWindowOpen(void) { return keepRuning; }
     void updateUiScaling(void);
     

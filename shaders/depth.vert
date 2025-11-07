@@ -8,7 +8,7 @@ layout(location = 3) in vec4 tangent;
 layout(location = 4) in vec2 uv;
 layout(location = 5) in vec2 uv1;
 
-layout(binding = 0) uniform GlobalUbo {
+layout(set = 0, binding = 0) uniform GlobalUbo {
     mat4 projectionViewMatrix;
     vec4 ambientLightColor;
     vec4 lightPosition[2];

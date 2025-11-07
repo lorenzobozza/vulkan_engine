@@ -35,8 +35,9 @@ public:
   RenderSystem(
     Device &passDevice,
     VkRenderPass renderPass,
-    const VkDescriptorSetLayout* globalSetLayout,
     std::string dynamicShaderPath,
+    const VkDescriptorSetLayout* globalSetLayout,
+    const unsigned int setLayoutCount = 1,
     VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT);
   ~RenderSystem();
 
@@ -50,7 +51,7 @@ public:
   Pipeline::Status getPipelineStatus(void) { return (pipeline != nullptr ? pipeline->getInternalStatus() : Pipeline::Status::ERR); }
 
 private:
-  void createPipelineLayout(const VkDescriptorSetLayout* globalSetLayout);
+  void createPipelineLayout(const VkDescriptorSetLayout* globalSetLayout, const unsigned int setLayoutCount);
   void createPipeline(VkRenderPass renderPass);
 
 protected:

@@ -8,13 +8,7 @@
 #ifndef Application_hpp
 #define Application_hpp
 
-#include <iostream>
-
-#ifndef PROD
-#define DEBUG_MESSAGE(...) std::cout << __VA_ARGS__ << std::endl;
-#else
-#define DEBUG_MESSAGE(...)
-#endif
+#include <print>
 
 #include "SDLWindow.hpp"
 #include "Device.hpp"
@@ -97,6 +91,7 @@ private:
     
     GlobalUbo ubo{};
     
+    unsigned int light_id;
 };
 
 #endif /* Application_hpp */

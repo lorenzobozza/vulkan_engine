@@ -325,7 +325,13 @@ void UI::draw(VkCommandBuffer commandBuffer, int frameIndex) {
             {
                 const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[j];
 
-                VkDescriptorSet dSet = (pcmd->TexRef._TexID == 0) ? descriptor.v_set.at(frameIndex) : m_Renderer.getDescriptorSets(RenderPass::ScreenSpace)->at(frameIndex);
+                VkDescriptorSet dSet;
+                if (pcmd->TexRef._TexData) {
+                    dSet = descriptor.v_set.at(frameIndex);
+                } else {
+                    dSet = m_Renderer.getDescriptorSets((RenderPass)pcmd->TexRef._TexID)->at(frameIndex);
+                }
+
                 vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imguiPipelineLayout, 0, 1, &dSet, 0, nullptr);
                 
                 VkRect2D scissorRect;

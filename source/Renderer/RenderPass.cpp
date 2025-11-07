@@ -10,6 +10,7 @@
 
 void Renderer::createOffscreenPass(RenderPass index) {
     OffscreenPassAttachments& attachments = offscreen[index];
+    VkSampleCountFlagBits sampleCount = (index == RenderPass::ScreenSpace) ? VK_SAMPLE_COUNT_1_BIT : device.msaaSamples;
 
     // Color Resources
     VkExtent2D swapChainExtent = getSwapChainExtent();
@@ -63,7 +64,7 @@ void Renderer::createOffscreenPass(RenderPass index) {
     imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-    imageInfo.samples = device.msaaSamples;
+    imageInfo.samples = sampleCount;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageInfo.flags = 0;
     
@@ -98,7 +99,7 @@ void Renderer::createOffscreenPass(RenderPass index) {
     imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     imageInfo.usage =  VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    imageInfo.samples = device.msaaSamples;
+    imageInfo.samples = sampleCount;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageInfo.flags = 0;
 
@@ -124,13 +125,13 @@ void Renderer::createOffscreenPass(RenderPass index) {
     // Renderpass
     VkAttachmentDescription colorAttachment = {};
     colorAttachment.format = attachments.colorFormat;
-    colorAttachment.samples = device.msaaSamples;
+    colorAttachment.samples = sampleCount;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    colorAttachment.finalLayout = device.msaaSamples == VK_SAMPLE_COUNT_1_BIT ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    colorAttachment.finalLayout = sampleCount == VK_SAMPLE_COUNT_1_BIT ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
     VkAttachmentReference colorAttachmentRef = {};
     colorAttachmentRef.attachment = 0;
@@ -139,7 +140,7 @@ void Renderer::createOffscreenPass(RenderPass index) {
 
     VkAttachmentDescription depthAttachment{};
     depthAttachment.format = attachments.depthFormat;
-    depthAttachment.samples = device.msaaSamples;
+    depthAttachment.samples = sampleCount;
     depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -172,7 +173,7 @@ void Renderer::createOffscreenPass(RenderPass index) {
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentRef;
     subpass.pDepthStencilAttachment = &depthAttachmentRef;
-    if (device.msaaSamples != VK_SAMPLE_COUNT_1_BIT) { subpass.pResolveAttachments = &colorAttachmentResolveRef; }
+    if (sampleCount != VK_SAMPLE_COUNT_1_BIT) { subpass.pResolveAttachments = &colorAttachmentResolveRef; }
 
     VkSubpassDependency dependency = {};
     dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -183,7 +184,7 @@ void Renderer::createOffscreenPass(RenderPass index) {
     dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
       
     std::vector<VkAttachmentDescription> attachmentDescriptions;
-    if (device.msaaSamples == VK_SAMPLE_COUNT_1_BIT) {
+    if (sampleCount == VK_SAMPLE_COUNT_1_BIT) {
         attachmentDescriptions = {colorAttachment, depthAttachment};
     } else {
         attachmentDescriptions = {colorAttachment, depthAttachment, colorAttachmentResolve};
@@ -205,7 +206,7 @@ void Renderer::createOffscreenPass(RenderPass index) {
     // Framebuffer
     for (int f = 0; f < SwapChain::MAX_FRAMES_IN_FLIGHT; f++) {
         std::vector<VkImageView> imageViewAttachments;
-        if (device.msaaSamples == VK_SAMPLE_COUNT_1_BIT) {
+        if (sampleCount == VK_SAMPLE_COUNT_1_BIT) {
             imageViewAttachments = {attachments.color.view[f], attachments.depth.view[f]};
         } else {
             imageViewAttachments = {attachments.multisampling.view[f], attachments.depth.view[f], attachments.color.view[f]};

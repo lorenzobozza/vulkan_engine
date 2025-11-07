@@ -23,11 +23,21 @@ public:
 private:
     void content(void) override {
         ImGui::SetNextWindowContentSize(m_extent);
-        ImGui::Begin("Viewport", nullptr, m_flags | ImGuiWindowFlags_NoCollapse);
+        ImGui::Begin("Viewport", nullptr, m_flags | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_MenuBar);
         ImGuiDockNode* id = ImGui::GetWindowDockNode();
-        id->LocalFlags |= ImGuiDockNodeFlags_NoResize;
+        id->LocalFlags |= ImGuiDockNodeFlags_NoResize | ImGuiDockNodeFlags_AutoHideTabBar;
         
-        ImGui::Image( (void*)(intptr_t) 1, m_extent);
+        ImGui::BeginMenuBar();
+        static int source = 1;
+        ImGui::Text("Main Viewport");
+        ImGui::SameLine(m_extent.x * 0.8f);
+        ImGui::Combo("##framecombo", &source, "World Space\0Screen Space\0Depth Buffer\0");
+        ImGui::EndMenuBar();
+        
+        static ImTextureRef ref;
+        ref._TexData = NULL;
+        ref._TexID = (uint64_t)source;
+        ImGui::Image(ref , m_extent);
 
         ImGui::End();
     }
@@ -64,7 +74,8 @@ public:
         float exposure = 1.5f;
         float peak_brightness = 2.f;
         float gamma = 2.2f;
-    } data;
+        unsigned int debugMode = 0;
+    } otherData;
     
     GlobalUbo uniformBuffer{};
     
@@ -137,11 +148,13 @@ private:
         
         ImGui::NewLine();
         ImGui::Text("Exposure");
-        ImGui::SliderFloat("##exposure", &data.exposure, 1.f, 5.f);
+        ImGui::SliderFloat("##exposure", &otherData.exposure, 1.f, 5.f);
         ImGui::Text("Peak White Brightness");
-        ImGui::SliderFloat("##brightness", &data.peak_brightness, 1.f, 15.f);
+        ImGui::SliderFloat("##brightness", &otherData.peak_brightness, 1.f, 15.f);
         ImGui::Text("Gamma Correction");
-        ImGui::SliderFloat("##gamma", &data.gamma, 1.f, 3.f);
+        ImGui::SliderFloat("##gamma", &otherData.gamma, 1.f, 3.f);
+        static bool depth = false;
+        if (ImGui::Checkbox("Interpret depth", &depth)) otherData.debugMode = depth ? 1 : 0;
         
         ImGui::NewLine();
         float color[4] = {uniformBuffer.lightColor.r, uniformBuffer.lightColor.g, uniformBuffer.lightColor.b, uniformBuffer.lightColor.a};

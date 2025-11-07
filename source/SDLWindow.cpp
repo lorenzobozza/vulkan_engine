@@ -7,6 +7,7 @@
 
 #include "include/SDLWindow.hpp"
 #include "include/UI.hpp"
+#include "Log.hpp"
 
 #include <stdexcept>
 #include <iostream>
@@ -113,7 +114,7 @@ void SDLWindow::pollWindowEvents(std::function<void()> callback) {
     ImGuiIO& io = ImGui::GetIO();
     
     ImGuiKey imgui_key;
-    static bool mouseLeft = false;
+    static bool mouseRight = false;
     
     while(SDL_PollEvent(&sdl_event))
     {
@@ -207,19 +208,23 @@ void SDLWindow::pollWindowEvents(std::function<void()> callback) {
                 closeWindow();
                 break;
             case SDL_MOUSEBUTTONDOWN:
-                io.MouseDown[0] = sdl_event.button.state;
-                mouseLeft = true;
+                if (sdl_event.button.button == 1)
+                    io.MouseDown[0] = sdl_event.button.state;
+                else
+                    mouseRight = true;
                 break;
             case SDL_MOUSEBUTTONUP:
-                io.MouseDown[0] = sdl_event.button.state;
-                mouseLeft = false;
+                if (sdl_event.button.button == 1)
+                    io.MouseDown[0] = sdl_event.button.state;
+                else
+                    mouseRight = false;
                 break;
             case SDL_MOUSEMOTION:
                 int wx, wy, mx, my;
                 SDL_GetWindowPosition(getWindow(), &wx, &wy);
                 SDL_GetGlobalMouseState(&mx, &my);
                 io.AddMousePosEvent((mx - wx) * dpi_scale_fact, (my - wy) * dpi_scale_fact);
-                if (mouseLeft && !ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow)) {
+                if (mouseRight) {
                     rotate.x = .05f*sdl_event.motion.yrel;
                     rotate.y = -.05f*sdl_event.motion.xrel;
                 }

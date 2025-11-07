@@ -28,10 +28,11 @@ struct PushConstantData {
 RenderSystem::RenderSystem(
     Device& passDevice,
     VkRenderPass renderPass,
-    const VkDescriptorSetLayout* globalSetLayout,
     std::string dynamicShaderPath,
+    const VkDescriptorSetLayout* globalSetLayout,
+    const unsigned int setLayoutCount,
     VkSampleCountFlagBits samples) : device{passDevice}, shaderPath{dynamicShaderPath}, sampleCount{samples} {
-  createPipelineLayout(globalSetLayout);
+  createPipelineLayout(globalSetLayout, setLayoutCount);
   createPipeline(renderPass);
 }
 
@@ -45,27 +46,28 @@ void RenderSystem::recreatePipeline(VkRenderPass renderPass, VkSampleCountFlagBi
     createPipeline(renderPass);
 }
 
-void RenderSystem::createPipelineLayout(const VkDescriptorSetLayout* globalSetLayout) {
-  VkPushConstantRange pushConstantRanges[1];
+void RenderSystem::createPipelineLayout(const VkDescriptorSetLayout* globalSetLayout, const unsigned int setLayoutCount) {
+
+  VkPushConstantRange pushConstantRange {
+    .stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS,
+    .offset = 0,
+    .size = sizeof(PushConstantData)
+  };
   
-  pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
-  pushConstantRanges[0].offset = 0;
-  pushConstantRanges[0].size = sizeof(PushConstantData);
+  VkPipelineLayoutCreateInfo pipelineLayoutInfo {
+    .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+    .pNext = nullptr,
+    .flags = 0,
+    .setLayoutCount = setLayoutCount,
+    .pSetLayouts = globalSetLayout,
+    .pushConstantRangeCount = 1,
+    .pPushConstantRanges = &pushConstantRange
+  };
   
-  //pushConstantRanges[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-  //pushConstantRanges[1].offset = sizeof(PushConstantData); // offset by previus push_constant size
-  //pushConstantRanges[1].size = sizeof(PushCostant2);
-  
-  VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-  pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  pipelineLayoutInfo.setLayoutCount = 1;
-  pipelineLayoutInfo.pSetLayouts = globalSetLayout;
-  pipelineLayoutInfo.pushConstantRangeCount = 1;
-  pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges;
-  if (vkCreatePipelineLayout(device.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) !=
-      VK_SUCCESS) {
-    throw std::runtime_error("failed to create pipeline layout!");
+  if (vkCreatePipelineLayout(device.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
+    throw std::runtime_error("Failed to create pipeline layout!");
   }
+  
 }
 
 void RenderSystem::createPipeline(VkRenderPass renderPass) {
@@ -97,19 +99,32 @@ void RenderSystem::renderSolidObjects(FrameInfo &frameInfo) {
   
   pipeline->bind(frameInfo.commandBuffer);
 
-  for (auto &kv : frameInfo.primitives) {
-    auto &obj = kv.second;
-    
     vkCmdBindDescriptorSets(
         frameInfo.commandBuffer,
         VK_PIPELINE_BIND_POINT_GRAPHICS,
         pipelineLayout,
         0,
         1,
-        &frameInfo.descriptorSet[obj.material],
+        &frameInfo.mainDescriptorSet,
         0,
         nullptr
     );
+
+  for (auto &kv : frameInfo.primitives) {
+    auto &obj = kv.second;
+    
+    if (!frameInfo.materialDescriptorSets.empty()) {
+        vkCmdBindDescriptorSets(
+            frameInfo.commandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            pipelineLayout,
+            1,
+            1,
+            &frameInfo.materialDescriptorSets[obj.material],
+            0,
+            nullptr
+        );
+    }
     
     PushConstantData push{};
     push.modelMatrix = obj.transform.mat4();
@@ -139,20 +154,20 @@ void RenderSystem::renderSolidObjects(FrameInfoNoMaterials &frameInfo) {
   }
 
   pipeline->bind(frameInfo.commandBuffer);
-
-  for (auto &kv : frameInfo.primitives) {
-    auto &obj = kv.second;
-    
-    vkCmdBindDescriptorSets(
+  
+      vkCmdBindDescriptorSets(
         frameInfo.commandBuffer,
         VK_PIPELINE_BIND_POINT_GRAPHICS,
         pipelineLayout,
         0,
         1,
-        &frameInfo.descriptorSet,
+        &frameInfo.mainDescriptorSet,
         0,
         nullptr
     );
+
+  for (auto &kv : frameInfo.primitives) {
+    auto &obj = kv.second;
     
     PushConstantData push{};
     push.modelMatrix = obj.transform.mat4();
