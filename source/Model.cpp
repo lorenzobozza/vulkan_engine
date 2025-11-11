@@ -157,7 +157,7 @@ void Model::Data::loadModel(const std::string &filePath, bool allUniqueVertices)
     
 }
 
-Model::Data Model::Data::makeSimpleCube(void) {
+Model::Data Model::Data::makeSimpleCube(bool invert) {
     Model::Data cubeData;
     cubeData.vertices = {
         {{-1.f, -1.f, 1.f}, {}, {}, {}, {0.f, 0.f}},
@@ -169,14 +169,25 @@ Model::Data Model::Data::makeSimpleCube(void) {
         {{1.f, 1.f, -1.f}, {}, {}, {}, {1.f, 1.f}},
         {{-1.f, 1.f, -1.f}, {}, {}, {}, {0.f, 1.f}}
     };
-    cubeData.indices = {
-        0,2,1,2,0,3,
-        4,5,6,6,7,4,
-        1,6,5,6,1,2,
-        0,4,7,7,3,0,
-        4,1,5,1,4,0,
-        3,6,2,6,3,7
-    };
+    if (invert) {
+        cubeData.indices = {
+            0,2,1,2,0,3,
+            4,5,6,6,7,4,
+            1,6,5,6,1,2,
+            0,4,7,7,3,0,
+            4,1,5,1,4,0,
+            3,6,2,6,3,7
+        };
+    } else {
+        cubeData.indices = {
+            2,0,1,0,2,3,
+            5,4,6,7,6,4,
+            6,1,5,1,6,2,
+            4,0,7,3,7,0,
+            1,4,5,4,1,0,
+            6,3,2,3,6,7
+        };
+    }
     return cubeData;
 }
 

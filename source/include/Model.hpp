@@ -46,7 +46,7 @@ public:
         
         void loadModel(const std::string &filePath, bool allUniqueVertices);
         
-        static Data makeSimpleCube(void);
+        static Data makeSimpleCube(bool invert = false);
     };
     
     Model(Device &dev, const Data &data);

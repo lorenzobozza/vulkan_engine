@@ -24,6 +24,7 @@
 #include "HDRi.hpp"
 #include "CompositionPipeline.hpp"
 #include "Material.hpp"
+#include "Light.hpp"
 
 //std
 #include <memory>
@@ -77,6 +78,7 @@ private:
 
     std::vector<std::unique_ptr<Texture>> textures{};
     std::unordered_map<std::string, Material> materials{};
+    std::vector<Light> lights{};
     
     bool assetsLoaded = false;
     
@@ -90,8 +92,6 @@ private:
     const std::string binaryDir = "./";
     
     GlobalUbo ubo{};
-    
-    unsigned int light_id;
 };
 
 #endif /* Application_hpp */

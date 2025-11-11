@@ -29,11 +29,11 @@ layout(location = 0) in VertexShader {
 
 layout(set = 0, binding = 0) uniform GlobalUbo {
     mat4 projectionViewMatrix;
-    vec4 ambientLightColor;
-    vec4 lightPosition[2];
-    vec4 lightColor;
     mat4 viewMatrix;
     mat4 invViewMatrix;
+    vec4 lightVector[8];
+    vec4 lightChroma[8];
+    uint lightInfo;
     uint debugMode;
 } ubo;
 layout(set = 1, binding = 0) uniform sampler2D diffuseMap;
@@ -120,11 +120,22 @@ void main() {
  
 PBRInfo pbrInputs;
 vec3 color = vec3(0);
-for (int i = 0; i < 2; i++) {
+const float lightNum = ubo.lightInfo & 0xFF;
+for (int i = 0; i < lightNum; i++) {
 
-	vec3 l = normalize(ubo.lightPosition[i].xyz - vert.worldPos);     // Vector from surface point to light
-	vec3 h = normalize(l+v);                        // Half vector between both l and v
+    vec3 l, u_LightColor;
 
+    if (((ubo.lightInfo >> (8 + i)) & 0x1) == 0) {
+        l = normalize(ubo.lightVector[i].xyz - vert.worldPos); // Vector from surface point to light
+        float lightDist = length(ubo.lightVector[i].xyz - vert.worldPos);
+        float attenuation = ubo.lightChroma[i].a / (lightDist * lightDist);
+        u_LightColor = ubo.lightChroma[i].rgb * attenuation;
+    } else {
+        l = -normalize(ubo.lightVector[i].xyz); // Vector from surface with direction of light
+        u_LightColor = ubo.lightChroma[i].rgb * ubo.lightChroma[i].a;
+    }
+  
+	vec3 h = normalize(l+v); // Half vector between both l and v
 	float NdotL = clamp(dot(n, l), 0.001, 1.0);
 	float NdotV = clamp(abs(dot(n, v)), 0.001, 1.0);
 	float NdotH = clamp(dot(n, h), 0.0, 1.0);
@@ -151,10 +162,6 @@ for (int i = 0; i < 2; i++) {
 	float G = geometricOcclusion(pbrInputs);
 	float D = microfacetDistribution(pbrInputs);
 
-    float lightDist = length(ubo.lightPosition[i].xyz - vert.worldPos);
-    float attenuation = ubo.lightColor.a / (lightDist * lightDist);
-	const vec3 u_LightColor = ubo.lightColor.rgb * attenuation;
-
 	// Calculation of analytical lighting contribution
 	vec3 diffuseContrib = (1.0 - F) * diffuse(pbrInputs);
 	vec3 specContrib = F * G * D / (4.0 * NdotL * NdotV);
@@ -165,7 +172,9 @@ for (int i = 0; i < 2; i++) {
 }
 
 	// Calculate lighting contribution from image based lighting source (IBL)
-	color += getIBLContribution(pbrInputs, n, reflection);
+    if ((ubo.debugMode & 0x200) == 0x200) {
+	    color += getIBLContribution(pbrInputs, n, reflection);
+    }
 
 	const float u_OcclusionStrength = 0.5f;
 	// Apply optional PBR terms for additional (optional) shading
@@ -173,17 +182,20 @@ for (int i = 0; i < 2; i++) {
 		color = mix(color, color * occlusion, u_OcclusionStrength);
 	}
 	
-    switch (ubo.debugMode) {
+    switch (ubo.debugMode & 0xFF) {
         case 1:
             color = (n + 1.0) * 0.5;
+            alpha = 1.0;
             break;
 
         case 2:
-            color = vec3(perceptualRoughness, 0.0, 0.0);
+            color = vec3(perceptualRoughness);
+            alpha = 1.0;
             break;
         
         case 3:
-            color = vec3(metallic, 0.0, 0.0);
+            color = vec3(metallic);
+            alpha = 1.0;
             break;
 
         default:

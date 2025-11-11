@@ -231,6 +231,8 @@ void SDLWindow::pollWindowEvents(std::function<void()> callback) {
                 break;
             case SDL_MOUSEWHEEL:
                 io.AddMouseWheelEvent(sdl_event.wheel.preciseX, sdl_event.wheel.preciseY);
+                rotate.x = .5f*sdl_event.wheel.preciseY;
+                rotate.y = .5f*sdl_event.wheel.preciseX;
                 break;
         }
     }

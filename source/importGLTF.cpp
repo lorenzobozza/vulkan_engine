@@ -5,7 +5,8 @@
 //  Created by Lorenzo Bozza on 20/09/23.
 //
 
-#include "include/importGLTF.hpp"
+#include "importGLTF.hpp"
+#include "Log.hpp"
 
 #define TINYGLTF_IMPLEMENTATION
 
@@ -94,7 +95,7 @@ struct ImageParseTaskSet : enki::ITaskSet {
 
 NodeSet::NodeSet(InitStruct& init, std::string filePath)
     : m_Device{init.device}, m_Image{init.image}, m_Materials{init.materials},
-    m_Primitives{init.primitives}, m_Textures{init.textures}, m_FilePath{filePath} {
+    m_Primitives{init.primitives}, m_Textures{init.textures}, m_Lights{init.lights}, m_FilePath{filePath} {
 
     parseGLTF();
     
@@ -109,7 +110,7 @@ NodeSet::NodeSet(InitStruct& init, std::string filePath)
     g_TS.ShutdownNow();
     
     // glTF -> Vulkan, unit quaternion along X to rotate 180° about X
-    Node* root = new Node;
+    Node* root = new Node("root");
     root->Matrix = glm::toMat4(glm::quat{0.f, 1.f, 0.f, 0.f});
     m_Nodes.push_back(root);
     
@@ -121,6 +122,10 @@ NodeSet::NodeSet(InitStruct& init, std::string filePath)
 }
 
 NodeSet::~NodeSet() {
+    deleteNodes();
+}
+
+void NodeSet::deleteNodes(void) {
     for (Node* pN : m_Nodes) {
         delete pN;
     }
@@ -160,7 +165,7 @@ void NodeSet::parseGLTF() {
 void NodeSet::loadNodeFromModel(int nodeIndex, Node* parentNode) {
     const tinygltf::Node& gltfNode = m_gltfModel.nodes[nodeIndex];
     
-    Node* newNode = new Node;
+    Node* newNode = new Node(gltfNode.name);
     
     if (gltfNode.scale.size() == 3) {
         newNode->Scale = glm::make_vec3(gltfNode.scale.data());
@@ -192,17 +197,41 @@ void NodeSet::loadNodeFromModel(int nodeIndex, Node* parentNode) {
     m_Nodes.push_back(newNode);
     
     // MAYBE we can determine if the transformation is needed to save time
-    glm::mat4 transform;
+    glm::mat4 transform = newNode->Matrix;
     
     // Move backwards to build the correct transformation matrix
     while (newNode->p_Parent) {
-        transform = newNode->p_Parent->Matrix * newNode->Matrix;
+        transform = newNode->p_Parent->Matrix * transform;
         newNode = newNode->p_Parent;
     }
 
     parseMeshFromNode(gltfNode, transform);
     // TODO: Parse other object like cameras, lights etc..
 
+    parseLightFromNode(gltfNode, transform);
+}
+
+void NodeSet::parseLightFromNode(const tinygltf::Node& node, glm::mat4 transform) {
+    int lightIdx = node.light;
+    if (lightIdx > -1) {
+        auto& light = m_gltfModel.lights[lightIdx];
+    
+        if (light.type == Light::gltfTypes[Light::Type::Point]) {
+            m_Lights.emplace_back(Light::makePoint(
+                glm::vec3(transform[3].x, transform[3].y, transform[3].z),
+                glm::vec4(glm::make_vec3(light.color.data()), light.intensity * 0.0184f)
+            ));
+            
+        } else if (light.type == Light::gltfTypes[Light::Type::Directional]) {
+            m_Lights.emplace_back(Light::makeDirectional(
+                glm::vec3(-transform[2].x, -transform[2].y, -transform[2].z),
+                glm::vec4(glm::make_vec3(light.color.data()), light.intensity * 0.00146f)
+            ));
+            
+        } else if (light.type == Light::gltfTypes[Light::Type::Spot]) {
+            Log::getInstance()->warn("Node {} contains a Spot-Type light source, which is currently not supported.", light.name);
+        }
+    }
 }
 
 void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform) {

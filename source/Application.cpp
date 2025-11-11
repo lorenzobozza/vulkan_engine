@@ -62,7 +62,7 @@ void Application::run() {
         camera.setProjection.perspective(aspectRatio, glm::radians(75.f), .01f, 100.f);
         
         Primitive cameraObj = Primitive::new_primitive();
-        cameraObj.transform.translation = {.0f, -2.f, .0f};
+        cameraObj.transform.translation = {-5.f, -2.f, .0f};
         cameraObj.transform.rotation.y = glm::half_pi<float>();
         bool orth = false;
     
@@ -89,22 +89,26 @@ void Application::run() {
         materials.emplace("Global_Default_Material", globalMaterial);
     
         // Multithreaded job, migliorare la creazione dei task-sets
-        NodeSet::InitStruct initNodeStruct{vulkanDevice, vulkanImage, primitives, textures, materials};
+        NodeSet::InitStruct initNodeStruct{vulkanDevice, vulkanImage, primitives, textures, materials, lights};
         NodeSet(initNodeStruct, binaryDir + "../../../assets/models/Sponza.glb");
+        
+        ubo.lightInfo = (uint8_t)lights.size();
+        uint8_t index = 0;
+        for (auto& light : lights) {
+            if (index < 8 && light.m_type < Light::Type::Spot) {
+                ubo.lightVector[index] = glm::vec4(light.m_data.pos, 0.f);
+                ubo.lightChroma[index] = light.m_data.color;
+                ubo.lightInfo |= (light.m_type & 0x1) << (index + 8);
+                ++index;
+            }
+        }
 
         // Cubemap 3D canvas
         auto cube = Primitive::new_primitive();
-        cube.setModel(std::make_shared<Model>(vulkanDevice, Model::Data::makeSimpleCube()));
+        cube.setModel(std::make_shared<Model>(vulkanDevice, Model::Data::makeSimpleCube(true)));
         cube.textureIndex = 1;
         cube.material = "SKY";
         env.emplace(cube.getId(), std::move(cube));
-        
-        auto light = Primitive::new_primitive();
-        light.setModel(std::make_shared<Model>(vulkanDevice, Model::Data::makeSimpleCube()));
-        light.transform.scale = glm::vec3(0.1f);
-        light.transform.translation = ubo.lightPosition[0];
-        light_id = light.getId();
-        primitives.emplace(light.getId(), std::move(light));
         
         assetsLoaded = true;
         
@@ -414,16 +418,12 @@ void Application::run() {
             ubo.viewMatrix = camera.getView();
             ubo.invViewMatrix = camera.getInverseView();
             
-            ubo.debugMode = widgets.settings->uniformBuffer.debugMode;
-            ubo.lightColor = widgets.settings->uniformBuffer.lightColor;
-            ubo.lightPosition[0] = widgets.settings->uniformBuffer.lightPosition[0];
+            ubo.debugMode = widgets.settings->debugMode;
             
             renderSystems.composit->exposure = widgets.settings->otherData.exposure;
             renderSystems.composit->gamma = widgets.settings->otherData.gamma;
             renderSystems.composit->peak_brightness = widgets.settings->otherData.peak_brightness;
             renderSystems.composit->debugMode = widgets.settings->otherData.debugMode;
-            
-            primitives.at(light_id).transform.translation = ubo.lightPosition[0];
 
             uboBuffers[frameIndex]->writeToBuffer(&ubo);
             uboBuffers[frameIndex]->flush();

@@ -12,8 +12,36 @@
 #include "UI.hpp"
 #include "Log.hpp"
 #include "utils.h"
+#include "importGLTF.hpp"
 
 #include <imgui_internal.h>
+
+class NodeTree : public Widget {
+public:
+    NodeTree(std::vector<NodeSet::Node*> nodes) : m_nodes(nodes) {}
+
+private:
+    std::vector<NodeSet::Node*> m_nodes;
+    void content(void) override {
+        ImGui::Begin("Node Visualizer");
+        for (NodeSet::Node* node : m_nodes) {
+            if (node->p_Parent == nullptr) {
+                child(node);
+            }
+        }
+        ImGui::End();
+    }
+    
+    void child(NodeSet::Node* parentNode) {
+        for (NodeSet::Node* node : m_nodes) {
+            if (node->p_Parent == parentNode) {
+                ImGui::TreeNodeEx((node->Name.empty() ? "##empty" : node->Name.c_str()), ImGuiTreeNodeFlags_DefaultOpen);
+                child(node);
+                ImGui::TreePop();
+            }
+        }
+    }
+};
 
 class Viewport : public Widget {
 public:
@@ -77,7 +105,7 @@ public:
         unsigned int debugMode = 0;
     } otherData;
     
-    GlobalUbo uniformBuffer{};
+    unsigned int debugMode = 0;
     
 private:
     Device& m_device;
@@ -121,11 +149,14 @@ private:
         }
         
         ImGui::NewLine();
-        static int debugMode = 0;
+        static int debugLocal = 0;
+        static bool iblBg = false, iblLight = false;
         ImGui::Text("Shader Control");
-        if (ImGui::Combo("##debugMode", &debugMode, "Shaded\0Normal\0Roughness\0Metallic\0")) {
-            uniformBuffer.debugMode = debugMode;
+        if (ImGui::Combo("##debugMode", &debugLocal, "Shaded\0Normal\0Roughness\0Metallic\0")) {
+            debugMode = (debugMode & 0xF00) + debugLocal;
         }
+        if (ImGui::Checkbox("Environment Map", &iblBg)) { if(iblBg) { debugMode |= (1 << 8); } else { debugMode &= ~(1 << 8); } }
+        if (ImGui::Checkbox("IBL Contribution", &iblLight)) { if(iblLight) { debugMode |= (1 << 9); } else { debugMode &= ~(1 << 9); } }
         if (ImGui::Button("Compile Shaders")) {
             vkDeviceWaitIdle(m_device.device());
             recreatePipelines();
@@ -155,16 +186,6 @@ private:
         ImGui::SliderFloat("##gamma", &otherData.gamma, 1.f, 3.f);
         static bool depth = false;
         if (ImGui::Checkbox("Interpret depth", &depth)) otherData.debugMode = depth ? 1 : 0;
-        
-        ImGui::NewLine();
-        float color[4] = {uniformBuffer.lightColor.r, uniformBuffer.lightColor.g, uniformBuffer.lightColor.b, uniformBuffer.lightColor.a};
-        ImGui::ColorEdit3("Light Color", color);
-        ImGui::SliderFloat("##strength", &color[3], 1.f, 100.f);
-        uniformBuffer.lightColor = {color[0], color[1], color[2], color[3]};
-        
-        ImGui::SliderFloat("LPosX", &uniformBuffer.lightPosition[0].x, -3.f, 3.f);
-        ImGui::SliderFloat("LPosY", &uniformBuffer.lightPosition[0].y, -.5f, -5.f);
-        ImGui::SliderFloat("LPosZ", &uniformBuffer.lightPosition[0].z, -4.f, 4.f);
 
         ImGui::End();
     }

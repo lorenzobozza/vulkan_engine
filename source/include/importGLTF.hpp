@@ -23,17 +23,41 @@
 #include "Primitive.hpp"
 #include "Texture.hpp"
 #include "Material.hpp"
+#include "Light.hpp"
 
 class NodeSet {
+public:
+    struct InitStruct {
+        Device& device;
+        Image& image;
+        Primitive::Map& primitives;
+        std::vector<std::unique_ptr<Texture>>& textures;
+        std::unordered_map<std::string, Material>& materials;
+        std::vector<Light>& lights;
+    };
+    
     struct Node {
+        Node(std::string name) : Name(name) {}
+        
         Node* p_Parent{nullptr};
         
         glm::mat4 Matrix{1.0f};
         glm::quat Quat{1.0f,0.0f,0.0f,0.0f};
         glm::vec3 Scale{1.0f};
         glm::vec3 Offset{0.0f};
+        
+        std::string Name;
     };
     
+    NodeSet(InitStruct& init, std::string filePath);
+    NodeSet(NodeSet &&) = default;
+    
+    ~NodeSet();
+    
+    std::vector<Node*>& getNodes(void) { return m_Nodes; }
+    void deleteNodes(void);
+    
+private:
     // member variables
     std::vector<Node*> m_Nodes;
     std::string m_FilePath;
@@ -44,27 +68,16 @@ class NodeSet {
     Primitive::Map& m_Primitives;
     std::vector<std::unique_ptr<Texture>>& m_Textures;
     std::unordered_map<std::string, Material>& m_Materials;
+    std::vector<Light>& m_Lights;
     
     // private methods
     void parseGLTF(void);
     void loadNodeFromModel(int nodeIndex, Node* parentNode);
     void parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform);
+    void parseLightFromNode(const tinygltf::Node& node, glm::mat4 transform);
     void loadMaterialsToVRAM(void);
     void fillSamplerInfo(int textureIndex, VkSamplerCreateInfo *samplerInfo);
     
-public:
-    struct InitStruct {
-        Device& device;
-        Image& image;
-        Primitive::Map& primitives;
-        std::vector<std::unique_ptr<Texture>>& textures;
-        std::unordered_map<std::string, Material>& materials;
-    };
-    
-    NodeSet(InitStruct& init, std::string filePath);
-    NodeSet(NodeSet &&) = default;
-    
-    ~NodeSet();
 };
 
 /*
