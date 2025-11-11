@@ -23,7 +23,7 @@ class CompositionPipeline {
   CompositionPipeline(
     Device &passDevice,
     VkRenderPass renderPass,
-    VkDescriptorSetLayout compositionSetLayout,
+    const VkDescriptorSetLayout* compositionSetLayout,
     std::string dynamicShaderPath);
   ~CompositionPipeline();
 
@@ -35,9 +35,10 @@ class CompositionPipeline {
   float exposure = 1.5f;
   float peak_brightness = 2.f;
   float gamma = 2.2f;
+  unsigned int debugMode = 0;
 
  private:
-  void createPipelineLayout(VkDescriptorSetLayout globalSetLayout);
+  void createPipelineLayout(const VkDescriptorSetLayout* globalSetLayout);
   void createPipeline(VkRenderPass renderPass);
 
 protected:

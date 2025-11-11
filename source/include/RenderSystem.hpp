@@ -20,14 +20,26 @@
 #include <vector>
 #include <string>
 
+struct GlobalUbo {
+    glm::mat4 projectionView{1.f};
+    glm::mat4 viewMatrix{1.f};
+    glm::mat4 invViewMatrix{1.f};
+    
+    glm::vec4 lightVector[8]{};
+    glm::vec4 lightChroma[8]{};
+    unsigned int lightInfo;
+    
+    unsigned int debugMode{0};
+};
 
 class RenderSystem {
- public:
+public:
   RenderSystem(
     Device &passDevice,
     VkRenderPass renderPass,
-    VkDescriptorSetLayout globalSetLayout,
     std::string dynamicShaderPath,
+    const VkDescriptorSetLayout* globalSetLayout,
+    const unsigned int setLayoutCount = 1,
     VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT);
   ~RenderSystem();
 
@@ -36,9 +48,12 @@ class RenderSystem {
   
   void recreatePipeline(VkRenderPass renderPass, VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_1_BIT);
   virtual void renderSolidObjects(FrameInfo &frameInfo);
+  virtual void renderSolidObjects(FrameInfoNoMaterials &frameInfo);
+  
+  Pipeline::Status getPipelineStatus(void) { return (pipeline != nullptr ? pipeline->getInternalStatus() : Pipeline::Status::ERR); }
 
- private:
-  void createPipelineLayout(VkDescriptorSetLayout globalSetLayout);
+private:
+  void createPipelineLayout(const VkDescriptorSetLayout* globalSetLayout, const unsigned int setLayoutCount);
   void createPipeline(VkRenderPass renderPass);
 
 protected:

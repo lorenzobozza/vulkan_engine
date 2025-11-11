@@ -20,9 +20,19 @@ struct FrameInfo {
     float frameTime;
     VkCommandBuffer commandBuffer;
     Camera &camera;
-    std::unordered_map<std::string, VkDescriptorSet> globalDescriptorSet;
     Primitive::Map &primitives;
+    VkDescriptorSet mainDescriptorSet;
     std::unordered_map<std::string, Material> &materials;
+    std::unordered_map<std::string, VkDescriptorSet> materialDescriptorSets;
+};
+
+struct FrameInfoNoMaterials {
+    int frameIndex;
+    float frameTime;
+    VkCommandBuffer commandBuffer;
+    Camera &camera;
+    Primitive::Map &primitives;
+    VkDescriptorSet mainDescriptorSet;
 };
 
 #endif /* FrameInfo_hpp */

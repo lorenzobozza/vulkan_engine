@@ -19,9 +19,9 @@
 #include <unordered_map>
 
 struct TransformComponent {
-    glm::vec3 translation{};
-    glm::vec3 scale{1.f, 1.f, 1.f};
-    glm::vec3 rotation{};
+    glm::vec3 translation{0.f};
+    glm::vec3 scale{1.f};
+    glm::vec3 rotation{0.f};
     
     bool hasMatrix = false;
     glm::mat4 matrix{};
@@ -59,7 +59,7 @@ public:
     float roughness{.4f};
     TransformComponent transform{};
     
-    std::string material;
+    std::string material{"Global_Default_Material"};
     
 private:
     Primitive(id_t objId) : id{objId} {}

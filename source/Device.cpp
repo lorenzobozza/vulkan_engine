@@ -6,6 +6,7 @@
 //
 
 #include "include/Device.hpp"
+#include "Log.hpp"
 
 // std headers
 #include <cstring>
@@ -22,7 +23,8 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
     void *pUserData) {
     
     if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
-        std::cerr << "▼ Validation Layer ▼\n--> " << pCallbackData->pMessage << std::endl;
+        std::cerr << "~Validation Layer~\n" << pCallbackData->pMessage << std::endl;
+        Log::getInstance()->error("~Validation Layer~\n{}", pCallbackData->pMessage);
     }
 
   return VK_FALSE;

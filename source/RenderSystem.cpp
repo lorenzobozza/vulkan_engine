@@ -28,10 +28,11 @@ struct PushConstantData {
 RenderSystem::RenderSystem(
     Device& passDevice,
     VkRenderPass renderPass,
-    VkDescriptorSetLayout globalSetLayout,
     std::string dynamicShaderPath,
+    const VkDescriptorSetLayout* globalSetLayout,
+    const unsigned int setLayoutCount,
     VkSampleCountFlagBits samples) : device{passDevice}, shaderPath{dynamicShaderPath}, sampleCount{samples} {
-  createPipelineLayout(globalSetLayout);
+  createPipelineLayout(globalSetLayout, setLayoutCount);
   createPipeline(renderPass);
 }
 
@@ -45,33 +46,32 @@ void RenderSystem::recreatePipeline(VkRenderPass renderPass, VkSampleCountFlagBi
     createPipeline(renderPass);
 }
 
-void RenderSystem::createPipelineLayout(VkDescriptorSetLayout globalSetLayout) {
-  VkPushConstantRange pushConstantRanges[1];
-  
-  pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;
-  pushConstantRanges[0].offset = 0;
-  pushConstantRanges[0].size = sizeof(PushConstantData);
-  
-  //pushConstantRanges[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-  //pushConstantRanges[1].offset = sizeof(PushConstantData); // offset by previus push_constant size
-  //pushConstantRanges[1].size = sizeof(PushCostant2);
-  
-  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{globalSetLayout};
+void RenderSystem::createPipelineLayout(const VkDescriptorSetLayout* globalSetLayout, const unsigned int setLayoutCount) {
 
-  VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-  pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
-  pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
-  pipelineLayoutInfo.pushConstantRangeCount = 1;
-  pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges;
-  if (vkCreatePipelineLayout(device.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) !=
-      VK_SUCCESS) {
-    throw std::runtime_error("failed to create pipeline layout!");
+  VkPushConstantRange pushConstantRange {
+    .stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS,
+    .offset = 0,
+    .size = sizeof(PushConstantData)
+  };
+  
+  VkPipelineLayoutCreateInfo pipelineLayoutInfo {
+    .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+    .pNext = nullptr,
+    .flags = 0,
+    .setLayoutCount = setLayoutCount,
+    .pSetLayouts = globalSetLayout,
+    .pushConstantRangeCount = 1,
+    .pPushConstantRanges = &pushConstantRange
+  };
+  
+  if (vkCreatePipelineLayout(device.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
+    throw std::runtime_error("Failed to create pipeline layout!");
   }
+  
 }
 
 void RenderSystem::createPipeline(VkRenderPass renderPass) {
-  assert(pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
+  assert(pipelineLayout != VK_NULL_HANDLE && "Cannot create pipeline before pipeline layout");
 
     PipelineConfigInfo pipelineConfig{};
     Pipeline::defaultPipelineConfigInfo(pipelineConfig);
@@ -90,24 +90,41 @@ void RenderSystem::createPipeline(VkRenderPass renderPass) {
         shaderPath+".vert",
         shaderPath+".frag",
         pipelineConfig);
-    }
+}
 
 void RenderSystem::renderSolidObjects(FrameInfo &frameInfo) {
+  if (getPipelineStatus() != Pipeline::Status::OK) {
+    return;
+  }
+  
   pipeline->bind(frameInfo.commandBuffer);
 
-  for (auto &kv : frameInfo.primitives) {
-    auto &obj = kv.second;
-    
     vkCmdBindDescriptorSets(
         frameInfo.commandBuffer,
         VK_PIPELINE_BIND_POINT_GRAPHICS,
         pipelineLayout,
         0,
         1,
-        &frameInfo.globalDescriptorSet[obj.material],
+        &frameInfo.mainDescriptorSet,
         0,
         nullptr
     );
+
+  for (auto &kv : frameInfo.primitives) {
+    auto &obj = kv.second;
+    
+    if (!frameInfo.materialDescriptorSets.empty()) {
+        vkCmdBindDescriptorSets(
+            frameInfo.commandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            pipelineLayout,
+            1,
+            1,
+            &frameInfo.materialDescriptorSets[obj.material],
+            0,
+            nullptr
+        );
+    }
     
     PushConstantData push{};
     push.modelMatrix = obj.transform.mat4();
@@ -126,15 +143,42 @@ void RenderSystem::renderSolidObjects(FrameInfo &frameInfo) {
         sizeof(PushConstantData),
         &push);
         
-    /*
+    obj.model->bind(frameInfo.commandBuffer);
+    obj.model->draw(frameInfo.commandBuffer);
+  }
+}
+
+void RenderSystem::renderSolidObjects(FrameInfoNoMaterials &frameInfo) {
+  if (getPipelineStatus() != Pipeline::Status::OK) {
+    return;
+  }
+
+  pipeline->bind(frameInfo.commandBuffer);
+  
+      vkCmdBindDescriptorSets(
+        frameInfo.commandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        pipelineLayout,
+        0,
+        1,
+        &frameInfo.mainDescriptorSet,
+        0,
+        nullptr
+    );
+
+  for (auto &kv : frameInfo.primitives) {
+    auto &obj = kv.second;
+    
+    PushConstantData push{};
+    push.modelMatrix = obj.transform.mat4();
+
     vkCmdPushConstants(
         frameInfo.commandBuffer,
         pipelineLayout,
-        VK_SHADER_STAGE_FRAGMENT_BIT,
-        sizeof(PushConstantData), // offset by previus push_constant size
-        sizeof(PushConstant2),
-        &push2);
-    */
+        VK_SHADER_STAGE_ALL_GRAPHICS,
+        0,
+        sizeof(PushConstantData),
+        &push);
         
     obj.model->bind(frameInfo.commandBuffer);
     obj.model->draw(frameInfo.commandBuffer);

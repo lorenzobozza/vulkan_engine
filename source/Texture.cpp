@@ -52,7 +52,7 @@ Texture::Texture(Device &dev, Image &image, void* data, uint32_t texWidth, uint3
     _h = texHeight;
     
     if (mipMapping) {
-        mipLevels = std::floor(std::log2(std::max(_w, _h))) + 1;
+        mipLevels = (int)std::floor(std::log2(std::max(_w, _h))) + 1;
         mipLevels = (mipLevels > 6) ? 6 : mipLevels;
     }
     else {
@@ -205,7 +205,7 @@ void Texture::loadTexture() {
     _h = texHeight;
     
     if (mipMapping) {
-        mipLevels = std::floor(std::log2(std::max(_w, _h))) + 1;
+        mipLevels = (int)std::floor(std::log2(std::max(_w, _h))) + 1;
     }
     else {
         mipLevels = 1;

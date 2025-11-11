@@ -13,7 +13,7 @@
 #include <iostream>
 
 Pipeline::Pipeline(Device &dev, const std::string &vertFilepath, const std::string &fragFilepath, const PipelineConfigInfo &configInfo) : device{dev} {
-    createGraphicsPipeline(vertFilepath, fragFilepath, configInfo);
+    m_internalStatus = createGraphicsPipeline(vertFilepath, fragFilepath, configInfo);
 }
 
 Pipeline::~Pipeline() {
@@ -22,36 +22,22 @@ Pipeline::~Pipeline() {
     vkDestroyPipeline(device.device(), graphicsPipeline, nullptr);
 }
 
-std::vector<char> Pipeline::readFile(const std::string &filepath) {
-    std::ifstream file{filepath, std::ios::ate | std::ios::binary};
-    
-    if(!file.is_open()) {
-        throw std::runtime_error("Failed to open file: " + filepath);
-    }
-    
-    size_t filesize = static_cast<size_t>(file.tellg());
-    
-    std::vector<char> buffer(filesize);
-    file.seekg(0);
-    file.read(buffer.data(), filesize);
-    file.close();
-    
-    return buffer ;
-}
-
-void Pipeline::createGraphicsPipeline(const std::string &vertFilepath, const std::string &fragFilepath, const PipelineConfigInfo &configInfo) {
+Pipeline::Status Pipeline::createGraphicsPipeline(const std::string &vertFilepath, const std::string &fragFilepath, const PipelineConfigInfo &configInfo) {
     assert(configInfo.pipelineLayout != VK_NULL_HANDLE && "Cannot create grapics pipeline:: no pipelineLayout provided in configInfo");
     assert(configInfo.renderPass != VK_NULL_HANDLE && "Cannot create grapics pipeline:: no renderPass provided in configInfo");
     
     std::vector<uint32_t> vertexShader, fragmentShader;
     
     ShaderCompiler glslc;
-    if (glslc.loadShader(vertFilepath, vertexShader) == ShaderCompiler::State::Valid) {
-        createShaderModule(vertexShader, &vertShaderModule);
+    if (glslc.loadShader(vertFilepath, vertexShader) != ShaderCompiler::State::Valid) {
+        return Status::ERR;
     }
-    if (glslc.loadShader(fragFilepath, fragmentShader) == ShaderCompiler::State::Valid) {
-        createShaderModule(fragmentShader, &fragShaderModule);
+    if (glslc.loadShader(fragFilepath, fragmentShader) != ShaderCompiler::State::Valid) {
+        return Status::ERR;
     }
+    
+    createShaderModule(vertexShader, &vertShaderModule);
+    createShaderModule(fragmentShader, &fragShaderModule);
     
     VkPipelineShaderStageCreateInfo shaderStages[2];
     shaderStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -100,8 +86,10 @@ void Pipeline::createGraphicsPipeline(const std::string &vertFilepath, const std
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
     
     if(vkCreateGraphicsPipelines(device.device(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create graphics pipeline");
+        return Status::ERR;
     }
+    
+    return Status::OK;
 }
 
 void Pipeline::createShaderModule(std::vector<uint32_t>& vecShader, VkShaderModule *shaderModule) {

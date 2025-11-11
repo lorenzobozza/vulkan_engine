@@ -14,7 +14,7 @@
 
 int main(int argc, const char * argv[]) {
     
-    Application app{argv[0]};
+    Application app{};
     
     try {
         app.run();

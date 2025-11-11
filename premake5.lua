@@ -2,7 +2,6 @@ require "export-compile-commands"
 
 workspace "PrototypeEngine"
 	configurations { "Debug", "Release" }
-	platforms {"arm64"}
 	location "build"
 
 project "Core"
@@ -11,8 +10,10 @@ project "Core"
 	cppdialect "C++23"
 
 	files {
-		"**.c",
-		"**.cpp"
+		"source/**.cpp",
+		"external/imgui/*.cpp",
+		"external/mikktspace/*.c",
+		"external/enkits/*.cpp"
 	}
 
 	includedirs {
@@ -37,6 +38,17 @@ project "Core"
 	libdirs {
 		"external/**/lib"
 	}
+
+	filter "system:windows"
+		files { "external/nfd/nfd_win.cpp" }
+		architecture "x86_64"
+
+	filter "system:macosx"
+		files { "external/nfd/nfd_cocoa.m" }
+		links {
+			"AppKit.framework",
+			"UniformTypeIdentifiers.framework"
+		}
 
 	filter "configurations:Debug"
 		defines { "DEBUG" }

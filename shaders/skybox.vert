@@ -11,9 +11,6 @@ layout(location = 0) out vec3 fragPos;
 
 layout(binding = 0) uniform GlobalUbo {
     mat4 projectionViewMatrix;
-    vec4 ambientLightColor;
-    vec4 lightPosition[2];
-    vec4 lightColor;
     mat4 viewMatrix;
     mat4 invViewMatrix;
 } ubo;

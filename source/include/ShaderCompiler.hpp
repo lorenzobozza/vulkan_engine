@@ -10,8 +10,54 @@
 
 #include <shaderc/shaderc.hpp>
 #include <fstream>
+#include <array>
 
 #include "Log.hpp"
+
+class ShaderIncluderInterface : public shaderc::CompileOptions::IncluderInterface {
+public:
+    shaderc_include_result* GetInclude(const char* requested_source, shaderc_include_type type, const char* requesting_source, size_t include_depth) override {
+    
+        const std::string name = std::string(requested_source);
+        std::string source;
+        
+        std::ifstream file;
+        file.open("../../../shaders/" + name, std::ios::ate | std::ios::binary);
+            
+        if (file.rdstate() == std::ios::goodbit && file.is_open()) {
+            size_t filesize = static_cast<size_t>(file.tellg());
+            source.resize(filesize);
+            
+            file.seekg(0);
+            file.read(source.data(), filesize);
+            file.close();
+        }
+
+        auto container = new std::array<std::string, 2>;
+        (*container)[0] = std::move(name);
+        (*container)[1] = std::move(source);
+
+        auto data = new shaderc_include_result;
+
+        data->user_data = container;
+
+        data->source_name = (*container)[0].data();
+        data->source_name_length = (*container)[0].size();
+
+        data->content = (*container)[1].data();
+        data->content_length = (*container)[1].size();
+    
+        return data;
+    }
+
+    void ReleaseInclude(shaderc_include_result* data) override {
+        delete static_cast<std::array<std::string, 2>*>(data->user_data);
+        delete data;
+    }
+    
+    ~ShaderIncluderInterface() = default;
+};
+
 
 class ShaderCompiler {
 public:
@@ -28,7 +74,7 @@ public:
         
         // Check for cached spv
         std::ifstream file;
-        file.open("shaders/cache/" + fileName + ".spv", std::ios::ate | std::ios::binary);
+        file.open("../../../shaders/cache/" + fileName + ".spv", std::ios::ate | std::ios::binary);
         
         if (file.rdstate() == std::ios::goodbit && file.is_open()) {
             size_t filesize = static_cast<size_t>(file.tellg());
@@ -41,7 +87,7 @@ public:
             return State::Valid;
         }
 
-        file.open("shaders/" + fileName, std::ios::ate);
+        file.open("../../../shaders/" + fileName, std::ios::ate | std::ios::binary);
         
         if (file.rdstate() == std::ios::goodbit && file.is_open()) {
             size_t filesize = static_cast<size_t>(file.tellg());
@@ -60,11 +106,12 @@ public:
             };
             
             sinfo.options.SetOptimizationLevel(shaderc_optimization_level_performance);
+            sinfo.options.SetIncluder(std::make_unique<ShaderIncluderInterface>());
             
             return compileShader(sinfo);
         }
         else {
-            log->error("The file {} was not found", fileName);
+            log->error("Shader: The file {} was not found", fileName);
         }
         
         return State::Error;
@@ -108,14 +155,14 @@ private:
         
         if (info.binary.data()[0] == 0x07230203U) {
             std::ofstream cache;
-            cache.open("shaders/cache/" + info.fileName + ".spv", std::ios::binary);
+            cache.open("../../../shaders/cache/" + info.fileName + ".spv", std::ios::binary);
             cache.write((char*)info.binary.data(), info.binary.size() * sizeof(uint32_t));
             cache.close();
             
             return State::Valid;
         }
         
-        log->error("{} wrong Spir-V magic number", info.fileName);
+        log->error("Shader: {} wrong Spir-V magic number", info.fileName);
         return State::Error;
     }
 

@@ -62,7 +62,7 @@ VkDescriptorImageInfo HDRi::descriptorInfo() {
 void HDRi::renderFaces() {
 
     // Correct mip levels if they exceed the given resolution
-    uint16_t maxMip = std::floor(std::log2(std::max(extent.width, extent.height))) + 1;
+    uint16_t maxMip = (uint16_t)std::floor(std::log2(std::max(extent.width, extent.height))) + 1;
     mipLevels = std::min(maxMip, mipLevels);
     
     Camera cubeCam{};
@@ -142,8 +142,8 @@ void HDRi::renderFaces() {
     
     //Mip iterator
     for (int mip = 0; mip < mipLevels; mip++) {
-        offscreenPass.width  = static_cast<float>(extent.width * std::pow(0.5, mip));
-        offscreenPass.height = static_cast<float>(extent.height * std::pow(0.5, mip));
+        offscreenPass.width  = static_cast<int32_t>((float)extent.width * std::pow(0.5, mip));
+        offscreenPass.height = static_cast<int32_t>((float)extent.height * std::pow(0.5, mip));
         
         createOffscreenFramebuffer();
 
@@ -170,7 +170,7 @@ void HDRi::renderFaces() {
                 pipelineLayout,
                 0,
                 1,
-                &descriptor.set,
+                descriptor.v_set.data(),
                 0,
                 nullptr
             );
@@ -325,33 +325,31 @@ void HDRi::createDescriptorSets() {
     );
     uboBuffer->map();
     
-    descriptor.pool =
-       DescriptorPool::Builder(device)
+    descriptor.layout =
+        DescriptorSetLayout::Builder(device.device())
+            .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
+            .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .build_ptr();
+    
+    descriptor.pool = DescriptorPool::Builder(device.device())
            .setMaxSets(1)
            .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1)
-           .build();
-           
-    descriptor.setLayout =
-        DescriptorSetLayout::Builder(device)
-            .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
-            .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .build();
+           .build_ptr();
     
+    descriptor.v_set.resize(1);
     auto bufferInfo = uboBuffer->descriptorInfo();
-    DescriptorWriter(*descriptor.setLayout, *descriptor.pool)
+    DescriptorWriter(*descriptor.layout, *descriptor.pool)
         .writeBuffer(0, &bufferInfo)
         .writeImage(1, &srcDescriptor)
-        .build(descriptor.set);
+        .build(descriptor.v_set[0]);
 }
 
 void HDRi::createPipelineLayout() {
-  std::vector<VkDescriptorSetLayout> descriptorSetLayouts{descriptor.setLayout->getDescriptorSetLayout()};
-
   VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
   pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-  pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
-  pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
+  pipelineLayoutInfo.setLayoutCount = 1;
+  pipelineLayoutInfo.pSetLayouts = descriptor.layout->getDescriptorSetLayout();
   pipelineLayoutInfo.pushConstantRangeCount = 0;
   pipelineLayoutInfo.pPushConstantRanges = nullptr;
   if (vkCreatePipelineLayout(device.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) !=
@@ -361,7 +359,7 @@ void HDRi::createPipelineLayout() {
 }
 
 void HDRi::createPipeline() {
-  assert(pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
+  assert(pipelineLayout != VK_NULL_HANDLE && "Cannot create pipeline before pipeline layout");
 
   PipelineConfigInfo pipelineConfig{};
   Pipeline::defaultPipelineConfigInfo(pipelineConfig);
@@ -480,7 +478,7 @@ void HDRi::endFrame() {
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer;
     
-    if (vkQueueSubmit(device.graphicsQueue(), 1, &submitInfo, nullptr) != VK_SUCCESS) {
+    if (vkQueueSubmit(device.graphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
         throw std::runtime_error("failed to submit draw command buffer!");
     }
     

@@ -16,12 +16,13 @@ struct PushConstantData {
     float exposure{};
     float peak_brightness{};
     float gamma{};
+    unsigned int debugMode{};
 };
 
 CompositionPipeline::CompositionPipeline(
     Device& passDevice,
     VkRenderPass renderPass,
-    VkDescriptorSetLayout compositionSetLayout,
+    const VkDescriptorSetLayout* compositionSetLayout,
     std::string dynamicShaderPath) : device{passDevice}, shaderPath{dynamicShaderPath} {
   createPipelineLayout(compositionSetLayout);
   createPipeline(renderPass);
@@ -31,19 +32,18 @@ CompositionPipeline::~CompositionPipeline() {
   vkDestroyPipelineLayout(device.device(), pipelineLayout, nullptr);
 }
 
-void CompositionPipeline::createPipelineLayout(VkDescriptorSetLayout compositionSetLayout) {
+void CompositionPipeline::createPipelineLayout(const VkDescriptorSetLayout* compositionSetLayout) {
     VkPushConstantRange pushConstantRange;
 
     pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     pushConstantRange.offset = 0;
     pushConstantRange.size = sizeof(PushConstantData);
     
-    std::vector<VkDescriptorSetLayout> descriptorSetLayouts{compositionSetLayout};
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &compositionSetLayout;
+    pipelineLayoutInfo.pSetLayouts = compositionSetLayout;
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
     if (vkCreatePipelineLayout(device.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
@@ -52,7 +52,7 @@ void CompositionPipeline::createPipelineLayout(VkDescriptorSetLayout composition
 }
 
 void CompositionPipeline::createPipeline(VkRenderPass renderPass) {
-    assert(pipelineLayout != nullptr && "Cannot create pipeline before pipeline layout");
+    assert(pipelineLayout != VK_NULL_HANDLE && "Cannot create pipeline before pipeline layout");
 
     PipelineConfigInfo pipelineConfig{};
     Pipeline::defaultPipelineConfigInfo(pipelineConfig);
@@ -99,6 +99,7 @@ void CompositionPipeline::renderSceneToSwapChain(VkCommandBuffer commandBuffer, 
     push.exposure = exposure;
     push.peak_brightness = peak_brightness;
     push.gamma = gamma;
+    push.debugMode = debugMode;
     
     vkCmdPushConstants(
         commandBuffer,
