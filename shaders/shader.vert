@@ -11,6 +11,7 @@ layout(location = 5) in vec2 uv1;
 layout(location = 0) out VertexShader {
     vec3 color;
     vec3 worldPos;
+    vec4 lightSpacePos;
     vec2 texcoord0;
     vec2 texcoord1;
     mat3 TBN;
@@ -20,6 +21,7 @@ layout(binding = 0) uniform GlobalUbo {
     mat4 projectionViewMatrix;
     mat4 viewMatrix;
     mat4 invViewMatrix;
+    mat4 lightSpaceMatrix;
 } ubo;
 
 layout(push_constant) uniform Push {
@@ -33,6 +35,12 @@ layout(push_constant) uniform Push {
     int debugMode;
 } push;
 
+const mat4 biasMatrix = mat4( 
+	0.5, 0.0, 0.0, 0.0,
+	0.0, 0.5, 0.0, 0.0,
+	0.0, 0.0, 1.0, 0.0,
+	0.5, 0.5, 0.0, 1.0 );
+
 void main() {
     vec4 positionWorld = push.modelMatrix * vec4(position, 1.0);
     
@@ -42,6 +50,7 @@ void main() {
 
     frag.color = color;
     frag.worldPos = positionWorld.xyz;
+    frag.lightSpacePos = biasMatrix * ubo.lightSpaceMatrix * positionWorld;
     frag.texcoord0 = uv;
     frag.texcoord1 = uv1;
     frag.TBN = mat3(T, B, N);

@@ -17,7 +17,7 @@ public:
         Directional,
         Spot // currently not supported
     };
-    static constexpr std::string gltfTypes[] = {"point", "directional", "spot"};
+    static inline const std::string gltfTypes[] = {"point", "directional", "spot"};
     
     static Light makePoint(glm::vec3 position, glm::vec4 color) { return Light{Type::Point, position, color}; }
     static Light makeDirectional(glm::vec3 direction, glm::vec4 color) { return Light{Type::Directional, direction, color}; }
@@ -37,6 +37,7 @@ public:
             glm::vec3 pos;
         };
         glm::vec4 color{1.f};
+        glm::mat4 lightSpaceMatrix{1.f};
     } m_data;
 };
 

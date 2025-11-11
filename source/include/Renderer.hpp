@@ -37,6 +37,7 @@ private:
     };
     
     struct OffscreenPassAttachments {
+        VkExtent2D extent{1024, 1024};
 		VkFramebuffer frameBuffer[SwapChain::MAX_FRAMES_IN_FLIGHT];
 		MultiFrameBufferAttachment color, depth, multisampling;
 		VkRenderPass renderPass;
@@ -91,6 +92,8 @@ public:
 
     const VkDescriptorSetLayout* getDescriptorSetLayout(RenderPass index) { return offscreen[index].descriptor.layout->getDescriptorSetLayout(); }
     std::vector<VkDescriptorSet>* getDescriptorSets(RenderPass index) { return &offscreen[index].descriptor.v_set; }
+    
+    VkDescriptorImageInfo* getImageDescriptor(RenderPass index) { return offscreen[index].descriptorImage; }
     
 private:
     

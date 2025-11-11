@@ -10,11 +10,13 @@ layout(location = 5) in vec2 uv1;
 
 layout(set = 0, binding = 0) uniform GlobalUbo {
     mat4 projectionViewMatrix;
-    vec4 ambientLightColor;
-    vec4 lightPosition[2];
-    vec4 lightColor;
     mat4 viewMatrix;
     mat4 invViewMatrix;
+    mat4 lightSpaceMatrix;
+    vec4 lightVector[8];
+    vec4 lightChroma[8];
+    uint lightInfo;
+    uint debugMode;
 } ubo;
 
 layout(push_constant) uniform Push {
@@ -28,5 +30,5 @@ layout(push_constant) uniform Push {
 void main() {
     vec4 positionWorld = push.modelMatrix * vec4(position, 1.0);
 
-    gl_Position = ubo.projectionViewMatrix * ubo.viewMatrix * positionWorld;
+    gl_Position = ubo.lightSpaceMatrix * positionWorld;
 }

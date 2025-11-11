@@ -227,6 +227,9 @@ void NodeSet::parseLightFromNode(const tinygltf::Node& node, glm::mat4 transform
                 glm::vec3(-transform[2].x, -transform[2].y, -transform[2].z),
                 glm::vec4(glm::make_vec3(light.color.data()), light.intensity * 0.00146f)
             ));
+            m_Lights.back().m_data.lightSpaceMatrix =
+            glm::orthoLH_ZO(-20.0f, 20.0f, -25.0f, 20.0f, -20.f, 10.f)
+            * glm::lookAt(m_Lights.back().m_data.dir, glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f));
             
         } else if (light.type == Light::gltfTypes[Light::Type::Spot]) {
             Log::getInstance()->warn("Node {} contains a Spot-Type light source, which is currently not supported.", light.name);

@@ -163,7 +163,7 @@ void Renderer::beginOffscreenRenderPass(VkCommandBuffer commandBuffer, RenderPas
     renderpassInfo.framebuffer = attachments.frameBuffer[currentImageIndex];
     
     renderpassInfo.renderArea.offset = {0, 0};
-    renderpassInfo.renderArea.extent = swapChain->getSwapChainExtent();
+    renderpassInfo.renderArea.extent = attachments.extent;
     
     std::array<VkClearValue, 2> clearValues{};
     if(index != RenderPass::DepthPass) {
@@ -177,18 +177,16 @@ void Renderer::beginOffscreenRenderPass(VkCommandBuffer commandBuffer, RenderPas
         renderpassInfo.pClearValues = clearValues.data();
     }
     
-    
-    
     vkCmdBeginRenderPass(commandBuffer, &renderpassInfo, VK_SUBPASS_CONTENTS_INLINE);
     
     VkViewport viewport{};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = static_cast<float>(swapChain->getSwapChainExtent().width);
-    viewport.height = static_cast<float>(swapChain->getSwapChainExtent().height);
+    viewport.width = static_cast<float>(attachments.extent.width);
+    viewport.height = static_cast<float>(attachments.extent.height);
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
-    VkRect2D scissor{{0, 0}, swapChain->getSwapChainExtent()};
+    VkRect2D scissor{{0, 0}, attachments.extent};
     vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 }

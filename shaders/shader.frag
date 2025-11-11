@@ -21,6 +21,7 @@ layout(location = 0) out vec4 outColor;
 layout(location = 0) in VertexShader {
     vec3 color;
     vec3 worldPos;
+    vec4 lightSpacePos;
     vec2 texcoord;
     vec2 texcoord1;
     mat3 TBN;
@@ -31,6 +32,7 @@ layout(set = 0, binding = 0) uniform GlobalUbo {
     mat4 projectionViewMatrix;
     mat4 viewMatrix;
     mat4 invViewMatrix;
+    mat4 lightSpaceMatrix;
     vec4 lightVector[8];
     vec4 lightChroma[8];
     uint lightInfo;
@@ -40,6 +42,7 @@ layout(set = 1, binding = 0) uniform sampler2D diffuseMap;
 layout(set = 1, binding = 1) uniform sampler2D normalMap;
 layout(set = 1, binding = 2) uniform sampler2D metalRoughnessMap;
 layout(set = 1, binding = 3) uniform sampler2D occlusionMap;
+
 
 layout(push_constant) uniform Push {
     mat4 modelMatrix;
@@ -120,23 +123,29 @@ void main() {
  
 PBRInfo pbrInputs;
 vec3 color = vec3(0);
+float shadow = 1.0;
 const float lightNum = ubo.lightInfo & 0xFF;
 for (int i = 0; i < lightNum; i++) {
 
     vec3 l, u_LightColor;
+    float NdotL;
 
     if (((ubo.lightInfo >> (8 + i)) & 0x1) == 0) {
         l = normalize(ubo.lightVector[i].xyz - vert.worldPos); // Vector from surface point to light
         float lightDist = length(ubo.lightVector[i].xyz - vert.worldPos);
         float attenuation = ubo.lightChroma[i].a / (lightDist * lightDist);
         u_LightColor = ubo.lightChroma[i].rgb * attenuation;
+        NdotL = clamp(dot(n, l), 0.001, 1.0);
     } else {
         l = -normalize(ubo.lightVector[i].xyz); // Vector from surface with direction of light
         u_LightColor = ubo.lightChroma[i].rgb * ubo.lightChroma[i].a;
+        NdotL = clamp(dot(n, l), 0.001, 1.0);
+
+        float bias = clamp(0.005 * tan(acos(NdotL)), 0, 0.01);
+        shadow = filterPCF(vert.lightSpacePos, bias);
     }
   
 	vec3 h = normalize(l+v); // Half vector between both l and v
-	float NdotL = clamp(dot(n, l), 0.001, 1.0);
 	float NdotV = clamp(abs(dot(n, v)), 0.001, 1.0);
 	float NdotH = clamp(dot(n, h), 0.0, 1.0);
 	float LdotH = clamp(dot(l, h), 0.0, 1.0);
@@ -167,13 +176,13 @@ for (int i = 0; i < lightNum; i++) {
 	vec3 specContrib = F * G * D / (4.0 * NdotL * NdotV);
     
 	// Obtain final intensity as reflectance (BRDF) scaled by the energy of the light (cosine law)
-	color += NdotL * u_LightColor * (diffuseContrib + specContrib);
+	color += NdotL * u_LightColor * (diffuseContrib + specContrib) * shadow;
 
 }
 
 	// Calculate lighting contribution from image based lighting source (IBL)
     if ((ubo.debugMode & 0x200) == 0x200) {
-	    color += getIBLContribution(pbrInputs, n, reflection);
+	    color += getIBLContribution(pbrInputs, n, reflection) * (shadow * 0.4 + 0.6);
     }
 
 	const float u_OcclusionStrength = 0.5f;

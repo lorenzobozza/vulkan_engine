@@ -9,6 +9,7 @@ layout(binding = 0) uniform GlobalUbo {
     mat4 projectionViewMatrix;
     mat4 viewMatrix;
     mat4 invViewMatrix;
+    mat4 lightSpaceMatrix;
     vec4 lightVector[8];
     vec4 lightChroma[8];
     uint lightInfo;

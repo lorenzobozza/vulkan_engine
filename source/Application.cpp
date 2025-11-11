@@ -96,6 +96,7 @@ void Application::run() {
         uint8_t index = 0;
         for (auto& light : lights) {
             if (index < 8 && light.m_type < Light::Type::Spot) {
+                ubo.lightSpaceMatrix = light.m_data.lightSpaceMatrix;
                 ubo.lightVector[index] = glm::vec4(light.m_data.pos, 0.f);
                 ubo.lightChroma[index] = light.m_data.color;
                 ubo.lightInfo |= (light.m_type & 0x1) << (index + 8);
@@ -250,6 +251,7 @@ void Application::run() {
             .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .addBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .addBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+            .addBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .build();
             
     DescriptorSetLayout materialSetLayout = DescriptorSetLayout::Builder(vulkanDevice.device())
@@ -279,6 +281,7 @@ void Application::run() {
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
            .build();
            
     DescriptorPool materialPool = DescriptorPool::Builder(vulkanDevice.device())
@@ -296,11 +299,13 @@ void Application::run() {
     for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
         VkDescriptorSet descriptorSet;
         auto bufferInfo = uboBuffers[i]->descriptorInfo();
+        auto depthInfo = renderer.getImageDescriptor(RenderPass::DepthPass)[i];
         DescriptorWriter(mainSetLayout, mainPool)
                 .writeBuffer(0, &bufferInfo)
                 .writeImage(1, &irradiance)                 // Irradiance
                 .writeImage(2, &prefiltered)                // Reflection
                 .writeImage(3, renderer.getBrdfLutInfo())   // BRDF Lut
+                .writeImage(4, &depthInfo)
                 .build(descriptorSet);
                 
         mainDescriptorSet[i] = descriptorSet;
@@ -327,6 +332,7 @@ void Application::run() {
     widgets.settings->recreatePipelinesCallback([this](void){
         renderSystems.pbr->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
         renderSystems.skybox->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
+        renderSystems.depth->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::DepthPass));
     });
 
     
@@ -417,7 +423,6 @@ void Application::run() {
             ubo.projectionView = camera.getProjection();
             ubo.viewMatrix = camera.getView();
             ubo.invViewMatrix = camera.getInverseView();
-            
             ubo.debugMode = widgets.settings->debugMode;
             
             renderSystems.composit->exposure = widgets.settings->otherData.exposure;

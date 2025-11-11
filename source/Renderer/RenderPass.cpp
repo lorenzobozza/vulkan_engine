@@ -13,13 +13,13 @@ void Renderer::createOffscreenPass(RenderPass index) {
     VkSampleCountFlagBits sampleCount = (index == RenderPass::ScreenSpace) ? VK_SAMPLE_COUNT_1_BIT : device.msaaSamples;
 
     // Color Resources
-    VkExtent2D swapChainExtent = getSwapChainExtent();
+    attachments.extent = getSwapChainExtent();
 
     VkImageCreateInfo imageInfo{};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageInfo.imageType = VK_IMAGE_TYPE_2D;
-    imageInfo.extent.width = swapChainExtent.width;
-    imageInfo.extent.height = swapChainExtent.height;
+    imageInfo.extent.width = attachments.extent.width;
+    imageInfo.extent.height = attachments.extent.height;
     imageInfo.extent.depth = 1;
     imageInfo.mipLevels = 1;
     imageInfo.arrayLayers = 1;
@@ -55,8 +55,8 @@ void Renderer::createOffscreenPass(RenderPass index) {
 
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageInfo.imageType = VK_IMAGE_TYPE_2D;
-    imageInfo.extent.width = swapChainExtent.width;
-    imageInfo.extent.height = swapChainExtent.height;
+    imageInfo.extent.width = attachments.extent.width;
+    imageInfo.extent.height = attachments.extent.height;
     imageInfo.extent.depth = 1;
     imageInfo.mipLevels = 1;
     imageInfo.arrayLayers = 1;
@@ -90,8 +90,8 @@ void Renderer::createOffscreenPass(RenderPass index) {
     // Multisampling Resources
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageInfo.imageType = VK_IMAGE_TYPE_2D;
-    imageInfo.extent.width = swapChainExtent.width;
-    imageInfo.extent.height = swapChainExtent.height;
+    imageInfo.extent.width = attachments.extent.width;
+    imageInfo.extent.height = attachments.extent.height;
     imageInfo.extent.depth = 1;
     imageInfo.mipLevels = 1;
     imageInfo.arrayLayers = 1;
@@ -217,8 +217,8 @@ void Renderer::createOffscreenPass(RenderPass index) {
         framebufferInfo.renderPass = attachments.renderPass;
         framebufferInfo.attachmentCount = static_cast<uint32_t>(imageViewAttachments.size());
         framebufferInfo.pAttachments = imageViewAttachments.data();
-        framebufferInfo.width = swapChainExtent.width;
-        framebufferInfo.height = swapChainExtent.height;
+        framebufferInfo.width = attachments.extent.width;
+        framebufferInfo.height = attachments.extent.height;
         framebufferInfo.layers = 1;
 
         if (vkCreateFramebuffer(device.device(), &framebufferInfo, nullptr, &attachments.frameBuffer[f]) != VK_SUCCESS) {
@@ -308,8 +308,7 @@ void Renderer::destroyOffscreenPass(RenderPass index) {
 void Renderer::createDepthPass(RenderPass index) {
     OffscreenPassAttachments& attachments = offscreen[index];
 
-    VkExtent2D swapChainExtent = getSwapChainExtent();
-
+    attachments.extent = {2048, 2048};
     
     // Depth Resources
     attachments.depthFormat = swapChain->findDepthFormat();
@@ -317,8 +316,8 @@ void Renderer::createDepthPass(RenderPass index) {
     VkImageCreateInfo imageInfo{};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageInfo.imageType = VK_IMAGE_TYPE_2D;
-    imageInfo.extent.width = swapChainExtent.width;
-    imageInfo.extent.height = swapChainExtent.height;
+    imageInfo.extent.width = attachments.extent.width;
+    imageInfo.extent.height = attachments.extent.height;
     imageInfo.extent.depth = 1;
     imageInfo.mipLevels = 1;
     imageInfo.arrayLayers = 1;
@@ -464,8 +463,8 @@ void Renderer::createDepthPass(RenderPass index) {
         framebufferInfo.renderPass = attachments.renderPass;
         framebufferInfo.attachmentCount = 1;
         framebufferInfo.pAttachments = &attachments.depth.view[f];
-        framebufferInfo.width = swapChainExtent.width;
-        framebufferInfo.height = swapChainExtent.height;
+        framebufferInfo.width = attachments.extent.width;
+        framebufferInfo.height = attachments.extent.height;
         framebufferInfo.layers = 1;
 
         if (vkCreateFramebuffer(device.device(), &framebufferInfo, nullptr, &attachments.frameBuffer[f]) != VK_SUCCESS) {

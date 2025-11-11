@@ -25,6 +25,7 @@ struct GlobalUbo {
     glm::mat4 viewMatrix{1.f};
     glm::mat4 invViewMatrix{1.f};
     
+    glm::mat4 lightSpaceMatrix{1.f};
     glm::vec4 lightVector[8]{};
     glm::vec4 lightChroma[8]{};
     unsigned int lightInfo;
