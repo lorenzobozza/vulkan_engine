@@ -128,24 +128,22 @@ const float lightNum = ubo.lightInfo & 0xFF;
 for (int i = 0; i < lightNum; i++) {
 
     vec3 l, u_LightColor;
-    float NdotL;
 
     if (((ubo.lightInfo >> (8 + i)) & 0x1) == 0) {
         l = normalize(ubo.lightVector[i].xyz - vert.worldPos); // Vector from surface point to light
         float lightDist = length(ubo.lightVector[i].xyz - vert.worldPos);
         float attenuation = ubo.lightChroma[i].a / (lightDist * lightDist);
         u_LightColor = ubo.lightChroma[i].rgb * attenuation;
-        NdotL = clamp(dot(n, l), 0.001, 1.0);
     } else {
         l = -normalize(ubo.lightVector[i].xyz); // Vector from surface with direction of light
         u_LightColor = ubo.lightChroma[i].rgb * ubo.lightChroma[i].a;
-        NdotL = clamp(dot(n, l), 0.001, 1.0);
 
-        float bias = clamp(0.005 * tan(acos(NdotL)), 0, 0.01);
-        shadow = filterPCF(vert.lightSpacePos, bias);
+        shadow = filterPCF(vert.lightSpacePos);
+        if(dot(n, l) < 0) shadow = 0.01;
     }
   
 	vec3 h = normalize(l+v); // Half vector between both l and v
+    float NdotL = clamp(dot(n, l), 0.001, 1.0);
 	float NdotV = clamp(abs(dot(n, v)), 0.001, 1.0);
 	float NdotH = clamp(dot(n, h), 0.0, 1.0);
 	float LdotH = clamp(dot(l, h), 0.0, 1.0);
@@ -182,7 +180,7 @@ for (int i = 0; i < lightNum; i++) {
 
 	// Calculate lighting contribution from image based lighting source (IBL)
     if ((ubo.debugMode & 0x200) == 0x200) {
-	    color += getIBLContribution(pbrInputs, n, reflection) * (shadow * 0.4 + 0.6);
+	    color += getIBLContribution(pbrInputs, n, reflection, vec2(shadow * 0.7 + 0.3, shadow * 0.9 + 0.1));
     }
 
 	const float u_OcclusionStrength = 0.5f;

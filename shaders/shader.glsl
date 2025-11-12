@@ -5,21 +5,23 @@ layout(set = 0, binding = 2) uniform samplerCube prefilteredMap;
 layout(set = 0, binding = 3) uniform sampler2D brdfLUT;
 layout(set = 0, binding = 4) uniform sampler2D shadowMap;
 
-float textureProj(vec4 shadowCoord, float bias, vec2 off)
+float textureProj(vec4 shadowCoord, vec2 off)
 {
 	float shadow = 1.0;
 	if ( shadowCoord.z > -1.0 && shadowCoord.z < 1.0 ) 
 	{
 		float dist = texture(shadowMap, shadowCoord.st + off).r;
-		if ( shadowCoord.w > 0.0 && dist < shadowCoord.z - bias)
+		if ( shadowCoord.w > 0.0 && dist < shadowCoord.z )
 		{
-			shadow = 0.1;
+			shadow = 0.01;
 		}
 	}
 	return shadow;
 }
 
-float filterPCF(vec4 sc, float bias)
+float shadowCast(vec4 sc) { return textureProj(sc, vec2(0)); }
+
+float filterPCF(vec4 sc)
 {
 	ivec2 texDim = textureSize(shadowMap, 0);
 	float scale = 1.5;
@@ -34,7 +36,7 @@ float filterPCF(vec4 sc, float bias)
 	{
 		for (int y = -range; y <= range; y++)
 		{
-			shadowFactor += textureProj(sc, bias, vec2(dx*x, dy*y));
+			shadowFactor += textureProj(sc, vec2(dx*x, dy*y));
 			count++;
 		}
 	
@@ -81,7 +83,7 @@ vec4 SRGBtoLINEAR(vec4 srgbIn)
 // Calculation of the lighting contribution from an optional Image Based Light source.
 // Precomputed Environment Maps are required uniform inputs and are computed as outlined in [1].
 // See our README.md on Environment Maps [3] for additional discussion.
-vec3 getIBLContribution(PBRInfo pbrInputs, vec3 n, vec3 reflection)
+vec3 getIBLContribution(PBRInfo pbrInputs, vec3 n, vec3 reflection, vec2 attenuation)
 {
     const int prefilteredCubeMipLevels = 5;
 	float lod = (pbrInputs.perceptualRoughness * prefilteredCubeMipLevels);
@@ -94,9 +96,9 @@ vec3 getIBLContribution(PBRInfo pbrInputs, vec3 n, vec3 reflection)
 	vec3 diffuse = diffuseLight * pbrInputs.diffuseColor;
 	vec3 specular = specularLight * (pbrInputs.specularColor * brdf.x + brdf.y);
 
-	// For presentation, this allows us to disable IBL terms
-	diffuse *= 1.0;
-	specular *= 1.0;
+	// For presentation, this allows us to tune IBL terms
+	diffuse *= attenuation.x;
+	specular *= attenuation.y;
 
 	return diffuse + specular;
 }

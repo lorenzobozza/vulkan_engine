@@ -82,7 +82,8 @@ void RenderSystem::createPipeline(VkRenderPass renderPass) {
     pipelineConfig.multisampleInfo.minSampleShading = .2f;
 
     pipelineConfig.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
-    pipelineConfig.rasterizationInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+    VkCullModeFlags cull = (shaderPath == "depth") ? VK_CULL_MODE_FRONT_BIT : VK_CULL_MODE_BACK_BIT;
+    pipelineConfig.rasterizationInfo.cullMode = cull;
     pipelineConfig.rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
     pipeline = std::make_unique<Pipeline>(

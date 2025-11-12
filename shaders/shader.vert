@@ -35,7 +35,7 @@ layout(push_constant) uniform Push {
     int debugMode;
 } push;
 
-const mat4 biasMatrix = mat4( 
+const mat4 zoMatrix = mat4( 
 	0.5, 0.0, 0.0, 0.0,
 	0.0, 0.5, 0.0, 0.0,
 	0.0, 0.0, 1.0, 0.0,
@@ -50,7 +50,8 @@ void main() {
 
     frag.color = color;
     frag.worldPos = positionWorld.xyz;
-    frag.lightSpacePos = biasMatrix * ubo.lightSpaceMatrix * positionWorld;
+    frag.lightSpacePos = ubo.lightSpaceMatrix * positionWorld;
+    frag.lightSpacePos.xy = (zoMatrix * ubo.lightSpaceMatrix * (positionWorld + vec4(N * 0.1, 0.0))).xy;
     frag.texcoord0 = uv;
     frag.texcoord1 = uv1;
     frag.TBN = mat3(T, B, N);
