@@ -23,6 +23,7 @@
 enum RenderPass : unsigned int{
     WorldSpace = 0,
     ScreenSpace,
+    ShadowPass,
     DepthPass,
     
     TotalCount
@@ -100,8 +101,8 @@ private:
     void createCommandBuffers(void);
     void freeCommandBuffers(void);
     
-    void createRenderPasses(void);
-    void destroyRenderPasses(void);
+    void createRenderPasses(bool all = false);
+    void destroyRenderPasses(bool all = false);
     
     void createOffscreenPass(RenderPass index);
     void destroyOffscreenPass(RenderPass index);

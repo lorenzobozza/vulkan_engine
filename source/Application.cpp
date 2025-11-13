@@ -123,7 +123,7 @@ void Application::run() {
             ui.updateBuffers(frameIndex);
             
             //Render
-            renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::DepthPass);
+            renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::ShadowPass);
             renderer.endRenderPass(commandBuffer);
             
             renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::WorldSpace);
@@ -162,7 +162,7 @@ void Application::run() {
 				.primitives = primitives,
 				.uboDescriptors = {uboBuffers[0]->descriptorInfo(), uboBuffers[1]->descriptorInfo(), uboBuffers[2]->descriptorInfo()}
 		};
-		m_Pipelines.shadow = std::make_unique<ShadowPipeline>(vulkanDevice, renderer.getOffscreenRenderPass(RenderPass::DepthPass), "shadow", shadowData);
+		m_Pipelines.shadow = std::make_unique<ShadowPipeline>(vulkanDevice, renderer.getOffscreenRenderPass(RenderPass::ShadowPass), "shadow", shadowData);
     
 /**** Scene Pipeline */
         ScenePipeline::FrameData sceneData{
@@ -173,7 +173,7 @@ void Application::run() {
                     .brdf = renderer.getBrdfLutInfo(),
                     .irradiance = &irradiance,
                     .reflection = &prefiltered,
-                    .shadow = renderer.getImageDescriptor(RenderPass::DepthPass)
+                    .shadow = renderer.getImageDescriptor(RenderPass::ShadowPass)
                 }
 		};
 		m_Pipelines.scene = std::make_unique<ScenePipeline>(vulkanDevice, renderer.getOffscreenRenderPass(RenderPass::WorldSpace), "shader", sceneData);
@@ -286,7 +286,7 @@ void Application::run() {
             ui.updateBuffers(frameIndex);
             
             // RenderPass
-            renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::DepthPass);
+            renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::ShadowPass);
             m_Pipelines.shadow->render(commandBuffer, frameIndex);
             renderer.endRenderPass(commandBuffer);
             

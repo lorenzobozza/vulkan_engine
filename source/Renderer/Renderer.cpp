@@ -21,7 +21,7 @@ Renderer::Renderer(SDLWindow &passWindow, Device &passDevice) : window{passWindo
 Renderer::~Renderer() {
     freeCommandBuffers();
     
-    destroyRenderPasses();
+    destroyRenderPasses(true);
     
     destroyBrdfLut();
 }
@@ -32,11 +32,15 @@ RenderPass& operator++(RenderPass& orig)
   return orig;
 }
 
-void Renderer::createRenderPasses(void) {
+void Renderer::createRenderPasses(bool all) {
     for (RenderPass p{}; p < RenderPass::TotalCount; ++p) {
         switch (p) {
-            case RenderPass::DepthPass:
-                createDepthPass(p);
+						case RenderPass::DepthPass:
+								createDepthPass(p);
+                break;
+						
+            case RenderPass::ShadowPass:
+                if (all) createDepthPass(p);
                 break;
                 
             default:
@@ -46,11 +50,15 @@ void Renderer::createRenderPasses(void) {
     }
 }
 
-void Renderer::destroyRenderPasses(void) {
+void Renderer::destroyRenderPasses(bool all) {
     for (RenderPass p{}; p < RenderPass::TotalCount; ++p) {
         switch (p) {
             case RenderPass::DepthPass:
-                destroyDepthPass(p);
+								destroyDepthPass(p);
+                break;
+						
+            case RenderPass::ShadowPass:
+                if (all) destroyDepthPass(p);
                 break;
                 
             default:
@@ -69,7 +77,7 @@ void Renderer::recreateSwapChain(bool forced) {
     
     if (swapChain == nullptr) {
         swapChain = std::make_unique<SwapChain>(device, actualExtent);
-        createRenderPasses();
+        createRenderPasses(true);
     } else {
         VkExtent2D oldExtent = swapChain->getSwapChainExtent();
         swapChain = std::make_unique<SwapChain>(device, actualExtent, std::move(swapChain));
@@ -166,7 +174,7 @@ void Renderer::beginOffscreenRenderPass(VkCommandBuffer commandBuffer, RenderPas
     renderpassInfo.renderArea.extent = attachments.extent;
     
     std::array<VkClearValue, 2> clearValues{};
-    if(index != RenderPass::DepthPass) {
+    if(index != RenderPass::DepthPass && index != RenderPass::ShadowPass) {
         clearValues[0].color = {0.01f, 0.01f, 0.01f, 1.0f};
         clearValues[1].depthStencil = {1.0f, 0};
         renderpassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());

@@ -58,7 +58,7 @@ private:
         static int source = 1;
         ImGui::Text("Main Viewport");
         ImGui::SameLine(m_extent.x * 0.8f);
-        ImGui::Combo("##framecombo", &source, "World Space\0Screen Space\0Depth Buffer\0");
+        ImGui::Combo("##framecombo", &source, "World Space\0Screen Space\0Shadow\0");
         ImGui::EndMenuBar();
         
         static ImTextureRef ref;
