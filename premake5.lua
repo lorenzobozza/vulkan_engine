@@ -31,7 +31,6 @@ project "Core"
 		"vulkan.1.3.236",
 		"shaderc_shared.1",
 		"SDL2-2.0.0",
-		"SDL2_image-2.0.0",
 		"tiff.6",
 		"freetype.6"
 	}

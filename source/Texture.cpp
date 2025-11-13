@@ -26,15 +26,6 @@ Texture::Texture(Device &dev, Image &image, std::string filePath, bool mipMappin
     TIFFSetWarningHandler(NULL);
 }
 
-Texture::Texture(Device &dev, Image &image, std::string filePath, bool mipMapping, VkImageViewType viewType, VkFormat format)
-    : device{dev}, image{image}, textureFilePath{filePath}, mipMapping{mipMapping}, viewType{viewType}, format{format} {
-    loadTexture();
-    createDefaultTextureSampler();
-    createTextureImage();
-    createTextureImageView();
-    TIFFSetWarningHandler(NULL);
-}
-
 Texture::Texture(Device &dev, Image &image, void* data, uint32_t texWidth, uint32_t texHeight, uint8_t depth, bool mipMapping, VkFormat format, VkSamplerCreateInfo *samplerInfo) : device{dev}, image{image}, mipMapping{mipMapping}, viewType{VK_IMAGE_VIEW_TYPE_2D}, format{format} {
 
     VkDeviceSize imageSize = texWidth * texHeight * depth * sizeof(uint8_t);

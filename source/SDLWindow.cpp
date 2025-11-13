@@ -14,6 +14,8 @@
 
 #include <imgui.h>
 
+#include <stb-master/stb_image.h>
+
 #include <nfd.h>
 #include <nfd_sdl2.h>
 
@@ -38,6 +40,25 @@ void SDLWindow::createWindowSurface(VkInstance instance, VkSurfaceKHR *surface) 
     if(SDL_Vulkan_CreateSurface(window, instance, surface) != SDL_TRUE) {
         throw std::runtime_error("Failed to create window surface");
     }
+}
+
+static void mySDL_SetWindowIcon(SDL_Window* window, const char *file) {
+		int depth = STBI_rgb_alpha;
+		int texWidth, texHeight, texChannels;
+    void* pixels;
+
+		stbi_uc* data = stbi_load(file, &texWidth, &texHeight, &texChannels, depth);
+		pixels = (void*)data;
+		
+		if (!pixels) {
+        return;
+    }
+
+		SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormatFrom(pixels, texWidth, texHeight, 8, 1024, SDL_PIXELFORMAT_ABGR8888);
+    SDL_SetWindowIcon(window, surface);
+    SDL_FreeSurface(surface);
+    
+    stbi_image_free(pixels);
 }
 
 void SDLWindow::initWindow() {
@@ -72,10 +93,8 @@ void SDLWindow::initWindow() {
     
     dpi_scale_fact = (float)m_surfaceExtent.width / (float)m_windowExtent.width;
     
-    SDL_Surface *surface = IMG_Load("../../../assets/icon.png");
-    SDL_SetWindowIcon(window, surface);
-    SDL_FreeSurface(surface);
-    
+    mySDL_SetWindowIcon(window, "../../../assets/icon.png");
+
     NFD_Init();
 }
 
