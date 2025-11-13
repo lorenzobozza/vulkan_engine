@@ -17,7 +17,8 @@ project "Core"
 	}
 
 	includedirs {
-		"source/include"
+		"source/include",
+		"source/**/include"
 	}
 
 	externalincludedirs {

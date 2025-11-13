@@ -8,6 +8,7 @@
 #ifndef PipelineWrapper_hpp
 #define PipelineWrapper_hpp
 
+#include <array>
 #include <vector>
 #include <string>
 

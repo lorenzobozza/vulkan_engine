@@ -91,7 +91,7 @@ void Application::run() {
 				/**** Load Scene from glTF file */
         // TODO: better task-set creation
         NodeSet::InitStruct initNodeStruct{vulkanDevice, vulkanImage, primitives, textures, materials, lights};
-        NodeSet(initNodeStruct, binaryDir + "../../../assets/models/Sponza.glb");
+        NodeSet _gltf(initNodeStruct, binaryDir + "../../../assets/models/Sponza.glb");
         
         /**** Load Point-Light Nodes from scene */
         // TODO: clean this mess
@@ -165,14 +165,16 @@ void Application::run() {
 		m_Pipelines.shadow = std::make_unique<ShadowPipeline>(vulkanDevice, renderer.getOffscreenRenderPass(RenderPass::DepthPass), "shadow", shadowData);
     
 /**** Scene Pipeline */
-		ScenePipeline::FrameData sceneData {
-				.primitives = primitives,
-				.materials = materials,
-				.uboDescriptors = {uboBuffers[0]->descriptorInfo(), uboBuffers[1]->descriptorInfo(), uboBuffers[2]->descriptorInfo()},
-				.imageDescriptors.brdf = renderer.getBrdfLutInfo(),
-				.imageDescriptors.irradiance = &irradiance,
-				.imageDescriptors.reflection = &prefiltered,
-				.imageDescriptors.shadow = renderer.getImageDescriptor(RenderPass::DepthPass)
+        ScenePipeline::FrameData sceneData{
+                .primitives = primitives,
+                .materials = materials,
+                .uboDescriptors = {uboBuffers[0]->descriptorInfo(), uboBuffers[1]->descriptorInfo(), uboBuffers[2]->descriptorInfo()},
+                .imageDescriptors = {
+                    .brdf = renderer.getBrdfLutInfo(),
+                    .irradiance = &irradiance,
+                    .reflection = &prefiltered,
+                    .shadow = renderer.getImageDescriptor(RenderPass::DepthPass)
+                }
 		};
 		m_Pipelines.scene = std::make_unique<ScenePipeline>(vulkanDevice, renderer.getOffscreenRenderPass(RenderPass::WorldSpace), "shader", sceneData);
 		
