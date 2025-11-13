@@ -8,7 +8,6 @@
 #ifndef Widgets_h
 #define Widgets_h
 
-#include "RenderSystem.hpp"
 #include "UI.hpp"
 #include "Log.hpp"
 #include "utils.h"
@@ -220,7 +219,7 @@ private:
 
 class MeterialViewer : public Widget {
 public:
-    MeterialViewer(std::unordered_map<std::string, Material>& materials) : m_materials(materials) {}
+    MeterialViewer(Material::Map& materials) : m_materials(materials) {}
 private:
     std::unordered_map<std::string, Material>& m_materials;
     void content(void) override {

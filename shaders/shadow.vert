@@ -21,10 +21,6 @@ layout(set = 0, binding = 0) uniform GlobalUbo {
 
 layout(push_constant) uniform Push {
     mat4 modelMatrix;
-    int textureIndex;
-    float metalness;
-    float roughness;
-    vec3 color;
 } push;
 
 void main() {

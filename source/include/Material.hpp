@@ -34,6 +34,9 @@ class Material {
 
     
 public:
+		using id_t = std::string;
+		using Map = std::unordered_map<id_t, Material>;
+		
     Material(std::vector<std::unique_ptr<Texture>> *pTexs) : pTexs{pTexs} {}
     Material() {}
     

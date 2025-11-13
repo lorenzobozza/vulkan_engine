@@ -14,7 +14,6 @@
 #include "Primitive.hpp"
 #include "FrameInfo.hpp"
 #include "Texture.hpp"
-#include "RenderSystem.hpp"
 
 class HDRi {
 public:

@@ -10,13 +10,6 @@ layout(set = 0, binding = 0) uniform GlobalUbo {
 
 layout(push_constant) uniform Push {
     mat4 modelMatrix;
-    int textureBitmap;
-    float metalness;
-    float roughness;
-    vec4 color;
-    int alphaMode;
-    float alphaCutoff;
-    int backFace;
 } push;
 
 

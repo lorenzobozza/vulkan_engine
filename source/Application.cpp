@@ -12,6 +12,7 @@
 #include "include/Material.hpp"
 #include "Widgets.hpp"
 
+
 //libs
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -66,7 +67,7 @@ void Application::run() {
         cameraObj.transform.rotation.y = glm::half_pi<float>();
         bool orth = false;
     
-    renderSystems.composit = std::make_unique<CompositionPipeline>(
+    m_Pipelines.composit = std::make_unique<CompositionPipeline>(
         vulkanDevice,
         renderer.getOffscreenRenderPass(RenderPass::ScreenSpace),
         renderer.getDescriptorSetLayout(RenderPass::WorldSpace),
@@ -151,20 +152,18 @@ void Application::run() {
     vkDeviceWaitIdle(vulkanDevice.device());
     renderer.integrateBrdfLut(binaryDir);
     
-    /****
-    Global Uniform Buffer Objects
-    */
-    std::unique_ptr<Buffer> uboBuffers[SwapChain::MAX_FRAMES_IN_FLIGHT];
-    for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
-         uboBuffers[i] = std::make_unique<Buffer>(
-            vulkanDevice,
-            sizeof(GlobalUbo),
-            1,
-            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
-        );
-        uboBuffers[i]->map();
-    }
+/**** Global Uniform Buffer Objects */
+		std::unique_ptr<Buffer> uboBuffers[SwapChain::MAX_FRAMES_IN_FLIGHT];
+		for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+				uboBuffers[i] = std::make_unique<Buffer>(
+						vulkanDevice,
+						sizeof(ScenePipeline::UniformBuffer),
+						1,
+						VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+						VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+				);
+				uboBuffers[i]->map();
+		}
 
 /**** HDRi, IBL, SkyBox  */
     auto equitangular = textures.at(0)->descriptorInfo();
@@ -177,165 +176,42 @@ void Application::run() {
     
     HDRi irradianceMap{vulkanDevice, environment, {32, 32}, "irradiance", binaryDir};
     auto irradiance = irradianceMap.descriptorInfo();
-
-/**** SkyBox Descriptors */
-    DescriptorSetLayout skyboxSetLayout = DescriptorSetLayout::Builder(vulkanDevice.device())
-            .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
-            .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .build();
-    
-    // SkyBox Pipeline
-    renderSystems.skybox = std::make_unique<RenderSystem>(
-        vulkanDevice,
-        renderer.getOffscreenRenderPass(RenderPass::WorldSpace),
-        "skybox",
-        skyboxSetLayout.getDescriptorSetLayout(),
-        1,
-        vulkanDevice.msaaSamples
-    );
-            
-    DescriptorPool skyboxPool = DescriptorPool::Builder(vulkanDevice.device())
-           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .build();
-            
-    VkDescriptorSet skyboxDescriptorSet[SwapChain::MAX_FRAMES_IN_FLIGHT];
-    for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
-        VkDescriptorSet descriptorSet;
-        auto bufferInfo = uboBuffers[i]->descriptorInfo();
-        DescriptorWriter(skyboxSetLayout, skyboxPool)
-            .writeBuffer(0, &bufferInfo)
-            .writeImage(1, &environment)
-            .build(descriptorSet);
-            
-        skyboxDescriptorSet[i] = descriptorSet;
-    }
     
     
-    //Depth only pass
-    DescriptorSetLayout depthSetLayout = DescriptorSetLayout::Builder(vulkanDevice.device())
-            .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
-            .build();
-            
-    // Pipeline
-    renderSystems.depth = std::make_unique<RenderSystem>(
-        vulkanDevice,
-        renderer.getOffscreenRenderPass(RenderPass::DepthPass),
-        "depth",
-        depthSetLayout.getDescriptorSetLayout(),
-        1,
-        vulkanDevice.msaaSamples
-    );
+/**** Shadow Pipeline */
+    ShadowPipeline::FrameData shadowData {
+				.primitives = primitives,
+				.uboDescriptors = {uboBuffers[0]->descriptorInfo(), uboBuffers[1]->descriptorInfo(), uboBuffers[2]->descriptorInfo()}
+		};
+		m_Pipelines.shadow = std::make_unique<ShadowPipeline>(vulkanDevice, renderer.getOffscreenRenderPass(RenderPass::DepthPass), "shadow", shadowData);
     
-    DescriptorPool depthPool = DescriptorPool::Builder(vulkanDevice.device())
-           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .build();
-    
-    // Create a Descriptor Map for each frame in flight
-    VkDescriptorSet depthDescriptorSets[SwapChain::MAX_FRAMES_IN_FLIGHT];
-    
-    for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
-        auto bufferInfo = uboBuffers[i]->descriptorInfo();
-                                    
-        DescriptorWriter(depthSetLayout, depthPool)
-            .writeBuffer(0, &bufferInfo)
-            .build(depthDescriptorSets[i]);
-    }
-
-    
-/**** Global Pipeline */
-    DescriptorSetLayout mainSetLayout = DescriptorSetLayout::Builder(vulkanDevice.device())
-            .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
-            .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .addBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .addBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .addBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .build();
-            
-    DescriptorSetLayout materialSetLayout = DescriptorSetLayout::Builder(vulkanDevice.device())
-            .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .addBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .addBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .build();
-            
-    VkDescriptorSetLayout layouts[2] = {*mainSetLayout.getDescriptorSetLayout(), *materialSetLayout.getDescriptorSetLayout()};
-            
-    // Pipeline
-    renderSystems.pbr = std::make_unique<RenderSystem>(
-        vulkanDevice,
-        renderer.getOffscreenRenderPass(RenderPass::WorldSpace),
-        "shader",
-        layouts,
-        2,
-        vulkanDevice.msaaSamples
-    );
-    
-    const uint32_t numOfMaterials = (uint32_t)materials.size();
-    
-    DescriptorPool mainPool = DescriptorPool::Builder(vulkanDevice.device())
-           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .build();
-           
-    DescriptorPool materialPool = DescriptorPool::Builder(vulkanDevice.device())
-           .setMaxSets(numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .build();
-    
-    // Create a Descriptor Map for each frame in flight
-    VkDescriptorSet mainDescriptorSet[SwapChain::MAX_FRAMES_IN_FLIGHT];
-    std::unordered_map<std::string, VkDescriptorSet> materialDescriptorSets[SwapChain::MAX_FRAMES_IN_FLIGHT];
-    
-    for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
-        VkDescriptorSet descriptorSet;
-        auto bufferInfo = uboBuffers[i]->descriptorInfo();
-        auto depthInfo = renderer.getImageDescriptor(RenderPass::DepthPass)[i];
-        DescriptorWriter(mainSetLayout, mainPool)
-                .writeBuffer(0, &bufferInfo)
-                .writeImage(1, &irradiance)                 // Irradiance
-                .writeImage(2, &prefiltered)                // Reflection
-                .writeImage(3, renderer.getBrdfLutInfo())   // BRDF Lut
-                .writeImage(4, &depthInfo)
-                .build(descriptorSet);
-                
-        mainDescriptorSet[i] = descriptorSet;
-        
-        for (auto& kv : materials) {
-            auto& name = kv.first;
-            auto& material = kv.second;
-            VkDescriptorImageInfo   emissive = material.getColorTextureIF(),
-                                    normal = material.getNormalTextureIF(),
-                                    occlusion = material.getOcclusionTextureIF(),
-                                    metalRough = material.getMetalRoughTextureIF();
-                                    
-            DescriptorWriter(materialSetLayout, materialPool)
-                .writeImage(0, &emissive)       // Diffuse
-                .writeImage(1, &normal)         // Normal
-                .writeImage(2, &metalRough)     // Metallic-Roughness
-                .writeImage(3, &occlusion)      // Occlusion
-                .build(descriptorSet);
-                
-            materialDescriptorSets[i].emplace(name, descriptorSet);
-        }
-    }
+/**** Scene Pipeline */
+		ScenePipeline::FrameData sceneData {
+				.primitives = primitives,
+				.materials = materials,
+				.uboDescriptors = {uboBuffers[0]->descriptorInfo(), uboBuffers[1]->descriptorInfo(), uboBuffers[2]->descriptorInfo()},
+				.imageDescriptors.brdf = renderer.getBrdfLutInfo(),
+				.imageDescriptors.irradiance = &irradiance,
+				.imageDescriptors.reflection = &prefiltered,
+				.imageDescriptors.shadow = renderer.getImageDescriptor(RenderPass::DepthPass)
+		};
+		m_Pipelines.scene = std::make_unique<ScenePipeline>(vulkanDevice, renderer.getOffscreenRenderPass(RenderPass::WorldSpace), "shader", sceneData);
+		
+/**** Skybox Pipeline */
+		SkyboxPipeline::FrameData skyboxData {
+				.primitives = env,
+				.uboDescriptors = {uboBuffers[0]->descriptorInfo(), uboBuffers[1]->descriptorInfo(), uboBuffers[2]->descriptorInfo()},
+				.envImageDescriptor = environment
+		};
+		m_Pipelines.skybox = std::make_unique<SkyboxPipeline>(vulkanDevice, renderer.getOffscreenRenderPass(RenderPass::WorldSpace), "skybox", skyboxData);
+		
     
     widgets.settings->recreatePipelinesCallback([this](void){
-        renderSystems.pbr->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
-        renderSystems.skybox->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
-        renderSystems.depth->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::DepthPass));
+				m_Pipelines.shadow->recreatePipeline();
+				m_Pipelines.scene->recreatePipeline();
+				m_Pipelines.skybox->recreatePipeline();
     });
 
-    
     while(window.isWindowOpen())
     {
         
@@ -388,36 +264,6 @@ void Application::run() {
         
         if (auto commandBuffer = renderer.beginFrame()) {
             frameIndex = renderer.getFrameIndex();
-            FrameInfoNoMaterials depthInfo{
-                frameIndex,
-                m_Perf.gpuTime,
-                commandBuffer,
-                camera,
-                primitives,
-                depthDescriptorSets[frameIndex]
-            };
-            
-            FrameInfo frameInfo{
-                frameIndex,
-                m_Perf.gpuTime,
-                commandBuffer,
-                camera,
-                primitives,
-                mainDescriptorSet[frameIndex],
-                materials,
-                materialDescriptorSets[frameIndex]
-            };
-            
-            FrameInfo skyboxInfo{
-                frameIndex,
-                m_Perf.gpuTime,
-                commandBuffer,
-                camera,
-                env,
-                skyboxDescriptorSet[frameIndex],
-                materials,
-                std::unordered_map<std::string, VkDescriptorSet>()
-            };
             
             // Update Uniform Buffer Object
             ubo.projectionView = camera.getProjection();
@@ -425,10 +271,10 @@ void Application::run() {
             ubo.invViewMatrix = camera.getInverseView();
             ubo.debugMode = widgets.settings->debugMode;
             
-            renderSystems.composit->exposure = widgets.settings->otherData.exposure;
-            renderSystems.composit->gamma = widgets.settings->otherData.gamma;
-            renderSystems.composit->peak_brightness = widgets.settings->otherData.peak_brightness;
-            renderSystems.composit->debugMode = widgets.settings->otherData.debugMode;
+            m_Pipelines.composit->exposure = widgets.settings->otherData.exposure;
+            m_Pipelines.composit->gamma = widgets.settings->otherData.gamma;
+            m_Pipelines.composit->peak_brightness = widgets.settings->otherData.peak_brightness;
+            m_Pipelines.composit->debugMode = widgets.settings->otherData.debugMode;
 
             uboBuffers[frameIndex]->writeToBuffer(&ubo);
             uboBuffers[frameIndex]->flush();
@@ -438,16 +284,16 @@ void Application::run() {
             
             // RenderPass
             renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::DepthPass);
-            renderSystems.depth->renderSolidObjects(depthInfo);
+            m_Pipelines.shadow->render(commandBuffer, frameIndex);
             renderer.endRenderPass(commandBuffer);
             
             renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::WorldSpace);
-            renderSystems.skybox->renderSolidObjects(skyboxInfo);
-            renderSystems.pbr->renderSolidObjects(frameInfo);
+            m_Pipelines.scene->render(commandBuffer, frameIndex);
+            m_Pipelines.skybox->render(commandBuffer, frameIndex);
             renderer.endRenderPass(commandBuffer);
             
             renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::ScreenSpace);
-            renderSystems.composit->renderSceneToSwapChain(commandBuffer, renderer.getDescriptorSets(RenderPass::WorldSpace)->at(frameIndex));
+            m_Pipelines.composit->renderSceneToSwapChain(commandBuffer, renderer.getDescriptorSets(RenderPass::WorldSpace)->at(frameIndex));
             renderer.endRenderPass(commandBuffer);
             
             renderer.beginSwapChainRenderPass(commandBuffer);

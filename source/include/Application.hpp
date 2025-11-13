@@ -16,7 +16,6 @@
 #include "Model.hpp"
 #include "Renderer.hpp"
 #include "Primitive.hpp"
-#include "RenderSystem.hpp"
 #include "Camera.hpp"
 #include "Keyboard.hpp"
 #include "Texture.hpp"
@@ -25,6 +24,10 @@
 #include "CompositionPipeline.hpp"
 #include "Material.hpp"
 #include "Light.hpp"
+
+#include "ScenePipeline.hpp"
+#include "ShadowPipeline.hpp"
+#include "SkyboxPipeline.hpp"
 
 //std
 #include <memory>
@@ -70,11 +73,12 @@ private:
     Image vulkanImage{vulkanDevice};
 
     struct RenderSystems_s {
-        std::unique_ptr<RenderSystem> depth;
-        std::unique_ptr<RenderSystem> pbr;
-        std::unique_ptr<RenderSystem> skybox;
+				std::unique_ptr<ShadowPipeline> shadow;
+				std::unique_ptr<ScenePipeline> scene;
+				std::unique_ptr<SkyboxPipeline> skybox;
+    
         std::unique_ptr<CompositionPipeline> composit;
-    } renderSystems;
+    } m_Pipelines;
 
     std::vector<std::unique_ptr<Texture>> textures{};
     std::unordered_map<std::string, Material> materials{};
@@ -91,7 +95,7 @@ private:
     
     const std::string binaryDir = "./";
     
-    GlobalUbo ubo{};
+    ScenePipeline::UniformBuffer ubo{};
 };
 
 #endif /* Application_hpp */
