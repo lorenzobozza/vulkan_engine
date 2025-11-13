@@ -38,9 +38,11 @@ struct WidgetStruct {
 
 
 void Application::run() {
+
+/**** User Interface Setup */
     UI ui(vulkanDevice, renderer);
-    UI::setBessDarkColors();
     
+    UI::setBessDarkColors();
     window.updateUiScaling();
     
     WidgetStruct widgets {
@@ -51,32 +53,21 @@ void Application::run() {
         .settings = std::make_shared<Settings>(vulkanDevice,window,renderer,m_Perf)
     };
     widgets.menu = std::make_shared<Menu>(widgets.log->getVisibility(), widgets.material->getVisibility());
-    ui.addWidgets(widgets.view, widgets.log, widgets.assets, widgets.material, widgets.settings, widgets.menu);
-    
     widgets.log->getVisibility() = false;
     widgets.material->getVisibility() = false;
     widgets.view->setExtent(renderer.getSwapChainExtent().width * 0.8f, renderer.getSwapChainExtent().height * 0.8f);
     widgets.view->addFlags(ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_AlwaysAutoResize|ImGuiWindowFlags_NoBackground);
-
-        Camera camera{};
-        float aspectRatio = renderer.getAspectRatio();
-        camera.setProjection.perspective(aspectRatio, glm::radians(75.f), .01f, 100.f);
-        
-        Primitive cameraObj = Primitive::new_primitive();
-        cameraObj.transform.translation = {-5.f, -2.f, .0f};
-        cameraObj.transform.rotation.y = glm::half_pi<float>();
-        bool orth = false;
     
-    m_Pipelines.composit = std::make_unique<CompositionPipeline>(
-        vulkanDevice,
-        renderer.getOffscreenRenderPass(RenderPass::ScreenSpace),
-        renderer.getDescriptorSetLayout(RenderPass::WorldSpace),
-        "composition"
-    );
-    
+    ui.addWidgets(widgets.view, widgets.log, widgets.assets, widgets.material, widgets.settings, widgets.menu);
     
     std::thread([this]() {
     
+				/**** Fallback Material */
+        Material globalMaterial(&textures);
+        globalMaterial.color = {1.f, 1.f, 1.f, 1.f};
+        materials.emplace("Global_Default_Material", globalMaterial);
+        
+        /**** Load HDRi Texture */
         textures.push_back(std::make_unique<Texture>(
             this->vulkanDevice,
             vulkanImage,
@@ -85,14 +76,25 @@ void Application::run() {
             VK_FORMAT_R32G32B32A32_SFLOAT
         ));
         
-        Material globalMaterial(&textures);
-        globalMaterial.color = {1.f, 1.f, 1.f, 1.f};
-        materials.emplace("Global_Default_Material", globalMaterial);
-    
-        // Multithreaded job, migliorare la creazione dei task-sets
+				/**** Allocate Uniform Buffer Object Buffers */
+				for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+						uboBuffers[i] = std::make_unique<Buffer>(
+																vulkanDevice,
+																sizeof(ScenePipeline::UniformBuffer),
+																1,
+																VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+																VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+														);
+						uboBuffers[i]->map();
+				}
+				
+				/**** Load Scene from glTF file */
+        // TODO: better task-set creation
         NodeSet::InitStruct initNodeStruct{vulkanDevice, vulkanImage, primitives, textures, materials, lights};
         NodeSet(initNodeStruct, binaryDir + "../../../assets/models/Sponza.glb");
         
+        /**** Load Point-Light Nodes from scene */
+        // TODO: clean this mess
         ubo.lightInfo = (uint8_t)lights.size();
         uint8_t index = 0;
         for (auto& light : lights) {
@@ -104,14 +106,7 @@ void Application::run() {
                 ++index;
             }
         }
-
-        // Cubemap 3D canvas
-        auto cube = Primitive::new_primitive();
-        cube.setModel(std::make_shared<Model>(vulkanDevice, Model::Data::makeSimpleCube(true)));
-        cube.textureIndex = 1;
-        cube.material = "SKY";
-        env.emplace(cube.getId(), std::move(cube));
-        
+                
         assetsLoaded = true;
         
     }).detach();
@@ -144,27 +139,11 @@ void Application::run() {
             renderer.endFrame();
         }
     }
-    
-    for (auto& t : textures) {
-        t->moveBuffer();
-    }
+
     
     vkDeviceWaitIdle(vulkanDevice.device());
     renderer.integrateBrdfLut(binaryDir);
-    
-/**** Global Uniform Buffer Objects */
-		std::unique_ptr<Buffer> uboBuffers[SwapChain::MAX_FRAMES_IN_FLIGHT];
-		for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
-				uboBuffers[i] = std::make_unique<Buffer>(
-						vulkanDevice,
-						sizeof(ScenePipeline::UniformBuffer),
-						1,
-						VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-						VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
-				);
-				uboBuffers[i]->map();
-		}
-
+		
 /**** HDRi, IBL, SkyBox  */
     auto equitangular = textures.at(0)->descriptorInfo();
     
@@ -205,12 +184,34 @@ void Application::run() {
 		};
 		m_Pipelines.skybox = std::make_unique<SkyboxPipeline>(vulkanDevice, renderer.getOffscreenRenderPass(RenderPass::WorldSpace), "skybox", skyboxData);
 		
+/**** Composition Pipeline */
+		m_Pipelines.composit = std::make_unique<CompositionPipeline>(
+        vulkanDevice,
+        renderer.getOffscreenRenderPass(RenderPass::ScreenSpace),
+        renderer.getDescriptorSetLayout(RenderPass::WorldSpace),
+        "composition"
+    );
+    
     
     widgets.settings->recreatePipelinesCallback([this](void){
 				m_Pipelines.shadow->recreatePipeline();
 				m_Pipelines.scene->recreatePipeline();
 				m_Pipelines.skybox->recreatePipeline();
     });
+    
+// Misc
+		auto cube = Primitive::new_primitive();
+		cube.setModel(std::make_shared<Model>(vulkanDevice, Model::Data::makeSimpleCube(true)));
+		env.emplace(cube.getId(), std::move(cube));
+		
+		Camera camera{};
+		float aspectRatio = renderer.getAspectRatio();
+		camera.setProjection.perspective(aspectRatio, glm::radians(75.f), .01f, 100.f);
+		
+		Primitive cameraObj = Primitive::new_primitive();
+		cameraObj.transform.translation = {-5.f, -2.f, .0f};
+		cameraObj.transform.rotation.y = glm::half_pi<float>();
+		bool orth = false;
 
     while(window.isWindowOpen())
     {

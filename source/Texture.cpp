@@ -21,6 +21,8 @@ Texture::Texture(Device &dev, Image &image, std::string filePath, bool mipMappin
     : device{dev}, image{image}, textureFilePath{filePath}, mipMapping{mipMapping}, viewType{VK_IMAGE_VIEW_TYPE_2D}, format{format} {
     loadTexture();
     createDefaultTextureSampler();
+    createTextureImage();
+    createTextureImageView();
     TIFFSetWarningHandler(NULL);
 }
 
@@ -79,6 +81,8 @@ Texture::Texture(Device &dev, Image &image, void* data, uint32_t texWidth, uint3
         throw std::runtime_error("failed to create texture sampler!");
     }
     
+		createTextureImage();
+    createTextureImageView();
 }
 
 Texture::~Texture() {
@@ -86,11 +90,6 @@ Texture::~Texture() {
     vkDestroyImageView(device.device(), textureImageView, nullptr);
     vkDestroyImage(device.device(), textureImage, nullptr);
     vkFreeMemory(device.device(), textureImageMemory, nullptr);
-}
-
-void Texture::moveBuffer() {
-    createTextureImage();
-    createTextureImageView();
 }
 
 VkDescriptorImageInfo Texture::descriptorInfo() {

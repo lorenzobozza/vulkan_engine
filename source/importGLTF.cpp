@@ -497,7 +497,6 @@ void NodeSet::loadMaterialsToVRAM(void) {
                     &samplerInfo
                 )
             );
-            //m_Textures.at(index)->moveBuffer();
             
             material.setColorTexture(index++);
             material.setNormalTexCoordSet(gltfMaterial.pbrMetallicRoughness.baseColorTexture.texCoord);
@@ -520,7 +519,6 @@ void NodeSet::loadMaterialsToVRAM(void) {
                 (normal.component > 3 ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8_UNORM),
                 &samplerInfo
             ));
-            //m_Textures.at(index)->moveBuffer();
             
             material.setNormalTexture(index++);
             material.setNormalTexCoordSet(gltfMaterial.normalTexture.texCoord);
@@ -542,7 +540,6 @@ void NodeSet::loadMaterialsToVRAM(void) {
                 (occlusion.component > 3 ? default_rgba_format : default_rgb_format),
                 &samplerInfo
             ));
-            //m_Textures.at(index)->moveBuffer();
             
             material.setOcclusionTexture(index++);
             material.setOcclusionTexCoordSet(gltfMaterial.occlusionTexture.texCoord);
@@ -566,7 +563,6 @@ void NodeSet::loadMaterialsToVRAM(void) {
                 (metalRough.component > 3 ? default_rgba_format : default_rgb_format),
                 &samplerInfo
             ));
-            //m_Textures.at(index)->moveBuffer();
             
             material.setRoughMetalTexture(index++);
             material.setMetalRoughTexCoordSet(gltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.texCoord);

@@ -96,6 +96,7 @@ private:
     const std::string binaryDir = "./";
     
     ScenePipeline::UniformBuffer ubo{};
+    std::unique_ptr<Buffer> uboBuffers[SwapChain::MAX_FRAMES_IN_FLIGHT];
 };
 
 #endif /* Application_hpp */
