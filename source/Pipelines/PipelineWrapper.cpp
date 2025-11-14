@@ -6,6 +6,7 @@
 //
 
 #include "PipelineWrapper.hpp"
+#include "Log.hpp"
 
 void PipelineWrapper::_inheritedConstructor(void) {
 		createPipelineLayout();
@@ -57,6 +58,12 @@ void PipelineWrapper::destroyPipeline(void) {
 }
 
 void PipelineWrapper::recreatePipeline(VkRenderPass renderPass, VkSampleCountFlagBits samples) {
+		// TODO: Find a safer way to dispatch VkHandles
+		if (m_RenderPass == VK_NULL_HANDLE && renderPass == VK_NULL_HANDLE) {
+				Log::getInstance()->error("Unable to rebuild pipeline using old renderpass since it's no longer valid");
+				return;
+		}
+		
 		if (renderPass != VK_NULL_HANDLE) {
 				m_RenderPass = renderPass;
 		}

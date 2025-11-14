@@ -1,6 +1,6 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
-#include "shader.glsl"
+#include "shader_functions.glsl"
 
 #define COLOR_TEXTURE       0x1
 #define NORMAL_TEXTURE      0x2
@@ -64,19 +64,19 @@ void main() {
     
     // Color
     vec3 baseColor = vec3(1.0);
-    float alpha = 1.0;
+    float opacity = 1.0;
     if ((push.textureBitmap & COLOR_TEXTURE) == COLOR_TEXTURE) {
         vec4 colorSample = SRGBtoLINEAR(
             textureLod(diffuseMap, (push.textureBitmap & COLOR_UV) == 0 ? vert.texcoord : vert.texcoord1, lod)
         );
         baseColor = colorSample.rgb;
-        alpha = colorSample.a;
+        opacity = colorSample.a;
     }
     baseColor *= push.color.rgb;
-    alpha *= push.color.a;
+    opacity *= push.color.a;
     
-    if ((push.alphaMode == ALPHAMODE_MASK) && (alpha < push.alphaCutoff)) { alpha = 0.0; }
-    if (push.alphaMode == ALPHAMODE_OPAQUE) { alpha = 1.0; }
+    if ((push.alphaMode == ALPHAMODE_MASK) && (opacity < push.alphaCutoff)) { opacity = 0.0; }
+    if (push.alphaMode == ALPHAMODE_OPAQUE) { opacity = 1.0; }
     
     // Normal
     vec3 normalTS = vec3(0.0, 0.0, 1.0);
@@ -98,14 +98,11 @@ void main() {
     }
     float occlusion = (push.textureBitmap & OCCLUSION_TEXTURE) == 0 ? 1.0 : textureLod(occlusionMap, (push.textureBitmap & OCCLUSION_UV) == 0 ? vert.texcoord : vert.texcoord1, lod).r;
     
+    float alphaRoughness = perceptualRoughness * perceptualRoughness;
+    vec2 alphaAniso = computeAnisoRoughness(alphaRoughness);
     
     vec3 f0 = vec3(0.04);
-    
-    vec3 diffuseColor = baseColor.rgb * (vec3(1.0) - f0);
-	diffuseColor *= 1.0 - metallic;
-		
-	float alphaRoughness = perceptualRoughness * perceptualRoughness;
-
+    vec3 diffuseColor = baseColor.rgb * (vec3(1.0) - f0) * (1.0 - metallic);
 	vec3 specularColor = mix(f0, baseColor.rgb, metallic);
 
 	// Compute reflectance.
@@ -123,11 +120,11 @@ void main() {
  
 PBRInfo pbrInputs;
 vec3 color = vec3(0);
-float shadow = 1.0;
 const float lightNum = ubo.lightInfo & 0xFF;
 for (int i = 0; i < lightNum; i++) {
 
     vec3 l, u_LightColor;
+    float shadow = 1.0;
 
     if (((ubo.lightInfo >> (8 + i)) & 0x1) == 0) {
         l = normalize(ubo.lightVector[i].xyz - vert.worldPos); // Vector from surface point to light
@@ -167,7 +164,10 @@ for (int i = 0; i < lightNum; i++) {
 	// Calculate the shading terms for the microfacet specular shading model
 	vec3 F = specularReflection(pbrInputs);
 	float G = geometricOcclusion(pbrInputs);
-	float D = microfacetDistribution(pbrInputs);
+
+	//float D = microfacetDistribution(pbrInputs); // OLD
+    vec3 h_ts = transpose(vert.TBN) * h;
+    float D = DistributionGGX_Covariance(n, h, h_ts, alphaAniso) * shadow;
 
 	// Calculation of analytical lighting contribution
 	vec3 diffuseContrib = (1.0 - F) * diffuse(pbrInputs);
@@ -180,7 +180,7 @@ for (int i = 0; i < lightNum; i++) {
 
 	// Calculate lighting contribution from image based lighting source (IBL)
     if ((ubo.debugMode & 0x200) == 0x200) {
-	    color += getIBLContribution(pbrInputs, n, reflection, vec2(shadow * 0.7 + 0.3, shadow * 0.9 + 0.1));
+	    color += getIBLContribution(pbrInputs, n, reflection, vec2(0.2));
     }
 
 	const float u_OcclusionStrength = 0.5f;
@@ -191,23 +191,28 @@ for (int i = 0; i < lightNum; i++) {
 	
     switch (ubo.debugMode & 0xFF) {
         case 1:
-            color = (n + 1.0) * 0.5;
-            alpha = 1.0;
-            break;
-
-        case 2:
-            color = vec3(perceptualRoughness);
-            alpha = 1.0;
+            color = baseColor;
+            opacity = 1.0;
             break;
         
+        case 2:
+            color = (n + 1.0) * 0.5;
+            opacity = 1.0;
+            break;
+
         case 3:
+            color = vec3(perceptualRoughness);
+            opacity = 1.0;
+            break;
+        
+        case 4:
             color = vec3(metallic);
-            alpha = 1.0;
+            opacity = 1.0;
             break;
 
         default:
             break;
     }
  
-    outColor = vec4(color, alpha);
+    outColor = vec4(color, opacity);
 }

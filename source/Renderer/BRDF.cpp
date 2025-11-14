@@ -8,6 +8,8 @@
 #include "Renderer.hpp"
 #include <array>
 
+static const VkExtent2D lutExtent = {512, 512};
+
 void Renderer::integrateBrdfLut(std::string shaderPath) {
     VkAttachmentDescription attachment = {};
 
@@ -86,8 +88,8 @@ void Renderer::integrateBrdfLut(std::string shaderPath) {
     VkImageCreateInfo imageInfo{};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageInfo.imageType = VK_IMAGE_TYPE_2D;
-    imageInfo.extent.width = 512;
-    imageInfo.extent.height = 512;
+    imageInfo.extent.width = lutExtent.width;
+    imageInfo.extent.height = lutExtent.height;
     imageInfo.extent.depth = 1;
     imageInfo.mipLevels = 1;
     imageInfo.arrayLayers = 1;
@@ -127,8 +129,8 @@ void Renderer::integrateBrdfLut(std::string shaderPath) {
     fbufCreateInfo.renderPass = renderPass;
     fbufCreateInfo.attachmentCount = 1;
     fbufCreateInfo.pAttachments = &brdf.view;
-    fbufCreateInfo.width = 512;
-    fbufCreateInfo.height = 512;
+    fbufCreateInfo.width = lutExtent.width;
+    fbufCreateInfo.height = lutExtent.height;
     fbufCreateInfo.layers = 1;
 
 	if (vkCreateFramebuffer(device.device(), &fbufCreateInfo, nullptr, &frameBuffer) != VK_SUCCESS) {
@@ -187,8 +189,7 @@ void Renderer::integrateBrdfLut(std::string shaderPath) {
     renderpassInfo.framebuffer = frameBuffer;
     
     renderpassInfo.renderArea.offset = {0, 0};
-    renderpassInfo.renderArea.extent.width = 512;
-    renderpassInfo.renderArea.extent.height = 512;
+    renderpassInfo.renderArea.extent = lutExtent;
     
     VkClearValue clearValue{};
     clearValue.color = {0.f, 0.f, 0.f, 0.f};
@@ -200,11 +201,11 @@ void Renderer::integrateBrdfLut(std::string shaderPath) {
     VkViewport viewport{};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = 512;
-    viewport.height = 512;
+    viewport.width = lutExtent.width;
+    viewport.height = lutExtent.height;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
-    VkRect2D scissor{{0, 0}, {512, 512}};
+    VkRect2D scissor{{0, 0}, lutExtent};
     vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
     

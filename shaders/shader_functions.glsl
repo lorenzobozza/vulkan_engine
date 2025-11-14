@@ -1,3 +1,6 @@
+#extension GL_GOOGLE_include_directive : require
+#include "filters/NDF_filters.glsl"
+
 #define M_PI 3.1415926535897932384626433832795
 
 layout(set = 0, binding = 1) uniform samplerCube irradianceMap;
@@ -141,4 +144,60 @@ float microfacetDistribution(PBRInfo pbrInputs)
 	float roughnessSq = pbrInputs.alphaRoughness * pbrInputs.alphaRoughness;
 	float f = (pbrInputs.NdotH * roughnessSq - pbrInputs.NdotH) * pbrInputs.NdotH + 1.0;
 	return roughnessSq / (M_PI * f * f);
+}
+
+/*
+New Microfacet NDF Approach
+				|
+				|
+				|
+				|
+				V
+*/
+
+vec2 computeAnisoRoughness(float alpha)
+{
+    float anisotropy = clamp(0.0, -1.0, 1.0);
+
+    float alphaX = clamp(alpha * (1.0 + anisotropy), 0.001, 1.0);
+    float alphaY = clamp(alpha * (1.0 - anisotropy), 0.001, 1.0);
+
+    return vec2(alphaX, alphaY);
+}
+
+float DistributionGGX_Covariance(vec3 N, vec3 H, vec3 h_ts, vec2 alpha_roughness)
+{
+    // Compute normal-mapped World-Space Tangent and Bitangent
+    vec3 T = normalize(vec3(N.y, -N.x, 0.0));
+    vec3 B = normalize(cross(N, T));
+
+    float NdotH = max(dot(N, H), 0.0);
+    if (NdotH <= 0.0) return 0.0;
+
+    // Project H into slope space: s = (Hx/Hn, Hy/Hn)
+    float Hx = dot(H, T);
+    float Hy = dot(H, B);
+    vec2  s  = vec2(Hx, Hy) / NdotH;
+
+
+    // Precompute inverse and determinant (cov2 must be positive definite)
+    //mat2 cov2 = mat2(alpha_roughness.x, 0.0, 0.0, alpha_roughness.y);
+	mat2 cov2 = AxisAlignedNDFFiltering(h_ts, alpha_roughness);
+	//mat2 cov2 = NonAxisAlignedNDFFiltering(H_TS, alpha_roughness);
+    //mat2 cov2 = FullNonAxisAlignedNDFFiltering(H_TS, alpha_roughness);
+    float detC = cov2[0][0] * cov2[1][1] - cov2[0][1] * cov2[1][0];
+    if (detC <= 0.0) return 0.0;
+
+    mat2 invC = mat2( cov2[1][1], -cov2[0][1],
+                     -cov2[1][0],  cov2[0][0]) / detC;
+
+    // Quadratic form s^T invC s
+    float q = dot(s, invC * s);
+
+    // Anisotropic GGX in slope space
+    // D = 1 / (pi * det(C) * (1 + q)^2)
+    const float PI = 3.14159265358979323846;
+    float D = 1.0 / (PI * detC * (1.0 + q) * (1.0 + q));
+
+    return D;
 }

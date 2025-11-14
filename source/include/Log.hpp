@@ -54,9 +54,11 @@ public:
             std::println(__fmt, std::forward<_Args>(__args)...);
         }
         
-        stream << "[Error] " << std::format(__fmt, std::forward<_Args>(__args)...) << '\n';
-        
-        error_notification = true;
+        if (error_counter < 100) {
+						stream << "[Error] " << std::format(__fmt, std::forward<_Args>(__args)...) << '\n';
+						error_notification = true;
+						if (++error_counter == 100) stream << "\nCLOSING STREAM, TOO MUCH ERRORS\n";
+        }
     }
     
     void error(const std::string& s) {
@@ -78,6 +80,7 @@ private:
     Log() {}
     
     bool error_notification = false;
+    unsigned long error_counter = 0;
     bool print_terminal = false;
     std::stringstream stream;
 

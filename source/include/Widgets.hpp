@@ -75,9 +75,7 @@ private:
 
 class LogView : public Widget {
     void header(void) override {
-        if (Log::getInstance()->notifyErrors()) {
-            ImGuiWindow* log = ImGui::FindWindowByName("Log Console");
-            if (log != nullptr) ImGui::SetScrollY(log, 1000.f);
+        if (getVisibility() == false && Log::getInstance()->notifyErrors()) {
             getVisibility() = true;
         }
     }
@@ -151,7 +149,7 @@ private:
         static int debugLocal = 0;
         static bool iblBg = false, iblLight = false;
         ImGui::Text("Shader Control");
-        if (ImGui::Combo("##debugMode", &debugLocal, "Shaded\0Normal\0Roughness\0Metallic\0")) {
+        if (ImGui::Combo("##debugMode", &debugLocal, "Shaded\0Albedo\0Normal\0Roughness\0Metallic\0")) {
             debugMode = (debugMode & 0xF00) + debugLocal;
         }
         if (ImGui::Checkbox("Environment Map", &iblBg)) { if(iblBg) { debugMode |= (1 << 8); } else { debugMode &= ~(1 << 8); } }

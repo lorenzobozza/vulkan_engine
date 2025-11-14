@@ -196,9 +196,9 @@ void Application::run() {
     
     
     widgets.settings->recreatePipelinesCallback([this](void){
-				m_Pipelines.shadow->recreatePipeline();
-				m_Pipelines.scene->recreatePipeline();
-				m_Pipelines.skybox->recreatePipeline();
+				m_Pipelines.shadow->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::ShadowPass));
+				m_Pipelines.scene->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
+				m_Pipelines.skybox->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
     });
     
 // Misc
