@@ -150,7 +150,7 @@ void Application::run() {
     HDRi environmentMap{vulkanDevice, equitangular, {1024, 1024}, "equirectangular", binaryDir, 9};
     auto environment = environmentMap.descriptorInfo();
     
-    HDRi prefilteredMap{vulkanDevice, environment, {512, 512}, "prefiltering", binaryDir, 9};
+    HDRi prefilteredMap{vulkanDevice, environment, {512, 512}, "prefiltering", binaryDir, 8};
     auto prefiltered = prefilteredMap.descriptorInfo();
     
     HDRi irradianceMap{vulkanDevice, environment, {32, 32}, "irradiance", binaryDir};

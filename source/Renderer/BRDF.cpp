@@ -8,7 +8,7 @@
 #include "Renderer.hpp"
 #include <array>
 
-static const VkExtent2D lutExtent = {512, 512};
+static const VkExtent2D lutExtent = {256, 256};
 
 void Renderer::integrateBrdfLut(std::string shaderPath) {
     VkAttachmentDescription attachment = {};

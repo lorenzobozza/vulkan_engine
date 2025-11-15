@@ -16,6 +16,11 @@
 #define ALPHAMODE_MASK 1
 #define ALPHAMODE_BLEND 2
 
+#define DEBUG_SHOW_ENV_BIT      0x100
+#define DEBUG_IBL_CONTRIB_BIT   0x200
+#define DEBUG_MULTISCATTER_BIT  0x400
+#define MASK_COMPARE(bitmap, mask)  ((bitmap & mask) == mask)
+
 
 layout(location = 0) out vec4 outColor;
 layout(location = 0) in VertexShader {
@@ -121,6 +126,7 @@ void main() {
 PBRInfo pbrInputs;
 vec3 color = vec3(0);
 const float lightNum = ubo.lightInfo & 0xFF;
+float shadow_avg = 0.0;
 for (int i = 0; i < lightNum; i++) {
 
     vec3 l, u_LightColor;
@@ -138,6 +144,8 @@ for (int i = 0; i < lightNum; i++) {
         shadow = filterPCF(vert.lightSpacePos);
         if(dot(n, l) < 0) shadow = 0.01;
     }
+
+    shadow_avg += shadow;
   
 	vec3 h = normalize(l+v); // Half vector between both l and v
     float NdotL = clamp(dot(n, l), 0.001, 1.0);
@@ -179,8 +187,10 @@ for (int i = 0; i < lightNum; i++) {
 }
 
 	// Calculate lighting contribution from image based lighting source (IBL)
-    if ((ubo.debugMode & 0x200) == 0x200) {
-	    color += getIBLContribution(pbrInputs, n, reflection, vec2(0.2));
+    if (MASK_COMPARE(ubo.debugMode, DEBUG_IBL_CONTRIB_BIT)) {
+        shadow_avg = (shadow_avg + 0.3) / (lightNum + 1); //vec2(0.3, shadow_avg)
+        bool multi_scatter = MASK_COMPARE(ubo.debugMode, DEBUG_MULTISCATTER_BIT);
+	    color += computeIBL(n, v, reflection, perceptualRoughness, diffuseColor, specularColor, multi_scatter);
     }
 
 	const float u_OcclusionStrength = 0.5f;

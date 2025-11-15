@@ -147,13 +147,14 @@ private:
         
         ImGui::NewLine();
         static int debugLocal = 0;
-        static bool iblBg = false, iblLight = false;
+        static bool iblBg = false, iblLight = false, iblMultiScatter = false;
         ImGui::Text("Shader Control");
         if (ImGui::Combo("##debugMode", &debugLocal, "Shaded\0Albedo\0Normal\0Roughness\0Metallic\0")) {
             debugMode = (debugMode & 0xF00) + debugLocal;
         }
         if (ImGui::Checkbox("Environment Map", &iblBg)) { if(iblBg) { debugMode |= (1 << 8); } else { debugMode &= ~(1 << 8); } }
         if (ImGui::Checkbox("IBL Contribution", &iblLight)) { if(iblLight) { debugMode |= (1 << 9); } else { debugMode &= ~(1 << 9); } }
+        if (ImGui::Checkbox("IBL MultiScatter", &iblMultiScatter)) {if(iblMultiScatter) { debugMode |= (1 << 10); } else { debugMode &= ~(1 << 10);} }
         if (ImGui::Button("Compile Shaders")) {
             vkDeviceWaitIdle(m_device.device());
             recreatePipelines();
@@ -181,8 +182,8 @@ private:
         ImGui::SliderFloat("##brightness", &otherData.peak_brightness, 1.f, 15.f);
         ImGui::Text("Gamma Correction");
         ImGui::SliderFloat("##gamma", &otherData.gamma, 1.f, 3.f);
-        static bool depth = false;
-        if (ImGui::Checkbox("Interpret depth", &depth)) otherData.debugMode = depth ? 1 : 0;
+        static bool noise = false;
+        if (ImGui::Checkbox("Film Grain", &noise)) otherData.debugMode = noise ? 1 : 0;
 
         ImGui::End();
     }

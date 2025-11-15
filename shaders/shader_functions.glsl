@@ -86,25 +86,57 @@ vec4 SRGBtoLINEAR(vec4 srgbIn)
 // Calculation of the lighting contribution from an optional Image Based Light source.
 // Precomputed Environment Maps are required uniform inputs and are computed as outlined in [1].
 // See our README.md on Environment Maps [3] for additional discussion.
-vec3 getIBLContribution(PBRInfo pbrInputs, vec3 n, vec3 reflection, vec2 attenuation)
+vec3 getIBLContribution(vec3 n, vec3 v, vec3 reflection, float roughness, vec3 diffuse_color, vec3 specular_color)
 {
-    const int prefilteredCubeMipLevels = 5;
-	float lod = (pbrInputs.perceptualRoughness * prefilteredCubeMipLevels);
+    const int prefilteredCubeMipLevels = 8;
+	float lod = (roughness * prefilteredCubeMipLevels);
+
+	float NdotV = clamp(dot(n, v), 0.001, 1.0);
 	// retrieve a scale and bias to F0. See [1], Figure 3
-	vec2 brdf = texture(brdfLUT, vec2(pbrInputs.NdotV, pbrInputs.perceptualRoughness)).rg;
+	vec2 brdf = texture(brdfLUT, vec2(NdotV, roughness)).rg;
 	vec3 diffuseLight = (texture(irradianceMap, n)).rgb;
 
 	vec3 specularLight = (textureLod(prefilteredMap, reflection, lod)).rgb;
 
-	vec3 diffuse = diffuseLight * pbrInputs.diffuseColor;
-	vec3 specular = specularLight * (pbrInputs.specularColor * brdf.x + brdf.y);
+	vec3 diffuse = diffuseLight * diffuse_color;
+	vec3 specular = specularLight * (specular_color * brdf.x + brdf.y);
 
 	// For presentation, this allows us to tune IBL terms
-	diffuse *= attenuation.x;
-	specular *= attenuation.y;
+	//diffuse *= attenuation.x;
+	//specular *= attenuation.y;
 
 	return diffuse + specular;
 }
+
+vec3 computeIBL(vec3 n, vec3 v, vec3 reflection, float roughness, vec3 diffuse_color, vec3 specular_color, bool multi_scatter) {
+	const int numEnvLevels = 8;
+    float lodLevel = roughness * numEnvLevels;
+
+	float NoV = clamp(dot(n, v), 0.001, 1.0);
+
+	// Load env textures
+    vec2 f_ab = texture(brdfLUT, vec2(NoV, roughness)).xy;
+    vec3 radiance = textureLod(prefilteredMap, reflection, lodLevel).xyz;
+    vec3 irradiance = texture(irradianceMap, n).xyz;
+
+	if (!multi_scatter) {
+		vec3 FssEss = specular_color * f_ab.x + f_ab.y;
+		return FssEss * radiance + diffuse_color * irradiance;
+	}
+
+	vec3 Fr = max(vec3(1.0 - roughness), specular_color) - specular_color;
+    vec3 k_S = specular_color + Fr * pow(1.0 - NoV, 5.0);
+
+    vec3 FssEss = k_S * f_ab.x + f_ab.y;
+
+    // Multiple scattering, from Fdez-Aguera
+    float Ems = (1.0 - (f_ab.x + f_ab.y));
+    vec3 F_avg = specular_color + (1.0 - specular_color) / 21.0;
+    vec3 FmsEms = Ems * FssEss * F_avg / (1.0 - F_avg * Ems);
+    vec3 k_D = diffuse_color * (1.0 - FssEss - FmsEms);
+    return FssEss * radiance + (FmsEms + k_D) * irradiance;
+}
+
 
 // Basic Lambertian diffuse
 // Implementation from Lambert's Photometria https://archive.org/details/lambertsphotome00lambgoog
