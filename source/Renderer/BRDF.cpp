@@ -169,7 +169,7 @@ void Renderer::integrateBrdfLut(std::string shaderPath) {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandPool = device.getCommandPool();
+    allocInfo.commandPool = device.getTransferCommandPool();
     allocInfo.commandBufferCount = 1;
     
     if (vkAllocateCommandBuffers(device.device(), &allocInfo, &commandBuffer) != VK_SUCCESS) {
@@ -243,15 +243,15 @@ void Renderer::integrateBrdfLut(std::string shaderPath) {
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer;
     
-    if (vkQueueSubmit(device.graphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+    if (vkQueueSubmit(device.transferQueue(), 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
         throw std::runtime_error("failed to submit draw command buffer!");
     }
     
-    vkDeviceWaitIdle(device.device());
+    vkQueueWaitIdle(device.transferQueue());
     
     vkFreeCommandBuffers(
         device.device(),
-        device.getCommandPool(),
+        device.getTransferCommandPool(),
         1,
         &commandBuffer
     );

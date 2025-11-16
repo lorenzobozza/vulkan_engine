@@ -79,6 +79,11 @@ private:
     
         std::unique_ptr<CompositionPipeline> composit;
     } m_Pipelines;
+    
+		struct {
+				std::unique_ptr<HDRi> instance;
+				VkDescriptorImageInfo* descriptor;
+		} m_Environment, m_Prefiltered, m_Irradiance;
 
     std::vector<std::unique_ptr<Texture>> textures{};
     std::unordered_map<std::string, Material> materials{};

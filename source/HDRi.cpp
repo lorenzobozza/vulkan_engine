@@ -9,11 +9,17 @@
 
 #include <array>
 
-HDRi::HDRi(Device &device, VkDescriptorImageInfo &srcDescriptor, VkExtent2D extent, std::string shader, std::string binaryPath, uint16_t mipLevels)
+HDRi::HDRi(Device &device, VkDescriptorImageInfo* srcDescriptor, VkExtent2D extent, std::string shader, std::string binaryPath, uint16_t mipLevels)
     : device{device}, srcDescriptor{srcDescriptor}, extent{extent}, shader{shader}, binaryPath{binaryPath}, mipLevels{mipLevels} {
     
     initHDRi();
     renderFaces();
+    
+    offscreenPass.descriptor = VkDescriptorImageInfo {
+        cubeSampler,
+        cubeMap.view,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+    };
 }
 
 HDRi::~HDRi() {
@@ -49,14 +55,6 @@ void HDRi::destroyFramebuffer() {
     vkDestroyImageView(device.device(), offscreenPass.depth.view, nullptr);
     vkDestroyImage(device.device(), offscreenPass.depth.image, nullptr);
     vkFreeMemory(device.device(), offscreenPass.depth.mem, nullptr);
-}
-
-VkDescriptorImageInfo HDRi::descriptorInfo() {
-    return VkDescriptorImageInfo {
-        cubeSampler,
-        cubeMap.view,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-    };
 }
 
 void HDRi::renderFaces() {
@@ -341,7 +339,7 @@ void HDRi::createDescriptorSets() {
     auto bufferInfo = uboBuffer->descriptorInfo();
     DescriptorWriter(*descriptor.layout, *descriptor.pool)
         .writeBuffer(0, &bufferInfo)
-        .writeImage(1, &srcDescriptor)
+        .writeImage(1, srcDescriptor)
         .build(descriptor.v_set[0]);
 }
 
@@ -478,11 +476,11 @@ void HDRi::endFrame() {
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer;
     
-    if (vkQueueSubmit(device.graphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+    if (vkQueueSubmit(device.transferQueue(), 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
         throw std::runtime_error("failed to submit draw command buffer!");
     }
     
-    vkDeviceWaitIdle(device.device());
+    vkQueueWaitIdle(device.transferQueue());
     
     isFrameStarted = false;
 }
@@ -529,7 +527,7 @@ void HDRi::createCommandBuffer() {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandPool = device.getCommandPool();
+    allocInfo.commandPool = device.getTransferCommandPool();
     allocInfo.commandBufferCount = 1;
     
     if (vkAllocateCommandBuffers(device.device(), &allocInfo, &commandBuffer) != VK_SUCCESS) {
@@ -540,7 +538,7 @@ void HDRi::createCommandBuffer() {
 void HDRi::freeCommandBuffer() {
     vkFreeCommandBuffers(
         device.device(),
-        device.getCommandPool(),
+        device.getTransferCommandPool(),
         1,
         &commandBuffer
     );

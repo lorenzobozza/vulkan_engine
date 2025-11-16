@@ -37,7 +37,7 @@ SkyboxPipeline::Dependencies SkyboxPipeline::createLayoutDependencies(void) {
 				VkDescriptorSet descriptorSet;
 				DescriptorWriter(*m_Descriptor.layout, *m_Descriptor.pool)
 						.writeBuffer(0, &m_FrameData.uboDescriptors[i])
-						.writeImage(1, &m_FrameData.envImageDescriptor)
+						.writeImage(1, m_FrameData.envImageDescriptor)
 						.build(descriptorSet);
 				
 				m_DescriptorSets[i] = descriptorSet;

@@ -19,10 +19,10 @@ public:
 		struct FrameData {
 				Primitive::Map& primitives;
 				std::array<VkDescriptorBufferInfo, SwapChain::MAX_FRAMES_IN_FLIGHT> uboDescriptors;
-				VkDescriptorImageInfo envImageDescriptor;
+				VkDescriptorImageInfo* envImageDescriptor;
 		};
 
-		SkyboxPipeline(Device& device, VkRenderPass renderPass, std::string shader, FrameData& frameData)
+		SkyboxPipeline(Device& device, VkRenderPass renderPass, std::string shader, FrameData frameData)
 				: PipelineWrapper(device, renderPass, shader), m_FrameData(frameData) { _inheritedConstructor(); }
 				
 		void render(VkCommandBuffer commandBuffer, int frameIndex) override;
@@ -31,7 +31,7 @@ private:
 		Dependencies createLayoutDependencies(void) override;
 		void customizePipelineConfig(PipelineConfigInfo& config) override;
 
-		FrameData& m_FrameData;
+		FrameData m_FrameData;
 		
 		struct {
 				std::unique_ptr<DescriptorSetLayout> layout;

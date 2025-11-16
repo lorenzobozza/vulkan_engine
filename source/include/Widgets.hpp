@@ -46,6 +46,7 @@ class Viewport : public Widget {
 public:
     void addFlags(unsigned int flags) { m_flags |= flags; }
     void setExtent(float width, float height) { m_extent = ImVec2(width, height); }
+    uint8_t loading = 0xFF;
 
 private:
     void content(void) override {
@@ -65,7 +66,33 @@ private:
         ref._TexData = NULL;
         ref._TexID = (uint64_t)source;
         ImGui::Image(ref , m_extent);
-
+        
+        std::string msg;
+        ImVec2 pos;
+				switch (loading) {
+						case 1:
+								msg = "Compiling Shaders...";
+								break;
+						case 2:
+								msg = "Loading Environment...";
+								break;
+						case 3:
+								msg = "Loading Models...";
+								break;
+						default:
+								break;
+				}
+				switch (loading) {
+						case 1:
+						case 2:
+						case 3:
+								pos = ImVec2(ImGui::GetWindowPos().x + 20.f, ImGui::GetWindowPos().y + 50.f);
+								ImGui::GetWindowDrawList()->AddText(ImGui::GetFont(), 50.0, pos, 0xFFFF55FF, msg.c_str());
+								break;
+						default:
+								break;
+				}
+				
         ImGui::End();
     }
 

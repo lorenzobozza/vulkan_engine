@@ -17,10 +17,10 @@
 
 class HDRi {
 public:
-    HDRi(Device &device, VkDescriptorImageInfo &srcDescriptor, VkExtent2D extent, std::string shader, std::string binaryPath, uint16_t mipLevels = 1);
+    HDRi(Device &device, VkDescriptorImageInfo* srcDescriptor, VkExtent2D extent, std::string shader, std::string binaryPath, uint16_t mipLevels = 1);
     ~HDRi();
     
-    VkDescriptorImageInfo descriptorInfo();
+    VkDescriptorImageInfo* getImageDescriptor() { return &offscreenPass.descriptor; }
     
 private:
     static constexpr VkFormat FB_FORMAT = VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -72,7 +72,7 @@ private:
     std::unique_ptr<Buffer> uboBuffer;
     std::unique_ptr<Pipeline> pipeline;
     
-    VkDescriptorImageInfo &srcDescriptor;
+    VkDescriptorImageInfo* srcDescriptor;
     VkExtent2D extent;
     VkFormat depthFormat;
     VkPipelineLayout pipelineLayout;

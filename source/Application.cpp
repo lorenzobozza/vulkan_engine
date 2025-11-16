@@ -27,6 +27,8 @@
 //std
 #include <thread>
 
+static void updateCamera(Camera& camera, Primitive& cameraHandle, uint8_t move, glm::vec3 rotate, float newAspect, float frameTime);
+
 struct WidgetStruct {
     std::shared_ptr<Viewport> view;
     std::shared_ptr<LogView> log;
@@ -35,7 +37,6 @@ struct WidgetStruct {
     std::shared_ptr<Settings> settings;
     std::shared_ptr<Menu> menu;
 };
-
 
 void Application::run() {
 
@@ -60,7 +61,17 @@ void Application::run() {
     
     ui.addWidgets(widgets.view, widgets.log, widgets.assets, widgets.material, widgets.settings, widgets.menu);
     
-    std::thread([this]() {
+		auto cubeCanvas = Primitive::new_primitive();
+		cubeCanvas.setModel(std::make_shared<Model>(vulkanDevice, Model::Data::makeSimpleCube(true)));
+		env.emplace(cubeCanvas.getId(), std::move(cubeCanvas));
+		
+		Camera camera{};
+		camera.setProjection.perspective(renderer.getAspectRatio(), glm::radians(75.f), .01f, 100.f);
+		Primitive cameraHandle = Primitive::new_primitive();
+		cameraHandle.transform.translation = {-5.f, -2.f, .0f};
+		cameraHandle.transform.rotation.y = glm::half_pi<float>();
+    
+    std::thread([this, &widgets]() {
     
 				/**** Fallback Material */
         Material globalMaterial(&textures);
@@ -75,6 +86,7 @@ void Application::run() {
             false,
             VK_FORMAT_R32G32B32A32_SFLOAT
         ));
+        auto equirectangular = textures.back()->descriptorInfo();
         
 				/**** Allocate Uniform Buffer Object Buffers */
 				for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
@@ -88,6 +100,8 @@ void Application::run() {
 						uboBuffers[i]->map();
 				}
 				
+				widgets.view->loading = 3;
+				
 				/**** Load Scene from glTF file */
         // TODO: better task-set creation
         NodeSet::InitStruct initNodeStruct{vulkanDevice, vulkanImage, primitives, textures, materials, lights};
@@ -99,121 +113,91 @@ void Application::run() {
         uint8_t index = 0;
         for (auto& light : lights) {
             if (index < 8 && light.m_type < Light::Type::Spot) {
-                ubo.lightSpaceMatrix = light.m_data.lightSpaceMatrix;
+								if (light.m_type == Light::Type::Directional) ubo.lightSpaceMatrix = light.m_data.lightSpaceMatrix;
                 ubo.lightVector[index] = glm::vec4(light.m_data.pos, 0.f);
                 ubo.lightChroma[index] = light.m_data.color;
                 ubo.lightInfo |= (light.m_type & 0x1) << (index + 8);
                 ++index;
             }
         }
-                
-        assetsLoaded = true;
+        
+        widgets.view->loading = 2;
+				
+				/**** HDRi, IBL, SkyBox  */
+				m_Environment.instance = std::make_unique<HDRi>(vulkanDevice, &equirectangular, VkExtent2D(1024, 1024), "equirectangular", binaryDir, 9);
+				m_Environment.descriptor = m_Environment.instance->getImageDescriptor();
+				
+				m_Prefiltered.instance = std::make_unique<HDRi>(vulkanDevice, m_Environment.descriptor, VkExtent2D(512, 512), "prefiltering", binaryDir, 8);
+				m_Prefiltered.descriptor = m_Prefiltered.instance->getImageDescriptor();
+				
+				m_Irradiance.instance = std::make_unique<HDRi>(vulkanDevice, m_Environment.descriptor, VkExtent2D(32, 32), "irradiance", binaryDir);
+				m_Irradiance.descriptor = m_Irradiance.instance->getImageDescriptor();
+				
+				
+				widgets.view->loading = 1;
+				
+				renderer.integrateBrdfLut(binaryDir);
+				
+				/**** Shadow Pipeline */
+				m_Pipelines.shadow = std::make_unique<ShadowPipeline>(
+						vulkanDevice,
+						renderer.getOffscreenRenderPass(RenderPass::ShadowPass),
+						"shadow",
+						ShadowPipeline::FrameData {
+								.primitives = primitives,
+								.uboDescriptors = {uboBuffers[0]->descriptorInfo(), uboBuffers[1]->descriptorInfo(), uboBuffers[2]->descriptorInfo()}
+						}
+				);
+				
+				/**** Scene Pipeline */
+				m_Pipelines.scene = std::make_unique<ScenePipeline>(
+						vulkanDevice,
+						renderer.getOffscreenRenderPass(RenderPass::WorldSpace),
+						"shader",
+						ScenePipeline::FrameData {
+								.primitives = primitives,
+								.materials = materials,
+								.uboDescriptors = {uboBuffers[0]->descriptorInfo(), uboBuffers[1]->descriptorInfo(), uboBuffers[2]->descriptorInfo()},
+								.imageDescriptors = {
+										.brdf = renderer.getBrdfLutInfo(),
+										.reflection = m_Prefiltered.descriptor,
+										.irradiance = m_Irradiance.descriptor,
+										.shadow = renderer.getImageDescriptor(RenderPass::ShadowPass)
+								}
+						}
+				);
+				
+				/**** Skybox Pipeline */
+				m_Pipelines.skybox = std::make_unique<SkyboxPipeline>(
+						vulkanDevice,
+						renderer.getOffscreenRenderPass(RenderPass::WorldSpace),
+						"skybox",
+						SkyboxPipeline::FrameData {
+								.primitives = env,
+								.uboDescriptors = {uboBuffers[0]->descriptorInfo(), uboBuffers[1]->descriptorInfo(), uboBuffers[2]->descriptorInfo()},
+								.envImageDescriptor = m_Environment.descriptor
+						}
+				);
+				
+				/**** Composition Pipeline */
+				m_Pipelines.composit = std::make_unique<CompositionPipeline>(
+						vulkanDevice,
+						renderer.getOffscreenRenderPass(RenderPass::ScreenSpace),
+						renderer.getDescriptorSetLayout(RenderPass::WorldSpace),
+						"composition"
+				);
+    
+				widgets.settings->recreatePipelinesCallback([this](void){
+						m_Pipelines.shadow->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::ShadowPass));
+						m_Pipelines.scene->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
+						m_Pipelines.skybox->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
+				});
+				
+        widgets.view->loading = 0;
+				assetsLoaded = true;
         
     }).detach();
-        
-    while (!assetsLoaded) {
-        
-        ui.newFrame();
 
-        window.pollWindowEvents([this, widgets](){ renderer.recreateSwapChain(); widgets.view->setExtent(renderer.getSwapChainExtent().width * 0.8f, renderer.getSwapChainExtent().height * 0.8f); });
-        
-        if (auto commandBuffer = renderer.beginFrame()) {
-            frameIndex = renderer.getFrameIndex();
-            
-            ui.updateBuffers(frameIndex);
-            
-            //Render
-            renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::ShadowPass);
-            renderer.endRenderPass(commandBuffer);
-            
-            renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::WorldSpace);
-            renderer.endRenderPass(commandBuffer);
-            
-            renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::ScreenSpace);
-            renderer.endRenderPass(commandBuffer);
-            
-            renderer.beginSwapChainRenderPass(commandBuffer);
-            ui.draw(commandBuffer, frameIndex);
-            renderer.endRenderPass(commandBuffer);
-            
-            renderer.endFrame();
-        }
-    }
-
-    
-    vkDeviceWaitIdle(vulkanDevice.device());
-    renderer.integrateBrdfLut(binaryDir);
-		
-/**** HDRi, IBL, SkyBox  */
-    auto equitangular = textures.at(0)->descriptorInfo();
-    
-    HDRi environmentMap{vulkanDevice, equitangular, {1024, 1024}, "equirectangular", binaryDir, 9};
-    auto environment = environmentMap.descriptorInfo();
-    
-    HDRi prefilteredMap{vulkanDevice, environment, {512, 512}, "prefiltering", binaryDir, 8};
-    auto prefiltered = prefilteredMap.descriptorInfo();
-    
-    HDRi irradianceMap{vulkanDevice, environment, {32, 32}, "irradiance", binaryDir};
-    auto irradiance = irradianceMap.descriptorInfo();
-    
-    
-/**** Shadow Pipeline */
-    ShadowPipeline::FrameData shadowData {
-				.primitives = primitives,
-				.uboDescriptors = {uboBuffers[0]->descriptorInfo(), uboBuffers[1]->descriptorInfo(), uboBuffers[2]->descriptorInfo()}
-		};
-		m_Pipelines.shadow = std::make_unique<ShadowPipeline>(vulkanDevice, renderer.getOffscreenRenderPass(RenderPass::ShadowPass), "shadow", shadowData);
-    
-/**** Scene Pipeline */
-        ScenePipeline::FrameData sceneData{
-                .primitives = primitives,
-                .materials = materials,
-                .uboDescriptors = {uboBuffers[0]->descriptorInfo(), uboBuffers[1]->descriptorInfo(), uboBuffers[2]->descriptorInfo()},
-                .imageDescriptors = {
-                    .brdf = renderer.getBrdfLutInfo(),
-                    .irradiance = &irradiance,
-                    .reflection = &prefiltered,
-                    .shadow = renderer.getImageDescriptor(RenderPass::ShadowPass)
-                }
-		};
-		m_Pipelines.scene = std::make_unique<ScenePipeline>(vulkanDevice, renderer.getOffscreenRenderPass(RenderPass::WorldSpace), "shader", sceneData);
-		
-/**** Skybox Pipeline */
-		SkyboxPipeline::FrameData skyboxData {
-				.primitives = env,
-				.uboDescriptors = {uboBuffers[0]->descriptorInfo(), uboBuffers[1]->descriptorInfo(), uboBuffers[2]->descriptorInfo()},
-				.envImageDescriptor = environment
-		};
-		m_Pipelines.skybox = std::make_unique<SkyboxPipeline>(vulkanDevice, renderer.getOffscreenRenderPass(RenderPass::WorldSpace), "skybox", skyboxData);
-		
-/**** Composition Pipeline */
-		m_Pipelines.composit = std::make_unique<CompositionPipeline>(
-        vulkanDevice,
-        renderer.getOffscreenRenderPass(RenderPass::ScreenSpace),
-        renderer.getDescriptorSetLayout(RenderPass::WorldSpace),
-        "composition"
-    );
-    
-    
-    widgets.settings->recreatePipelinesCallback([this](void){
-				m_Pipelines.shadow->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::ShadowPass));
-				m_Pipelines.scene->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
-				m_Pipelines.skybox->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
-    });
-    
-// Misc
-		auto cube = Primitive::new_primitive();
-		cube.setModel(std::make_shared<Model>(vulkanDevice, Model::Data::makeSimpleCube(true)));
-		env.emplace(cube.getId(), std::move(cube));
-		
-		Camera camera{};
-		float aspectRatio = renderer.getAspectRatio();
-		camera.setProjection.perspective(aspectRatio, glm::radians(75.f), .01f, 100.f);
-		
-		Primitive cameraObj = Primitive::new_primitive();
-		cameraObj.transform.translation = {-5.f, -2.f, .0f};
-		cameraObj.transform.rotation.y = glm::half_pi<float>();
-		bool orth = false;
 
     while(window.isWindowOpen())
     {
@@ -225,43 +209,7 @@ void Application::run() {
         
         window.pollWindowEvents([this, widgets](){ renderer.recreateSwapChain(); widgets.view->setExtent(renderer.getSwapChainExtent().width * 0.8f, renderer.getSwapChainExtent().height * 0.8f); });
         
-        glm::vec3 rotate = window.getRotation();
-        if (glm::dot(rotate, rotate) > glm::epsilon<float>()) {
-            cameraObj.transform.rotation += rotate * .05f;
-            cameraObj.transform.rotation.x = glm::clamp(cameraObj.transform.rotation.x, -1.5f, 1.5f);
-            cameraObj.transform.rotation.y = glm::mod(cameraObj.transform.rotation.y, glm::two_pi<float>());
-        }
-        
-        uint8_t movement = window.getMovement();
-        if (movement) {
-            float yaw = cameraObj.transform.rotation.y;
-            const glm::vec3 forwardDir{glm::sin(yaw), .0f, glm::cos(yaw)};
-            const glm::vec3 rightDir{forwardDir.z, .0f, -forwardDir.x};
-            const glm::vec3 upDir{.0f, -1.f, .0f};
-            glm::vec3 moveDir{0.f};
-            if (movement & 0x01) { moveDir += forwardDir; }
-            if (movement & 0x02) { moveDir -= rightDir; }
-            if (movement & 0x04) { moveDir -= forwardDir; }
-            if (movement & 0x08) { moveDir += rightDir; }
-            if (movement & 0x10) { moveDir -= upDir; }
-            if (movement & 0x20) { moveDir += upDir; }
-            if (glm::dot(moveDir, moveDir) > glm::epsilon<float>()) {
-                cameraObj.transform.translation += 8.f * m_Perf.gpuTime * glm::normalize(moveDir);
-            }
-        }
-        
-        // Fix camera projection if the viewport's aspect ratio changes
-        if (aspectRatio != renderer.getAspectRatio()) {
-            aspectRatio = renderer.getAspectRatio();
-            if (orth) {
-                camera.setOrthographicProjection(-aspectRatio, aspectRatio, -1.f, 1.f, -10.f, 100.f);
-            } else {
-                camera.setProjection.perspective(aspectRatio);
-            }
-        }
-        
-        // Polling keystrokes and adjusting the camera position/rotation
-        camera.setViewYXZ(cameraObj.transform.translation, cameraObj.transform.rotation);
+        updateCamera(camera, cameraHandle, window.getMovement(), window.getRotation(), renderer.getAspectRatio(), m_Perf.cpuTime + m_Perf.gpuTime);
         
         m_Perf.cpuEnd();
         
@@ -274,29 +222,37 @@ void Application::run() {
             ubo.invViewMatrix = camera.getInverseView();
             ubo.debugMode = widgets.settings->debugMode;
             
-            m_Pipelines.composit->exposure = widgets.settings->otherData.exposure;
-            m_Pipelines.composit->gamma = widgets.settings->otherData.gamma;
-            m_Pipelines.composit->peak_brightness = widgets.settings->otherData.peak_brightness;
-            m_Pipelines.composit->debugMode = widgets.settings->otherData.debugMode;
+            if (assetsLoaded) {
+								m_Pipelines.composit->exposure = widgets.settings->otherData.exposure;
+								m_Pipelines.composit->gamma = widgets.settings->otherData.gamma;
+								m_Pipelines.composit->peak_brightness = widgets.settings->otherData.peak_brightness;
+								m_Pipelines.composit->debugMode = widgets.settings->otherData.debugMode;
 
-            uboBuffers[frameIndex]->writeToBuffer(&ubo);
-            uboBuffers[frameIndex]->flush();
+								uboBuffers[frameIndex]->writeToBuffer(&ubo);
+								uboBuffers[frameIndex]->flush();
+            }
             
             // Update UI Buffer
             ui.updateBuffers(frameIndex);
             
             // RenderPass
             renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::ShadowPass);
-            m_Pipelines.shadow->render(commandBuffer, frameIndex);
+            if (assetsLoaded) {
+								m_Pipelines.shadow->render(commandBuffer, frameIndex);
+						}
             renderer.endRenderPass(commandBuffer);
             
             renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::WorldSpace);
-            m_Pipelines.scene->render(commandBuffer, frameIndex);
-            m_Pipelines.skybox->render(commandBuffer, frameIndex);
+            if (assetsLoaded) {
+								m_Pipelines.scene->render(commandBuffer, frameIndex);
+								m_Pipelines.skybox->render(commandBuffer, frameIndex);
+            }
             renderer.endRenderPass(commandBuffer);
             
             renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::ScreenSpace);
-            m_Pipelines.composit->renderSceneToSwapChain(commandBuffer, renderer.getDescriptorSets(RenderPass::WorldSpace)->at(frameIndex));
+            if (assetsLoaded) {
+								m_Pipelines.composit->renderSceneToSwapChain(commandBuffer, renderer.getDescriptorSets(RenderPass::WorldSpace)->at(frameIndex));
+            }
             renderer.endRenderPass(commandBuffer);
             
             renderer.beginSwapChainRenderPass(commandBuffer);
@@ -311,4 +267,42 @@ void Application::run() {
     }
     vkDeviceWaitIdle(vulkanDevice.device());
     
+}
+
+
+static void updateCamera(Camera& camera, Primitive& cameraHandle, uint8_t move, glm::vec3 rotate, float newAspect, float frameTime) {
+		static float oldAspect = newAspect;
+
+		if (glm::dot(rotate, rotate) > glm::epsilon<float>()) {
+				cameraHandle.transform.rotation += rotate * .05f;
+				cameraHandle.transform.rotation.x = glm::clamp(cameraHandle.transform.rotation.x, -1.5f, 1.5f);
+				cameraHandle.transform.rotation.y = glm::mod(cameraHandle.transform.rotation.y, glm::two_pi<float>());
+		}
+		
+		if (move) {
+				float yaw = cameraHandle.transform.rotation.y;
+				const glm::vec3 forwardDir{glm::sin(yaw), .0f, glm::cos(yaw)};
+				const glm::vec3 rightDir{forwardDir.z, .0f, -forwardDir.x};
+				const glm::vec3 upDir{.0f, -1.f, .0f};
+				glm::vec3 moveDir{0.f};
+				if (move & 0x01) { moveDir += forwardDir; }
+				if (move & 0x02) { moveDir -= rightDir; }
+				if (move & 0x04) { moveDir -= forwardDir; }
+				if (move & 0x08) { moveDir += rightDir; }
+				if (move & 0x10) { moveDir -= upDir; }
+				if (move & 0x20) { moveDir += upDir; }
+				if (glm::dot(moveDir, moveDir) > glm::epsilon<float>()) {
+						cameraHandle.transform.translation += 8.f * frameTime * glm::normalize(moveDir);
+				}
+		}
+		
+		// Fix camera projection if the viewport's aspect ratio changes
+		if (oldAspect != newAspect) {
+				oldAspect = newAspect;
+				camera.setProjection.perspective(newAspect);
+				//camera.setOrthographicProjection(-newAspect, newAspect, -1.f, 1.f, -10.f, 100.f);
+		}
+		
+		// Polling keystrokes and adjusting the camera position/rotation
+		camera.setViewYXZ(cameraHandle.transform.translation, cameraHandle.transform.rotation);
 }
