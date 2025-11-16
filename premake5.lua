@@ -40,6 +40,7 @@ project "Core"
 	}
 
 	filter "system:windows"
+		debugdir "$(TargetDir)"
 		files { "external/nfd/nfd_win.cpp" }
 		architecture "x86_64"
 

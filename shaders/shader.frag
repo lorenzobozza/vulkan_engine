@@ -62,17 +62,12 @@ layout(push_constant) uniform Push {
 
 
 void main() {
-    float viewDist = length(ubo.invViewMatrix[3].xyz - vert.worldPos);
-    float lod = (pow(viewDist / 6.0, 2) / 6.0) + 0.5;
-    if (lod > 5.0) lod = 5.0; // min texture size 32x32
-    
-    
     // Color
     vec3 baseColor = vec3(1.0);
     float opacity = 1.0;
     if ((push.textureBitmap & COLOR_TEXTURE) == COLOR_TEXTURE) {
         vec4 colorSample = SRGBtoLINEAR(
-            textureLod(diffuseMap, (push.textureBitmap & COLOR_UV) == 0 ? vert.texcoord : vert.texcoord1, lod)
+            texture(diffuseMap, (push.textureBitmap & COLOR_UV) == 0 ? vert.texcoord : vert.texcoord1)
         );
         baseColor = colorSample.rgb;
         opacity = colorSample.a;
@@ -86,7 +81,7 @@ void main() {
     // Normal
     vec3 normalTS = vec3(0.0, 0.0, 1.0);
     if ((push.textureBitmap & NORMAL_TEXTURE) == NORMAL_TEXTURE) {
-        vec4 normalSample = textureLod(normalMap, (push.textureBitmap & NORMAL_UV) == 0 ? vert.texcoord : vert.texcoord1, lod);
+        vec4 normalSample = texture(normalMap, (push.textureBitmap & NORMAL_UV) == 0 ? vert.texcoord : vert.texcoord1);
         normalTS = normalSample.rgb * 2.0 - 1.0;
     }
     
@@ -94,14 +89,14 @@ void main() {
     float metallic;
     float perceptualRoughness;
     if ( (push.textureBitmap & ROUGH_METAL_TEXTURE) == ROUGH_METAL_TEXTURE ) {
-        vec4 mro = textureLod(metalRoughnessMap, (push.textureBitmap & ROUGH_METAL_UV) == 0 ? vert.texcoord : vert.texcoord1, lod);
+        vec4 mro = texture(metalRoughnessMap, (push.textureBitmap & ROUGH_METAL_UV) == 0 ? vert.texcoord : vert.texcoord1);
         metallic = clamp(mro.b, 0.0, 1.0);
         perceptualRoughness = clamp(mro.g, 0.04, 1.0);
     } else {
         metallic = clamp(push.metalness, 0.0, 1.0);
         perceptualRoughness = clamp(push.roughness, 0.04, 1.0);
     }
-    float occlusion = (push.textureBitmap & OCCLUSION_TEXTURE) == 0 ? 1.0 : textureLod(occlusionMap, (push.textureBitmap & OCCLUSION_UV) == 0 ? vert.texcoord : vert.texcoord1, lod).r;
+    float occlusion = (push.textureBitmap & OCCLUSION_TEXTURE) == 0 ? 1.0 : texture(occlusionMap, (push.textureBitmap & OCCLUSION_UV) == 0 ? vert.texcoord : vert.texcoord1).r;
     
     float alphaRoughness = perceptualRoughness * perceptualRoughness;
     vec2 alphaAniso = computeAnisoRoughness(alphaRoughness);

@@ -213,10 +213,10 @@ float DistributionGGX_Covariance(vec3 N, vec3 H, vec3 h_ts, vec2 alpha_roughness
 
 
     // Precompute inverse and determinant (cov2 must be positive definite)
-    //mat2 cov2 = mat2(alpha_roughness.x, 0.0, 0.0, alpha_roughness.y);
-	mat2 cov2 = AxisAlignedNDFFiltering(h_ts, alpha_roughness);
-	//mat2 cov2 = NonAxisAlignedNDFFiltering(H_TS, alpha_roughness);
-    //mat2 cov2 = FullNonAxisAlignedNDFFiltering(H_TS, alpha_roughness);
+    mat2 cov2 = mat2(alpha_roughness.x, 0.0, 0.0, alpha_roughness.y);
+	//mat2 cov2 = AxisAlignedNDFFiltering(h_ts, alpha_roughness);
+	//mat2 cov2 = NonAxisAlignedNDFFiltering(h_ts, alpha_roughness);
+    //mat2 cov2 = FullNonAxisAlignedNDFFiltering(h_ts , alpha_roughness);
     float detC = cov2[0][0] * cov2[1][1] - cov2[0][1] * cov2[1][0];
     if (detC <= 0.0) return 0.0;
 
