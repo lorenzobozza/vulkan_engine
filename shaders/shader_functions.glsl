@@ -231,5 +231,5 @@ float DistributionGGX_Covariance(vec3 N, vec3 H, vec3 h_ts, vec2 alpha_roughness
     const float PI = 3.14159265358979323846;
     float D = 1.0 / (PI * detC * (1.0 + q) * (1.0 + q));
 
-    return D;
+    return clamp(D, 0.0, 1.0);
 }

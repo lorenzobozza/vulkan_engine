@@ -10,9 +10,6 @@
 
 #include "PipelineWrapper.hpp"
 #include "Primitive.hpp"
-#include "Material.hpp"
-#include "SwapChain.hpp"
-#include "Descriptors.hpp"
 
 class ShadowPipeline : public PipelineWrapper {
 public:

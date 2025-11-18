@@ -443,9 +443,11 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform)
             } else {
                 p.material = "Global_Default_Material";
             }
-        
-            // p is a temporary lvalue, we cast it back to rvalue to move the ownership to the map
-            m_Primitives.emplace(p.getId(), std::move(p));
+            
+            if (m_gltfModel.materials[materialID].alphaMode == "OPAQUE") {
+                // p is a temporary lvalue, we cast it back to rvalue to move the ownership to the map
+                m_Primitives.emplace(p.getId(), std::move(p));
+            }
         }
         
     }

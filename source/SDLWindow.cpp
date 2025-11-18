@@ -159,6 +159,7 @@ void SDLWindow::pollWindowEvents(std::function<void()> callback) {
                 closeWindow();
                 break;
             case SDL_KEYDOWN:
+                fetchShortcuts((SDL_Keymod)sdl_event.key.keysym.mod, (SDL_KeyCode)sdl_event.key.keysym.sym);
                 imgui_key = UI::ImGui_SDL2_KeyEventToImGuiKey(sdl_event.key.keysym.sym);
                 io.AddKeyEvent(imgui_key, true);
                 if (io.WantTextInput && UI::ImGuiKey_to_Charecter(imgui_key, ImGui::IsKeyDown(ImGuiKey_LeftShift)) != '?') {
@@ -255,6 +256,34 @@ void SDLWindow::pollWindowEvents(std::function<void()> callback) {
                 break;
         }
     }
+}
+
+void SDLWindow::fetchShortcuts(SDL_Keymod modifier, SDL_KeyCode key) {
+    switch (modifier) {
+    case KMOD_LGUI:
+    case KMOD_RGUI:
+        switch (key) {
+        case SDLK_f:
+            m_LastShortcut = CTRL_F;
+            break;
+            
+        default:
+            break;
+        }
+        break;
+        
+    default:
+        break;
+    }
+}
+
+Shortcut SDLWindow::getShortcut(void) {
+    if (m_LastShortcut != UNDEFINED_SHORTCUT) {
+        Shortcut temp = m_LastShortcut;
+        m_LastShortcut = UNDEFINED_SHORTCUT;
+        return temp;
+    }
+    return UNDEFINED_SHORTCUT;
 }
 
 std::string SDLWindow::openFileDialog(std::string folder) {

@@ -10,14 +10,10 @@
 
 #include "PipelineWrapper.hpp"
 #include "Primitive.hpp"
-#include "Material.hpp"
-#include "SwapChain.hpp"
-#include "Descriptors.hpp"
 
 class SkyboxPipeline : public PipelineWrapper {
 public:
 		struct FrameData {
-				Primitive::Map& primitives;
 				std::array<VkDescriptorBufferInfo, SwapChain::MAX_FRAMES_IN_FLIGHT> uboDescriptors;
 				VkDescriptorImageInfo* envImageDescriptor;
 		};
@@ -32,7 +28,8 @@ private:
 		void customizePipelineConfig(PipelineConfigInfo& config) override;
 
 		FrameData m_FrameData;
-		
+		std::unique_ptr<Model> m_Cube;
+				
 		struct {
 				std::unique_ptr<DescriptorSetLayout> layout;
 				std::unique_ptr<DescriptorPool> pool;

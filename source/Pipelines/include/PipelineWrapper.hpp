@@ -14,6 +14,8 @@
 
 #include "Device.hpp"
 #include "Pipeline.hpp"
+#include "SwapChain.hpp"
+#include "Descriptors.hpp"
 
 class PipelineWrapper {
 

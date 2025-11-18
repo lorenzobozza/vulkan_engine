@@ -21,6 +21,7 @@ void SkyboxPipeline::customizePipelineConfig(PipelineConfigInfo& config) {
 }
 
 SkyboxPipeline::Dependencies SkyboxPipeline::createLayoutDependencies(void) {
+		m_Cube = std::make_unique<Model>(m_Device, Model::Data::makeSimpleCube(true));
 		
 		m_Descriptor.layout = DescriptorSetLayout::Builder(m_Device.device())
 				.addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
@@ -70,11 +71,6 @@ void SkyboxPipeline::render(VkCommandBuffer commandBuffer, int frameIndex) {
 				0,
 				nullptr );
 		
-		for (auto &kv : m_FrameData.primitives) {
-				auto &primitive = kv.second;
-				
-				primitive.model->bind(commandBuffer);
-				primitive.model->draw(commandBuffer);
-		}
-		
+		m_Cube->bind(commandBuffer);
+		m_Cube->draw(commandBuffer);
 }

@@ -17,17 +17,16 @@
 #include "Renderer.hpp"
 #include "Primitive.hpp"
 #include "Camera.hpp"
-#include "Keyboard.hpp"
 #include "Texture.hpp"
 #include "TextRender.hpp"
 #include "HDRi.hpp"
-#include "CompositionPipeline.hpp"
 #include "Material.hpp"
 #include "Light.hpp"
 
 #include "ScenePipeline.hpp"
 #include "ShadowPipeline.hpp"
 #include "SkyboxPipeline.hpp"
+#include "CompositingPipeline.hpp"
 
 //std
 #include <memory>
@@ -62,38 +61,37 @@ public:
     Application(const Application &) = delete;
     Application &operator=(const Application &) = delete;
     
-    void run();
-    void simulate();
+    void run(void);
     
 private:
+    void shortcutCallback(Shortcut);
     
     SDLWindow window{WIDTH, HEIGHT, "Vulkan Engine Development"};
     Device vulkanDevice{window};
     Renderer renderer{window, vulkanDevice};
     Image vulkanImage{vulkanDevice};
-
-    struct RenderSystems_s {
-				std::unique_ptr<ShadowPipeline> shadow;
-				std::unique_ptr<ScenePipeline> scene;
-				std::unique_ptr<SkyboxPipeline> skybox;
     
-        std::unique_ptr<CompositionPipeline> composit;
+    struct RenderSystems_s {
+        std::unique_ptr<ShadowPipeline> shadow;
+        std::unique_ptr<ScenePipeline> scene;
+        std::unique_ptr<SkyboxPipeline> skybox;
+        std::unique_ptr<CompositingPipeline> composit;
     } m_Pipelines;
     
-		struct {
-				std::unique_ptr<HDRi> instance;
-				VkDescriptorImageInfo* descriptor;
-		} m_Environment, m_Prefiltered, m_Irradiance;
-
+    struct {
+        std::unique_ptr<HDRi> instance;
+        VkDescriptorImageInfo* descriptor;
+    } m_Environment, m_Prefiltered, m_Irradiance;
+    
     std::vector<std::unique_ptr<Texture>> textures{};
     std::unordered_map<std::string, Material> materials{};
     std::vector<Light> lights{};
     
     bool assetsLoaded = false;
+    bool previewMode = false;
     
     Primitive::Map primitives;
-    Primitive::Map env;
-
+    
     int frameIndex{0};
     
     Perf m_Perf;

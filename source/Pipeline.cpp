@@ -5,8 +5,8 @@
 //  Created by Lorenzo Bozza on 05/11/21.
 //
 
-#include "include/Pipeline.hpp"
-#include "include/ShaderCompiler.hpp"
+#include "Pipeline.hpp"
+#include "ShaderCompiler.hpp"
 
 #include <fstream>
 #include <stdexcept>

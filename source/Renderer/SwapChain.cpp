@@ -5,7 +5,7 @@
 //  Created by Lorenzo Bozza on 07/11/21.
 //
 
-#include "include/SwapChain.hpp"
+#include "SwapChain.hpp"
 
 // std
 #include <array>

@@ -20,6 +20,11 @@
 #include <string>
 #include <functional>
 
+enum Shortcut {
+    UNDEFINED_SHORTCUT = 0,
+    CTRL_F
+};
+
 class SDLWindow {
 public:
     SDLWindow(int w, int h, std::string name);
@@ -47,8 +52,9 @@ public:
     void pollWindowEvents(std::function<void()> callback);
     void closeWindow(void) { keepRuning = false; }
     
-    std::string openFileDialog(std::string folder);
+    Shortcut getShortcut(void);
     
+    std::string openFileDialog(std::string folder);
     
     std::string supportedResNames;
     std::vector<SDL_DisplayMode> supportedModes;
@@ -56,6 +62,9 @@ public:
     
 private:
     void initWindow();
+    void fetchShortcuts(SDL_Keymod, SDL_KeyCode);
+    
+    Shortcut m_LastShortcut = UNDEFINED_SHORTCUT;
     
     VkExtent2D m_windowExtent;
     VkExtent2D m_surfaceExtent;
