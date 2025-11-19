@@ -136,30 +136,31 @@ VkSampleCountFlagBits Device::getMaxUsableSampleCount() {
 }
 
 void Device::pickPhysicalDevice() {
-  uint32_t deviceCount = 0;
-  vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
-  if (deviceCount == 0) {
-    throw std::runtime_error("failed to find GPUs with Vulkan support!");
-  }
-  std::cout << "Device count: " << deviceCount << std::endl;
-  std::vector<VkPhysicalDevice> devices(deviceCount);
-  vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
-
-  for (const auto &device : devices) {
-    if (isDeviceSuitable(device)) {
-      physicalDevice = device;
-      maxSampleCount = getMaxUsableSampleCount();
-      msaaSamples = VK_SAMPLE_COUNT_1_BIT;
-      break;
+    Log* log = Log::getInstance();
+    uint32_t deviceCount = 0;
+    vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+    if (deviceCount == 0) {
+        throw std::runtime_error("failed to find GPUs with Vulkan support!");
     }
-  }
-
-  if (physicalDevice == VK_NULL_HANDLE) {
-    throw std::runtime_error("failed to find a suitable GPU!");
-  }
-
-  vkGetPhysicalDeviceProperties(physicalDevice, &properties);
-  std::cout << "Physical device -> " << properties.deviceName << std::endl;
+    log->info("Device count: {}", deviceCount);
+    std::vector<VkPhysicalDevice> devices(deviceCount);
+    vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
+    
+    for (const auto &device : devices) {
+        if (isDeviceSuitable(device)) {
+            physicalDevice = device;
+            maxSampleCount = getMaxUsableSampleCount();
+            msaaSamples = VK_SAMPLE_COUNT_1_BIT;
+            break;
+        }
+    }
+    
+    if (physicalDevice == VK_NULL_HANDLE) {
+        throw std::runtime_error("failed to find a suitable GPU!");
+    }
+    
+    vkGetPhysicalDeviceProperties(physicalDevice, &properties);
+    log->info("Physical device -> {}", properties.deviceName);
 }
 
 void Device::createLogicalDevice() {
@@ -189,6 +190,7 @@ void Device::createLogicalDevice() {
   deviceFeatures.samplerAnisotropy = VK_TRUE;
   deviceFeatures.sampleRateShading = VK_TRUE;
   deviceFeatures.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
+  deviceFeatures.fillModeNonSolid = VK_TRUE;
   
     /** Variable Descriptor Count Implementation
     VkPhysicalDeviceDescriptorIndexingFeatures descriptor_indexing_features{};
@@ -275,7 +277,7 @@ bool Device::isDeviceSuitable(VkPhysicalDevice device) {
   vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
 
   return indices.isComplete() && extensionsSupported && swapChainAdequate &&
-         supportedFeatures.samplerAnisotropy;
+         supportedFeatures.samplerAnisotropy && supportedFeatures.fillModeNonSolid;
 }
 
 void Device::populateDebugMessengerCreateInfo(

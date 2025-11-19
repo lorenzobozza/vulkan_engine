@@ -163,6 +163,17 @@ void Application::run() {
             }
         );
         
+        /**** Debug Pipeline */
+        m_Pipelines.debug = std::make_unique<DebugPipeline>(
+            vulkanDevice,
+            renderer.getOffscreenRenderPass(RenderPass::WorldSpace),
+            "debug",
+            DebugPipeline::FrameData {
+                .primitives = primitives,
+                .uboDescriptors = {uboBuffers[0]->descriptorInfo(), uboBuffers[1]->descriptorInfo(), uboBuffers[2]->descriptorInfo()}
+            }
+        );
+        
         /**** Skybox Pipeline */
         m_Pipelines.skybox = std::make_unique<SkyboxPipeline>(
             vulkanDevice,
@@ -242,6 +253,7 @@ void Application::run() {
             if (assetsLoaded) {
                 m_Pipelines.scene->render(commandBuffer, frameIndex);
                 m_Pipelines.skybox->render(commandBuffer, frameIndex);
+                if (debugMode) m_Pipelines.debug->render(commandBuffer, frameIndex);
             }
             renderer.endRenderPass(commandBuffer);
             
@@ -279,6 +291,9 @@ void Application::shortcutCallback(Shortcut shortcut) {
             m_Pipelines.composit->recreatePipeline(renderer.getSwapChainRenderPass());
             previewMode = true;
         }
+    }
+    if (shortcut == CTRL_D) {
+        debugMode ^= true;
     }
 }
 

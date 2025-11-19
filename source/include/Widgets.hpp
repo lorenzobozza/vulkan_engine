@@ -10,10 +10,24 @@
 
 #include "UI.hpp"
 #include "Log.hpp"
-#include "utils.h"
 #include "importGLTF.hpp"
 
 #include <imgui_internal.h>
+
+static unsigned ctz(int n) {
+    unsigned bits = 0, x = n;
+    if (x) {
+        /* mask the 8 low order bits, add 8 and shift them out if they are all 0 */
+        if (!(x & 0x000000FF)) { bits +=  8; x >>=  8; }
+        /* mask the 4 low order bits, add 4 and shift them out if they are all 0 */
+        if (!(x & 0x0000000F)) { bits +=  4; x >>=  4; }
+        /* mask the 2 low order bits, add 2 and shift them out if they are all 0 */
+        if (!(x & 0x00000003)) { bits +=  2; x >>=  2; }
+        /* mask the low order bit and add 1 if it is 0 */
+        bits += (x & 1) ^ 1;
+    }
+    return bits;
+}
 
 class NodeTree : public Widget {
 public:

@@ -6,7 +6,6 @@
 //
 
 #include "include/Model.hpp"
-#include "include/utils.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny-obj/tiny_obj_loader.h>
@@ -19,6 +18,12 @@
 #include <cstring>
 #include <unordered_map>
 #include <iostream>
+
+template <typename T, typename... Rest>
+static void hashCombine(std::size_t& seed, const T& v, const Rest&... rest) {
+    seed ^= std::hash<T>{}(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    (hashCombine(seed, rest), ...);
+};
 
 namespace std {
     template <>

@@ -27,6 +27,7 @@
 #include "ShadowPipeline.hpp"
 #include "SkyboxPipeline.hpp"
 #include "CompositingPipeline.hpp"
+#include "DebugPipeline.hpp"
 
 //std
 #include <memory>
@@ -76,6 +77,7 @@ private:
         std::unique_ptr<ScenePipeline> scene;
         std::unique_ptr<SkyboxPipeline> skybox;
         std::unique_ptr<CompositingPipeline> composit;
+        std::unique_ptr<DebugPipeline> debug;
     } m_Pipelines;
     
     struct {
@@ -89,6 +91,7 @@ private:
     
     bool assetsLoaded = false;
     bool previewMode = false;
+    bool debugMode = false;
     
     Primitive::Map primitives;
     

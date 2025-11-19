@@ -5,6 +5,8 @@
 //  Created by Lorenzo Bozza on 20/09/23.
 //
 
+#include <random>
+
 #include "importGLTF.hpp"
 #include "Log.hpp"
 
@@ -147,18 +149,17 @@ void NodeSet::parseGLTF() {
         ret = loader.LoadASCIIFromFile(&m_gltfModel, &err, &warn, m_FilePath);
     }
     
-    printf("%s\n", m_gltfModel.asset.generator.c_str());
     
     if (!warn.empty()) {
-        printf("glTF Warning: %s\n", warn.c_str());
+        std::println("glTF Warning: {}", warn.c_str());
     }
 
     if (!err.empty()) {
-        printf("glTF Error: %s\n", err.c_str());
+        std::println("glTF Error: {}", err.c_str());
     }
 
     if (!ret) {
-        printf("Failed to parse glTF\n");
+        std::println("Failed to parse glTF");
     }
 }
 
@@ -430,8 +431,49 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform)
             
             Primitive p = Primitive::new_primitive();
             
+            {
+                std::random_device rd;  // Will be used to obtain a seed for the random number engine
+                std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
+                std::uniform_real_distribution<> dis(0.f, .5f);
+                const glm::vec3 color = {dis(gen), dis(gen), dis(gen)};
+                
+                Model::Data cubeData;
+                cubeData.vertices = {
+                    {posMin,                         color, {}, {}, {0.f, 0.f}},
+                    {{posMax.x, posMin.y, posMin.z}, color, {}, {}, {1.f, 0.f}},
+                    {{posMax.x, posMax.y, posMin.z}, color, {}, {}, {1.f, 1.f}},
+                    {{posMin.x, posMax.y, posMin.z}, color, {}, {}, {0.f, 1.f}},
+                    
+                    {{posMin.x, posMin.y, posMax.z}, color, {}, {}, {0.f, 0.f}},
+                    {{posMax.x, posMin.y, posMax.z}, color, {}, {}, {1.f, 0.f}},
+                    {posMax,                         color, {}, {}, {1.f, 1.f}},
+                    {{posMin.x, posMax.y, posMax.z}, color, {}, {}, {0.f, 1.f}},
+                };
+                cubeData.indices = {
+                    0,1, 1,2, 2,3, 3,0,
+                    4,5, 5,6, 6,7, 7,4,
+                    0,4, 1,5, 2,6, 3,7,
+                };
+                p.aabb = std::make_shared<Model>(m_Device, cubeData);
+            }
+            
+            {
+                Model::Data normals;
+                normals.vertices.resize(data.vertices.size() * 2);
+                size_t i = 0;
+                for (auto& v : data.vertices) {
+                    normals.vertices[i].color = (v.normal + 1.f) * 0.5f;
+                    normals.vertices[i++].position = v.position;
+                    normals.vertices[i].color = (v.normal + 1.f) * 0.5f;
+                    normals.vertices[i++].position = v.position + (glm::normalize(v.normal) * 2.f);
+                }
+                p.normals = std::make_shared<Model>(m_Device, normals);
+            }
+            
+            
             // TODO: This is not properly a model, should be called Mesh
             p.setModel(std::make_shared<Model>(m_Device, data));
+            
             
             p.transform.hasMatrix = true;
             p.transform.matrix = transform;

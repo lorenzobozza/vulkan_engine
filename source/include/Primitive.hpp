@@ -53,6 +53,10 @@ public:
     void setModel(const std::shared_ptr<Model>& sp) {model = sp;}
     std::shared_ptr<Model> model;
     
+    // Debug
+    std::shared_ptr<Model> aabb;
+    std::shared_ptr<Model> normals;
+    
     glm::vec3 color{};
     int textureIndex{-1};
     float metalness{0.f};

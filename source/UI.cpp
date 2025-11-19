@@ -25,7 +25,7 @@ UI::UI(Device &device, Renderer& renderer) : device{device}, m_Renderer{renderer
         vertexBuffers->at(i) = std::make_unique<Buffer>(device);
         indexBuffers->at(i) = std::make_unique<Buffer>(device);
     }
-
+    
     context = ImGui::CreateContext();
     ImGui::StyleColorsDark();
     ImGuiIO& io = ImGui::GetIO();
@@ -57,7 +57,7 @@ UI::~UI() {
 
 void UI::createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath) {
     VkPushConstantRange pushConstantRanges[1];
-
+    
     pushConstantRanges[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     pushConstantRanges[0].offset = 0;
     pushConstantRanges[0].size = sizeof(UI::PushConstBlock);
@@ -78,29 +78,29 @@ void UI::createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath) 
     pipelineConfig.pipelineLayout = imguiPipelineLayout;
     pipelineConfig.rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     
-//    std::vector<uint32_t> vertexShader, fragmentShader;
+    //    std::vector<uint32_t> vertexShader, fragmentShader;
     
-//    ShaderCompiler glslc;
+    //    ShaderCompiler glslc;
     
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-//    if (glslc.loadShader("imgui.vert", vertexShader) != ShaderCompiler::State::Valid) {
-//        throw std::runtime_error("Failed loading basic UI shader");
-//    }
-//    createInfo.codeSize = vertexShader.size() * sizeof(uint32_t);
-//    createInfo.pCode = vertexShader.data();
+    //    if (glslc.loadShader("imgui.vert", vertexShader) != ShaderCompiler::State::Valid) {
+    //        throw std::runtime_error("Failed loading basic UI shader");
+    //    }
+    //    createInfo.codeSize = vertexShader.size() * sizeof(uint32_t);
+    //    createInfo.pCode = vertexShader.data();
     createInfo.codeSize = imgui_vert_spv_len;
     createInfo.pCode = reinterpret_cast<const uint32_t*>(imgui_vert_spv);
     if(vkCreateShaderModule(device.device(), &createInfo, nullptr, &vertShaderModule) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create Shader Module");
     }
-
     
-//    if (glslc.loadShader("imgui.frag", fragmentShader) != ShaderCompiler::State::Valid) {
-//        throw std::runtime_error("Failed loading basic UI shader");
-//    }
-//    createInfo.codeSize = fragmentShader.size() * sizeof(uint32_t);
-//    createInfo.pCode = fragmentShader.data();
+    
+    //    if (glslc.loadShader("imgui.frag", fragmentShader) != ShaderCompiler::State::Valid) {
+    //        throw std::runtime_error("Failed loading basic UI shader");
+    //    }
+    //    createInfo.codeSize = fragmentShader.size() * sizeof(uint32_t);
+    //    createInfo.pCode = fragmentShader.data();
     createInfo.codeSize = imgui_frag_spv_len;
     createInfo.pCode = reinterpret_cast<const uint32_t*>(imgui_frag_spv);
     if(vkCreateShaderModule(device.device(), &createInfo, nullptr, &fragShaderModule) != VK_SUCCESS) {
@@ -136,7 +136,7 @@ void UI::createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath) 
     vertexInputStateCI.pVertexBindingDescriptions = &vertexInputBinding;
     vertexInputStateCI.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexInputAttributes.size());
     vertexInputStateCI.pVertexAttributeDescriptions = vertexInputAttributes.data();
-
+    
     VkGraphicsPipelineCreateInfo pipelineInfo{};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipelineInfo.stageCount = 2;
@@ -168,14 +168,14 @@ void UI::createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath) 
 
 void UI::createDescriptors(void) {
     descriptor.layout = DescriptorSetLayout::Builder(device.device())
-            .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
-            .build_ptr();
+        .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+        .build_ptr();
     
     descriptor.pool = DescriptorPool::Builder(device.device())
-           .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
-           .build_ptr();
-
+        .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
+        .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+        .build_ptr();
+    
     descriptor.v_set.resize(SwapChain::MAX_FRAMES_IN_FLIGHT);
     for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
         DescriptorWriter(*descriptor.layout, *descriptor.pool)
@@ -188,7 +188,7 @@ void UI::newFrame(void) {
     ImGui::NewFrame();
     
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
-
+    
     ImGui::SetNextWindowPos(viewport->WorkPos);
     ImGui::SetNextWindowSize(viewport->WorkSize);
     ImGui::SetNextWindowViewport(viewport->ID);
@@ -197,35 +197,35 @@ void UI::newFrame(void) {
     ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar |
     ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
     ImGui::Begin("DockSpace", nullptr, windowFlags);
-
+    
     const auto mainDockspaceId = ImGui::GetID("MainDockspace");
     ImGui::DockSpace(mainDockspaceId);
     
     
     static bool firstLoop = true;
     if (firstLoop) {
-    
+        
         ImGuiID id = ImGui::GetID("MainDockspace");
         
         ImGui::DockBuilderRemoveNode(mainDockspaceId);
         ImGui::DockBuilderAddNode(mainDockspaceId, ImGuiDockNodeFlags_NoTabBar | ImGuiDockNodeFlags_PassthruCentralNode);
-
+        
         ImGuiID dock1 = ImGui::DockBuilderSplitNode(id, ImGuiDir_Right, 0.8f, nullptr, &id);
-
+        
         ImGuiID dock2 = ImGui::DockBuilderSplitNode(id, ImGuiDir_Left, 0.2f, nullptr, &id);
-
+        
         ImGuiID dock3 = ImGui::DockBuilderSplitNode(dock1, ImGuiDir_Down, 0.2f, nullptr, &dock1);
         
         ImGuiID dock4 = ImGui::DockBuilderSplitNode(dock2, ImGuiDir_Down, 0.2f, nullptr, &dock2);
         
-
+        
         ImGui::DockBuilderDockWindow("Viewport", dock1);
         ImGui::DockBuilderDockWindow("Settings", dock2);
         ImGui::DockBuilderDockWindow("Log Console", dock3);
         ImGui::DockBuilderDockWindow("Assets", dock4);
         ImGui::DockBuilderDockWindow("Materials", dock1);
-
-
+        
+        
         ImGui::DockBuilderFinish(id);
         
         firstLoop = false;
@@ -241,17 +241,17 @@ void UI::newFrame(void) {
 
 void UI::updateBuffers(int frameIndex) {
     ImDrawData* imDrawData = ImGui::GetDrawData();
-
+    
     // Note: Alignment is done inside buffer creation
     VkDeviceSize vertexBufferSize = imDrawData->TotalVtxCount * sizeof(ImDrawVert);
     VkDeviceSize indexBufferSize = imDrawData->TotalIdxCount * sizeof(ImDrawIdx);
-
+    
     if ((vertexBufferSize == 0) || (indexBufferSize == 0)) {
         return;
     }
-
+    
     // Update buffers only if vertex or index count has been changed compared to current buffer size
-
+    
     // Vertex buffer
     if ((vertexBuffers->at(frameIndex)->getBuffer() == VK_NULL_HANDLE) || (vertexCount[frameIndex] != imDrawData->TotalVtxCount)) {
         vertexBuffers->at(frameIndex)->unmap();
@@ -260,7 +260,7 @@ void UI::updateBuffers(int frameIndex) {
         vertexCount[frameIndex] = imDrawData->TotalVtxCount;
         vertexBuffers->at(frameIndex)->map();
     }
-
+    
     // Index buffer
     if ((indexBuffers->at(frameIndex)->getBuffer() == VK_NULL_HANDLE) || (indexCount[frameIndex] < imDrawData->TotalIdxCount)) {
         indexBuffers->at(frameIndex)->unmap();
@@ -273,7 +273,7 @@ void UI::updateBuffers(int frameIndex) {
     // Upload data
     ImDrawVert* vtxDst = (ImDrawVert*)vertexBuffers->at(frameIndex)->getMappedMemory();
     ImDrawIdx* idxDst = (ImDrawIdx*)indexBuffers->at(frameIndex)->getMappedMemory();
-
+    
     for (int n = 0; n < imDrawData->CmdListsCount; n++) {
         const ImDrawList* cmd_list = imDrawData->CmdLists[n];
         memcpy(vtxDst, cmd_list->VtxBuffer.Data, cmd_list->VtxBuffer.Size * sizeof(ImDrawVert));
@@ -281,7 +281,7 @@ void UI::updateBuffers(int frameIndex) {
         vtxDst += cmd_list->VtxBuffer.Size;
         idxDst += cmd_list->IdxBuffer.Size;
     }
-
+    
     // Flush to make writes visible to GPU
     vertexBuffers->at(frameIndex)->flush();
     indexBuffers->at(frameIndex)->flush();
@@ -290,7 +290,7 @@ void UI::updateBuffers(int frameIndex) {
 
 void UI::draw(VkCommandBuffer commandBuffer, int frameIndex) {
     ImGuiIO& io = ImGui::GetIO();
-
+    
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imguiPipeline);
     
     VkViewport viewport {
@@ -306,32 +306,30 @@ void UI::draw(VkCommandBuffer commandBuffer, int frameIndex) {
     pushConstBlock.scale = glm::vec2(2.0f / io.DisplaySize.x, 2.0f / io.DisplaySize.y);
     pushConstBlock.translate = glm::vec2(-1.0f);
     vkCmdPushConstants(commandBuffer, imguiPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(UI::PushConstBlock), &pushConstBlock);
-
+    
     // Render commands
     ImDrawData* imDrawData = ImGui::GetDrawData();
     int32_t vertexOffset = 0;
     int32_t indexOffset = 0;
-
+    
     if (imDrawData->CmdListsCount > 0) {
         VkBuffer buffers[] = {vertexBuffers->at(frameIndex)->getBuffer()};
         VkDeviceSize offsets[] = {0};
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, buffers, offsets);
         vkCmdBindIndexBuffer(commandBuffer, indexBuffers->at(frameIndex)->getBuffer(), 0, VK_INDEX_TYPE_UINT16);
-
-        for (int32_t i = 0; i < imDrawData->CmdListsCount; i++)
-        {
+        
+        for (int32_t i = 0; i < imDrawData->CmdListsCount; i++) {
             const ImDrawList* cmd_list = imDrawData->CmdLists[i];
-            for (int32_t j = 0; j < cmd_list->CmdBuffer.Size; j++)
-            {
+            for (int32_t j = 0; j < cmd_list->CmdBuffer.Size; j++) {
                 const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[j];
-
+                
                 VkDescriptorSet dSet;
                 if (pcmd->TexRef._TexData) {
                     dSet = descriptor.v_set.at(frameIndex);
                 } else {
                     dSet = m_Renderer.getDescriptorSets((RenderPass)pcmd->TexRef._TexID)->at(frameIndex);
                 }
-
+                
                 vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imguiPipelineLayout, 0, 1, &dSet, 0, nullptr);
                 
                 VkRect2D scissorRect;
@@ -358,7 +356,7 @@ void UI::loadFontTexture(void) {
     c.OversampleV = 4;
     io.Fonts->AddFontFromFileTTF("../../../assets/fonts/Inter.ttf", 20.f, &c);
     io.Fonts->GetTexDataAsRGBA32(&fontData, &texWidth, &texHeight);
-
+    
     if (!fontData) {
         throw std::runtime_error("failed to load imgui font data!");
     }
@@ -382,7 +380,8 @@ void UI::loadFontTexture(void) {
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         fontImage,
-        fontMem);
+        fontMem
+    );
     
     auto commandBuffer = vulkanImage.beginSingleTimeCommands();
     vulkanImage.transitionImageLayout(commandBuffer, fontImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -396,7 +395,7 @@ void UI::loadFontTexture(void) {
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     samplerInfo.magFilter = VK_FILTER_NEAREST;
     samplerInfo.minFilter = VK_FILTER_NEAREST;
-
+    
     samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     samplerInfo.addressModeV = samplerInfo.addressModeU;
     samplerInfo.addressModeW = samplerInfo.addressModeU;
@@ -446,7 +445,7 @@ std::vector<char> UI::readFile(const std::string &filepath) {
 ImGuiKey UI::ImGui_SDL2_KeyEventToImGuiKey(SDL_Keycode keycode)
 {
     switch (keycode)
-    {
+        {
         case SDLK_TAB: return ImGuiKey_Tab;
         case SDLK_LEFT: return ImGuiKey_LeftArrow;
         case SDLK_RIGHT: return ImGuiKey_RightArrow;
@@ -553,7 +552,7 @@ ImGuiKey UI::ImGui_SDL2_KeyEventToImGuiKey(SDL_Keycode keycode)
         case SDLK_F11: return ImGuiKey_F11;
         case SDLK_F12: return ImGuiKey_F12;
         default: break;
-    }
+        }
     return ImGuiKey_None;
 }
 
@@ -561,7 +560,7 @@ char UI::ImGuiKey_to_Charecter(ImGuiKey imgui_key, bool shift)
 {
     if (!shift) {
         switch (imgui_key)
-        {
+            {
             case ImGuiKey_0: return '0';
             case ImGuiKey_1: return '1';
             case ImGuiKey_2: return '2';
@@ -600,11 +599,11 @@ char UI::ImGuiKey_to_Charecter(ImGuiKey imgui_key, bool shift)
             case ImGuiKey_Z: return 'z';
             case ImGuiKey_Space: return 0x20;
             default: break;
-        }
+            }
     }
     else {
         switch (imgui_key)
-        {
+            {
             case ImGuiKey_A: return 'A';
             case ImGuiKey_B: return 'B';
             case ImGuiKey_C: return 'C';
@@ -633,34 +632,34 @@ char UI::ImGuiKey_to_Charecter(ImGuiKey imgui_key, bool shift)
             case ImGuiKey_Z: return 'Z';
             case ImGuiKey_Space: return 0x20;
             default: break;
-        }
+            }
     }
     return '?';
 }
 
 static consteval float hueToRgb(float p, float q, float t) {
-  if (t < 0.f) t += 1.f;
-  if (t > 1.f) t -= 1.f;
-  if (t < 1.f/6.f) return p + (q - p) * 6.f * t;
-  if (t < 1.f/2.f) return q;
-  if (t < 2.f/3.f) return p + (q - p) * (2.f/3.f - t) * 6.f;
-  return p;
+    if (t < 0.f) t += 1.f;
+    if (t > 1.f) t -= 1.f;
+    if (t < 1.f/6.f) return p + (q - p) * 6.f * t;
+    if (t < 1.f/2.f) return q;
+    if (t < 2.f/3.f) return p + (q - p) * (2.f/3.f - t) * 6.f;
+    return p;
 }
 
 static consteval ImVec4 hslToRgb(const float h, const float s, const float l) {
-  float r, g, b;
-
-  if (s == 0.f) {
-    r = g = b = l;
-  } else {
-    const float q = l < 0.5f ? l * (1.f + s) : l + s - l * s;
-    const float p = 2.f * l - q;
-    r = hueToRgb(p, q, h + 1.f/3.f);
-    g = hueToRgb(p, q, h);
-    b = hueToRgb(p, q, h - 1.f/3.f);
-  }
-
-  return ImVec4(r, g, b, 1.f);
+    float r, g, b;
+    
+    if (s == 0.f) {
+        r = g = b = l;
+    } else {
+        const float q = l < 0.5f ? l * (1.f + s) : l + s - l * s;
+        const float p = 2.f * l - q;
+        r = hueToRgb(p, q, h + 1.f/3.f);
+        g = hueToRgb(p, q, h);
+        b = hueToRgb(p, q, h - 1.f/3.f);
+    }
+    
+    return ImVec4(r, g, b, 1.f);
 }
 
 void UI::setBessDarkColors(void) {
@@ -668,47 +667,47 @@ void UI::setBessDarkColors(void) {
     ImVec4 *colors = style.Colors;
     
     constexpr float baseHue = 0.67f;
-
+    
     // Primary background
     colors[ImGuiCol_WindowBg] =             hslToRgb(baseHue, 0.12f, 0.08f);
     colors[ImGuiCol_MenuBarBg] =            hslToRgb(baseHue, 0.11f, 0.13f);
     colors[ImGuiCol_PopupBg] =              hslToRgb(baseHue, 0.10f, 0.20f);
-
+    
     // Headers
     colors[ImGuiCol_Header] =               hslToRgb(baseHue, 0.10f, 0.20f);
     colors[ImGuiCol_HeaderHovered] =        hslToRgb(baseHue, 0.14f, 0.35f);
     colors[ImGuiCol_HeaderActive] =         hslToRgb(baseHue, 0.16f, 0.30f);
-
+    
     // Buttons
     colors[ImGuiCol_Button] =               hslToRgb(0.62f, 0.14f, 0.23f);
     colors[ImGuiCol_ButtonHovered] =        hslToRgb(0.63f, 0.14f, 0.35f);
     colors[ImGuiCol_ButtonActive] =         hslToRgb(0.63f, 0.17f, 0.42f);
-
+    
     // Frame BG
     colors[ImGuiCol_FrameBg] =              hslToRgb(baseHue, 0.09f, 0.16f);
     colors[ImGuiCol_FrameBgHovered] =       hslToRgb(baseHue, 0.10f, 0.24f);
     colors[ImGuiCol_FrameBgActive] =        hslToRgb(baseHue, 0.09f, 0.27f);
-
+    
     // Tabs
     colors[ImGuiCol_Tab] =                  hslToRgb(baseHue, 0.10f, 0.20f);
     colors[ImGuiCol_TabHovered] =           hslToRgb(baseHue, 0.17f, 0.42f);
     colors[ImGuiCol_TabActive] =            hslToRgb(baseHue, 0.20f, 0.31f);
     colors[ImGuiCol_TabUnfocused] =         hslToRgb(baseHue, 0.13f, 0.15f);
     colors[ImGuiCol_TabUnfocusedActive] =   hslToRgb(baseHue, 0.11f, 0.22f);
-
+    
     // Title
     colors[ImGuiCol_TitleBg] =              hslToRgb(baseHue, 0.11f, 0.13f);
     colors[ImGuiCol_TitleBgActive] =        hslToRgb(baseHue, 0.14f, 0.17f);
     colors[ImGuiCol_TitleBgCollapsed] =     hslToRgb(baseHue, 0.09f, 0.11f);
-
+    
     // Borders
     colors[ImGuiCol_Border] =               hslToRgb(baseHue, 0.11f, 0.22f);
     colors[ImGuiCol_BorderShadow] =         hslToRgb(0.00f, 0.00f, 0.00f);
-
+    
     // Text
     colors[ImGuiCol_Text] =                 hslToRgb(baseHue, 0.33f, 0.92f);
     colors[ImGuiCol_TextDisabled] =         hslToRgb(baseHue, 0.05f, 0.52f);
-
+    
     // Highlights
     colors[ImGuiCol_CheckMark] =            hslToRgb(0.60f, 1.00f, 0.60f);
     colors[ImGuiCol_SliderGrab] =           hslToRgb(0.60f, 1.00f, 0.60f);
@@ -719,13 +718,13 @@ void UI::setBessDarkColors(void) {
     
     colors[ImGuiCol_DockingPreview] =       hslToRgb(0.60f, 0.50f, 0.30f);
     colors[ImGuiCol_PlotLines] =            hslToRgb(0.60f, 0.80f, 0.70f);
-
+    
     // Scrollbar
     colors[ImGuiCol_ScrollbarBg] =          hslToRgb(baseHue, 0.09f, 0.11f);
     colors[ImGuiCol_ScrollbarGrab] =        hslToRgb(baseHue, 0.07f, 0.32f);
     colors[ImGuiCol_ScrollbarGrabHovered] = hslToRgb(baseHue, 0.11f, 0.45f);
     colors[ImGuiCol_ScrollbarGrabActive] =  hslToRgb(baseHue, 0.10f, 0.50f);
-
+    
     // Style tweaks
     style.WindowRounding = 5.0f;
     style.FrameRounding = 5.0f;
@@ -747,93 +746,89 @@ void UI::setBessDarkColors(void) {
 
 static std::pair<bool, uint32_t> DirectoryTreeViewRecursive(const std::filesystem::path& path, uint32_t* count, int* selection_mask)
 {
-	ImGuiTreeNodeFlags base_flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_SpanFullWidth;
-
-	bool any_node_clicked = false;
-	uint32_t node_clicked = 0;
-
-	for (const auto& entry : std::filesystem::directory_iterator(path))
-	{
-		ImGuiTreeNodeFlags node_flags = base_flags;
-		const bool is_selected = (*selection_mask & BIT(*count)) != 0;
-		if (is_selected)
-			node_flags |= ImGuiTreeNodeFlags_Selected;
-
-		std::string name = entry.path().string();
-
-		auto lastSlash = name.find_last_of("/\\");
-		lastSlash = lastSlash == std::string::npos ? 0 : lastSlash + 1;
-		name = name.substr(lastSlash, name.size() - lastSlash);
-
-		bool entryIsFile = !std::filesystem::is_directory(entry.path());
-		if (entryIsFile)
-			node_flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
-
+    ImGuiTreeNodeFlags base_flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_SpanFullWidth;
+    
+    bool any_node_clicked = false;
+    uint32_t node_clicked = 0;
+    
+    for (const auto& entry : std::filesystem::directory_iterator(path)) {
+        ImGuiTreeNodeFlags node_flags = base_flags;
+        const bool is_selected = (*selection_mask & BIT(*count)) != 0;
+        if (is_selected)
+            node_flags |= ImGuiTreeNodeFlags_Selected;
+        
+        std::string name = entry.path().string();
+        
+        auto lastSlash = name.find_last_of("/\\");
+        lastSlash = lastSlash == std::string::npos ? 0 : lastSlash + 1;
+        name = name.substr(lastSlash, name.size() - lastSlash);
+        
+        bool entryIsFile = !std::filesystem::is_directory(entry.path());
+        if (entryIsFile)
+            node_flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+        
         bool node_open = ImGui::TreeNodeEx((void*)(intptr_t)(*count), node_flags, "%s", name.c_str());
-
-		if (ImGui::IsItemClicked())
-		{
-			node_clicked = *count;
-			any_node_clicked = true;
-		}
-
-		(*count)--;
-
-		if (!entryIsFile)
-		{
-			if (node_open)
-			{
-
-				auto clickState = DirectoryTreeViewRecursive(entry.path(), count, selection_mask);
-
-				if (!any_node_clicked)
-				{
-					any_node_clicked = clickState.first;
-					node_clicked = clickState.second;
-				}
-
-				ImGui::TreePop();
-			}
-			else
-			{
-				for (const auto& e : std::filesystem::recursive_directory_iterator(entry.path()))
-					(*count)--;
-			}
-		}
-	}
-
-	return { any_node_clicked, node_clicked };
+        
+        if (ImGui::IsItemClicked()) {
+            node_clicked = *count;
+            any_node_clicked = true;
+        }
+        
+        (*count)--;
+        
+        if (!entryIsFile) {
+            if (node_open) {
+                
+                auto clickState = DirectoryTreeViewRecursive(entry.path(), count, selection_mask);
+                
+                if (!any_node_clicked) {
+                    any_node_clicked = clickState.first;
+                    node_clicked = clickState.second;
+                }
+                
+                ImGui::TreePop();
+            }
+            else {
+                for (const auto& e : std::filesystem::recursive_directory_iterator(entry.path())) {
+                    (void)e;
+                    (*count)--;
+                }
+            }
+        }
+    }
+    
+    return { any_node_clicked, node_clicked };
 }
 
 void UI::treeAssetsWidget(void)
 {
     std::string directoryPath = "../../../shaders/";
-
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0.0f, 0.0f });
-
-	ImGui::Begin("Assets");
-
-	if (ImGui::CollapsingHeader("Shaders"))
-	{
-		uint32_t count = 0;
-		for (const auto& entry : std::filesystem::recursive_directory_iterator(directoryPath))
-			count++;
-
-		static int selection_mask = 0;
-
-		auto clickState = DirectoryTreeViewRecursive(directoryPath, &count, &selection_mask);
-
-		if (clickState.first)
-		{
-			// Update selection state
-			// (process outside of tree loop to avoid visual inconsistencies during the clicking frame)
-			if (ImGui::GetIO().KeyCtrl)
-				selection_mask ^= BIT(clickState.second);          // CTRL+click to toggle
-			else //if (!(selection_mask & (1 << clickState.second))) // Depending on selection behavior you want, may want to preserve selection when clicking on item that is part of the selection
-				selection_mask = BIT(clickState.second);           // Click to single-select
-		}
-	}
-	ImGui::End();
-
-	ImGui::PopStyleVar();
+    
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0.0f, 0.0f });
+    
+    ImGui::Begin("Assets");
+    
+    if (ImGui::CollapsingHeader("Shaders")) {
+        uint32_t count = 0;
+        for (const auto& entry : std::filesystem::recursive_directory_iterator(directoryPath)) {
+            (void)entry;
+            count++;
+        }
+        
+        static int selection_mask = 0;
+        
+        auto clickState = DirectoryTreeViewRecursive(directoryPath, &count, &selection_mask);
+        
+        if (clickState.first) {
+            // Update selection state
+            // (process outside of tree loop to avoid visual inconsistencies during the clicking frame)
+            if (ImGui::GetIO().KeyCtrl)
+                selection_mask ^= BIT(clickState.second);          // CTRL+click to toggle
+            else //if (!(selection_mask & (1 << clickState.second))) // Depending on selection behavior you want, may want to preserve selection when clicking on item that is part of the selection
+                selection_mask = BIT(clickState.second);           // Click to single-select
+        }
+    }
+    ImGui::End();
+    
+    ImGui::PopStyleVar();
 }

@@ -1,5 +1,5 @@
 //
-//  ScenePipeline.hpp
+//  ShadowPipeline.hpp
 //  vulkan_engine
 //
 //  Created by Lorenzo Bozza on 12/11/25.

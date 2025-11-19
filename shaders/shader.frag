@@ -185,7 +185,7 @@ for (int i = 0; i < lightNum; i++) {
     if (MASK_COMPARE(ubo.debugMode, DEBUG_IBL_CONTRIB_BIT)) {
         shadow_avg = (shadow_avg + 0.3) / (lightNum + 1); //vec2(0.3, shadow_avg)
         bool multi_scatter = MASK_COMPARE(ubo.debugMode, DEBUG_MULTISCATTER_BIT);
-	    color += shadow_avg*computeIBL(n, v, reflection, perceptualRoughness, diffuseColor, specularColor, multi_scatter);
+	    color += computeIBL(n, v, reflection, perceptualRoughness, diffuseColor, specularColor, multi_scatter);
     }
 
 	const float u_OcclusionStrength = 0.5f;

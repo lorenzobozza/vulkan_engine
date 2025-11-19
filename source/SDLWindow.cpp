@@ -259,17 +259,13 @@ void SDLWindow::pollWindowEvents(std::function<void()> callback) {
 }
 
 void SDLWindow::fetchShortcuts(SDL_Keymod modifier, SDL_KeyCode key) {
-    switch (modifier) {
-    case KMOD_LGUI:
-    case KMOD_RGUI:
-        switch (key) {
-        case SDLK_f:
-            m_LastShortcut = CTRL_F;
-            break;
-            
-        default:
-            break;
-        }
+    switch (key) {
+    case SDLK_f:
+        if ((modifier & (KMOD_CTRL | KMOD_GUI)) > 0) m_LastShortcut = CTRL_F;
+        break;
+        
+    case SDLK_d:
+        if ((modifier & (KMOD_CTRL | KMOD_GUI)) > 0) m_LastShortcut = CTRL_D;
         break;
         
     default:
