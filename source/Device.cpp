@@ -160,7 +160,7 @@ void Device::pickPhysicalDevice() {
     }
     
     vkGetPhysicalDeviceProperties(physicalDevice, &properties);
-    log->info("Physical device -> {}", properties.deviceName);
+    log->info("Vulkan API {}.{}.{} / {}", VK_API_VERSION_MAJOR(properties.apiVersion), VK_API_VERSION_MINOR(properties.apiVersion), VK_API_VERSION_PATCH(properties.apiVersion), properties.deviceName);
 }
 
 void Device::createLogicalDevice() {

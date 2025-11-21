@@ -216,13 +216,14 @@ void UI::newFrame(void) {
         
         ImGuiID dock3 = ImGui::DockBuilderSplitNode(dock1, ImGuiDir_Down, 0.2f, nullptr, &dock1);
         
-        ImGuiID dock4 = ImGui::DockBuilderSplitNode(dock2, ImGuiDir_Down, 0.2f, nullptr, &dock2);
+        ImGuiID dock4 = ImGui::DockBuilderSplitNode(dock2, ImGuiDir_Down, 0.37f, nullptr, &dock2);
         
         
         ImGui::DockBuilderDockWindow("Viewport", dock1);
         ImGui::DockBuilderDockWindow("Settings", dock2);
         ImGui::DockBuilderDockWindow("Log Console", dock3);
         ImGui::DockBuilderDockWindow("Assets", dock4);
+        ImGui::DockBuilderDockWindow("Node Visualizer", dock4);
         ImGui::DockBuilderDockWindow("Materials", dock1);
         
         

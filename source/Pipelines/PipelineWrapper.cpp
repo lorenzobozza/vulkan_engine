@@ -75,7 +75,16 @@ void PipelineWrapper::recreatePipeline(VkRenderPass renderPass, VkSampleCountFla
 		createPipeline();
 }
 
-
+void PipelineWrapper::safe_render(VkCommandBuffer commandBuffer, int frameIndex, std::mutex& mutex) {
+    if (getPipelineStatus() != Pipeline::Status::OK) {
+				return;
+		}
+    
+    if (mutex.try_lock()) {
+        render(commandBuffer, frameIndex);
+        mutex.unlock();
+    }
+}
 
 
 // Example

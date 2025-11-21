@@ -65,10 +65,6 @@ CompositingPipeline::Dependencies CompositingPipeline::createLayoutDependencies(
 }
 
 void CompositingPipeline::render(VkCommandBuffer commandBuffer, int frameIndex) {
-    if (getPipelineStatus() != Pipeline::Status::OK) {
-        return;
-    }
-    
     m_Pipeline->bind(commandBuffer);
     
     vkCmdBindDescriptorSets(

@@ -115,10 +115,6 @@ ScenePipeline::Dependencies ScenePipeline::createLayoutDependencies(void) {
 }
 
 void ScenePipeline::render(VkCommandBuffer commandBuffer, int frameIndex) {
-		if (getPipelineStatus() != Pipeline::Status::OK) {
-				return;
-		}
-		
 		m_Pipeline->bind(commandBuffer);
 		
 		vkCmdBindDescriptorSets(

@@ -112,26 +112,20 @@ NodeSet::NodeSet(InitStruct& init, std::string filePath)
     g_TS.ShutdownNow();
     
     // glTF -> Vulkan, unit quaternion along X to rotate 180° about X
-    Node* root = new Node("root");
-    root->Matrix = glm::toMat4(glm::quat{0.f, 1.f, 0.f, 0.f});
-    m_Nodes.push_back(root);
+    m_NodeTree = std::make_shared<Node::Tree>(m_gltfModel.scenes[m_gltfModel.defaultScene].nodes.size());
+    Node root("_root");
+    root.matrix = glm::toMat4(glm::quat{0.f, 1.f, 0.f, 0.f});
+    m_NodeTree->nodes.push_back(root);
     
-    for(int nodeIndex: m_gltfModel.scenes[m_gltfModel.defaultScene].nodes) {
-        loadNodeFromModel(nodeIndex, root);
+    uint32_t index = 0;
+    for(int gltfIndex: m_gltfModel.scenes[m_gltfModel.defaultScene].nodes) {
+        loadNodeFromModel(gltfIndex, 0, index);
     }
     
     loadMaterialsToVRAM();
 }
 
-NodeSet::~NodeSet() {
-    deleteNodes();
-}
-
-void NodeSet::deleteNodes(void) {
-    for (Node* pN : m_Nodes) {
-        delete pN;
-    }
-}
+NodeSet::~NodeSet() {}
 
 void NodeSet::parseGLTF() {
     tinygltf::TinyGLTF loader;
@@ -163,52 +157,57 @@ void NodeSet::parseGLTF() {
     }
 }
 
-void NodeSet::loadNodeFromModel(int nodeIndex, Node* parentNode) {
-    const tinygltf::Node& gltfNode = m_gltfModel.nodes[nodeIndex];
+void NodeSet::loadNodeFromModel(int gltfIndex, uint32_t parentIndex, uint32_t& actualIndex) {
+    const tinygltf::Node& gltfNode = m_gltfModel.nodes[gltfIndex];
     
-    Node* newNode = new Node(gltfNode.name);
+    uint32_t thisIndex = ++actualIndex;
+    m_NodeTree->nodes.push_back(Node(gltfNode.name));
+    m_NodeTree->nodes[parentIndex].children.push_back(thisIndex);
+    
+    Node& thisNode = m_NodeTree->nodes[thisIndex];
+    thisNode.parent = parentIndex;
     
     if (gltfNode.scale.size() == 3) {
-        newNode->Scale = glm::make_vec3(gltfNode.scale.data());
+        thisNode.flags |= Node::Flags::SCALE;
+        thisNode.scale = glm::make_vec3(gltfNode.scale.data());
     }
     if (gltfNode.translation.size() == 3) {
-        newNode->Offset = glm::make_vec3(gltfNode.translation.data());
+        thisNode.flags |= Node::Flags::TRANSL;
+        thisNode.transl = glm::make_vec3(gltfNode.translation.data());
     }
     if (gltfNode.rotation.size() == 4) {
+        thisNode.flags |= Node::Flags::QUAT;
         // by default glm uses w,x,y,z while glTF uses x,y,z,w
-        newNode->Quat = glm::quat((float)gltfNode.rotation[3], (float)gltfNode.rotation[0], (float)gltfNode.rotation[1], (float)gltfNode.rotation[2]);
+        thisNode.quat = glm::quat((float)gltfNode.rotation[3], (float)gltfNode.rotation[0], (float)gltfNode.rotation[1], (float)gltfNode.rotation[2]);
     }
     if (gltfNode.matrix.size() == 16) {
-        newNode->Matrix = glm::make_mat4x4(gltfNode.matrix.data());
+        thisNode.flags |= Node::Flags::MATRIX;
+        thisNode.matrix = glm::make_mat4x4(gltfNode.matrix.data());
     }
+    if (gltfNode.mesh > -1) thisNode.flags |= Node::Flags::MESH;
     
-    newNode->Matrix *= (glm::translate(glm::mat4(1.0), newNode->Offset) * glm::toMat4(newNode->Quat) * glm::scale(glm::mat4(1.0), newNode->Scale));
+    thisNode.matrix *= (glm::translate(glm::mat4(1.0), thisNode.transl) * glm::toMat4(thisNode.quat) * glm::scale(glm::mat4(1.0), thisNode.scale));
     
-    newNode->p_Parent = parentNode;
-
     
-    // Transform propagation
+    // Tree propagation
     if (gltfNode.children.size() > 0) {
-        for (int childIndex : gltfNode.children) {
-            loadNodeFromModel(childIndex, newNode);
+        for (int gltfChild : gltfNode.children) {
+            loadNodeFromModel(gltfChild, thisIndex, actualIndex);
         }
     }
     
-    // For now we store all pointers only to be able to delete them at the end
-    m_Nodes.push_back(newNode);
     
     // MAYBE we can determine if the transformation is needed to save time
-    glm::mat4 transform = newNode->Matrix;
+    glm::mat4 transform = thisNode.matrix;
     
     // Move backwards to build the correct transformation matrix
-    while (newNode->p_Parent) {
-        transform = newNode->p_Parent->Matrix * transform;
-        newNode = newNode->p_Parent;
+    int32_t parent = thisNode.parent;
+    while (parent > -1) {
+        transform = m_NodeTree->nodes[parent].matrix * transform;
+        parent = m_NodeTree->nodes[parent].parent;
     }
 
     parseMeshFromNode(gltfNode, transform);
-    // TODO: Parse other object like cameras, lights etc..
-
     parseLightFromNode(gltfNode, transform);
 }
 
@@ -465,7 +464,7 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform)
                     normals.vertices[i].color = (v.normal + 1.f) * 0.5f;
                     normals.vertices[i++].position = v.position;
                     normals.vertices[i].color = (v.normal + 1.f) * 0.5f;
-                    normals.vertices[i++].position = v.position + (glm::normalize(v.normal) * 2.f);
+                    normals.vertices[i++].position = v.position + (glm::normalize(v.normal) * .2f / p.transform.scale);
                 }
                 p.normals = std::make_shared<Model>(m_Device, normals);
             }
@@ -481,15 +480,14 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform)
             // TODO: Make the whole node transform hierarchy always affect the final matrix (probably needs cache)
             
             if (materialID > -1) {
+                if (m_gltfModel.materials[materialID].alphaMode != "OPAQUE") continue;
                 p.material = m_gltfModel.materials[materialID].name + "_" + std::to_string(materialID);
             } else {
                 p.material = "Global_Default_Material";
             }
             
-            if (m_gltfModel.materials[materialID].alphaMode == "OPAQUE") {
-                // p is a temporary lvalue, we cast it back to rvalue to move the ownership to the map
-                m_Primitives.emplace(p.getId(), std::move(p));
-            }
+            // p is a temporary lvalue, we cast it back to rvalue to move the ownership to the map
+            m_Primitives.emplace(p.getId(), std::move(p));
         }
         
     }

@@ -14,6 +14,10 @@ struct PushConstantData {
 void DebugPipeline::customizePipelineConfig(PipelineConfigInfo& config) {
 		config.renderPass = m_RenderPass;
 		config.pipelineLayout = m_PipelineLayout;
+  
+    config.multisampleInfo.rasterizationSamples = m_SampleCount;
+		config.multisampleInfo.sampleShadingEnable = VK_TRUE;
+		config.multisampleInfo.minSampleShading = .2f;
 		
 		config.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
 
@@ -59,10 +63,6 @@ DebugPipeline::Dependencies DebugPipeline::createLayoutDependencies(void) {
 }
 
 void DebugPipeline::render(VkCommandBuffer commandBuffer, int frameIndex) {
-		if (getPipelineStatus() != Pipeline::Status::OK) {
-				return;
-		}
-		
 		m_Pipeline->bind(commandBuffer);
 		
 		vkCmdBindDescriptorSets(
@@ -92,8 +92,8 @@ void DebugPipeline::render(VkCommandBuffer commandBuffer, int frameIndex) {
         primitive.aabb->bind(commandBuffer);
         primitive.aabb->draw(commandBuffer);
         
-        primitive.normals->bind(commandBuffer);
-        primitive.normals->draw(commandBuffer);
+        //primitive.normals->bind(commandBuffer);
+        //primitive.normals->draw(commandBuffer);
 		}
 		
 }

@@ -33,6 +33,7 @@ struct WidgetStruct {
     std::shared_ptr<Viewport> view;
     std::shared_ptr<LogView> log;
     std::shared_ptr<AssetTree> assets;
+    std::shared_ptr<NodeTreeViewer> nodes;
     std::shared_ptr<MeterialViewer> material;
     std::shared_ptr<Settings> settings;
     std::shared_ptr<Menu> menu;
@@ -49,6 +50,7 @@ void Application::run() {
     WidgetStruct widgets {
         .view = std::make_shared<Viewport>(),
         .log = std::make_shared<LogView>(),
+        .nodes = std::make_shared<NodeTreeViewer>(),
         .assets = std::make_shared<AssetTree>(),
         .material = std::make_shared<MeterialViewer>(materials),
         .settings = std::make_shared<Settings>(vulkanDevice,window,renderer,m_Perf)
@@ -56,10 +58,10 @@ void Application::run() {
     widgets.menu = std::make_shared<Menu>(widgets.log->getVisibility(), widgets.material->getVisibility());
     widgets.log->getVisibility() = false;
     widgets.material->getVisibility() = false;
-    widgets.view->setExtent(renderer.getSwapChainExtent().width * 0.8f, renderer.getSwapChainExtent().height * 0.8f);
+    widgets.view->setExtent(renderer.getSwapChainExtent().width, renderer.getSwapChainExtent().height);
     widgets.view->addFlags(ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_AlwaysAutoResize|ImGuiWindowFlags_NoBackground);
     
-    ui.addWidgets(widgets.view, widgets.log, widgets.assets, widgets.material, widgets.settings, widgets.menu);
+    ui.addWidgets(widgets.view, widgets.log, widgets.assets, widgets.material, widgets.settings, widgets.menu, widgets.nodes);
     
     Camera camera{};
     camera.setProjection.perspective(renderer.getAspectRatio(), glm::radians(75.f), .01f, 100.f);
@@ -135,7 +137,7 @@ void Application::run() {
         renderer.integrateBrdfLut(binaryDir);
         
         /**** Shadow Pipeline */
-        m_Pipelines.shadow = std::make_unique<ShadowPipeline>(
+        m_Pipes.shadow.ptr = std::make_unique<ShadowPipeline>(
             vulkanDevice,
             renderer.getOffscreenRenderPass(RenderPass::ShadowPass),
             "shadow",
@@ -146,7 +148,7 @@ void Application::run() {
         );
         
         /**** Scene Pipeline */
-        m_Pipelines.scene = std::make_unique<ScenePipeline>(
+        m_Pipes.scene.ptr = std::make_unique<ScenePipeline>(
             vulkanDevice,
             renderer.getOffscreenRenderPass(RenderPass::WorldSpace),
             "shader",
@@ -164,7 +166,7 @@ void Application::run() {
         );
         
         /**** Debug Pipeline */
-        m_Pipelines.debug = std::make_unique<DebugPipeline>(
+        m_Pipes.debug.ptr = std::make_unique<DebugPipeline>(
             vulkanDevice,
             renderer.getOffscreenRenderPass(RenderPass::WorldSpace),
             "debug",
@@ -175,7 +177,7 @@ void Application::run() {
         );
         
         /**** Skybox Pipeline */
-        m_Pipelines.skybox = std::make_unique<SkyboxPipeline>(
+        m_Pipes.skybox.ptr = std::make_unique<SkyboxPipeline>(
             vulkanDevice,
             renderer.getOffscreenRenderPass(RenderPass::WorldSpace),
             "skybox",
@@ -186,17 +188,22 @@ void Application::run() {
         );
         
         /**** Composition Pipeline */
-        m_Pipelines.composit = std::make_unique<CompositingPipeline>(
+        m_Pipes.composit.ptr = std::make_unique<CompositingPipeline>(
             vulkanDevice,
             renderer.getOffscreenRenderPass(RenderPass::ScreenSpace),
             "composition",
             renderer.getDescriptorSets(RenderPass::WorldSpace)
         );
         
+        widgets.nodes->setTree(_gltf.getNodes());
+        
         widgets.settings->recreatePipelinesCallback([this](void){
-            m_Pipelines.shadow->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::ShadowPass));
-            m_Pipelines.scene->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
-            m_Pipelines.skybox->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
+            if (m_Pipes.shadow.ptr && m_Pipes.scene.ptr && m_Pipes.skybox.ptr) {
+                m_Pipes.shadow.ptr->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::ShadowPass));
+                m_Pipes.scene.ptr->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
+                m_Pipes.skybox.ptr->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
+                m_Pipes.debug.ptr->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
+            }
         });
         
         widgets.view->loading = 0;
@@ -212,7 +219,7 @@ void Application::run() {
         // Prepare next GUI Frame
         ui.newFrame();
         
-        window.pollWindowEvents([this, widgets](){ renderer.recreateSwapChain(); widgets.view->setExtent(renderer.getSwapChainExtent().width * 0.8f, renderer.getSwapChainExtent().height * 0.8f); });
+        window.pollWindowEvents([this, widgets](){ renderer.recreateSwapChain(); widgets.view->setExtent(renderer.getSwapChainExtent().width, renderer.getSwapChainExtent().height); });
         
         updateCamera(camera, cameraHandle, window.getMovement(), window.getRotation(), renderer.getAspectRatio(), m_Perf.cpuTime + m_Perf.gpuTime);
         
@@ -229,11 +236,12 @@ void Application::run() {
             ubo.invViewMatrix = camera.getInverseView();
             ubo.debugMode = widgets.settings->debugMode;
             
-            if (assetsLoaded) {
-                m_Pipelines.composit->exposure = widgets.settings->otherData.exposure;
-                m_Pipelines.composit->gamma = widgets.settings->otherData.gamma;
-                m_Pipelines.composit->peak_brightness = widgets.settings->otherData.peak_brightness;
-                m_Pipelines.composit->debugMode = widgets.settings->otherData.debugMode;
+            if (m_Pipes.composit.ptr) {
+                auto p = m_Pipes.composit.ptr_cast<CompositingPipeline>();
+                p->exposure = widgets.settings->otherData.exposure;
+                p->gamma = widgets.settings->otherData.gamma;
+                p->peak_brightness = widgets.settings->otherData.peak_brightness;
+                p->debugMode = widgets.settings->otherData.debugMode;
                 
                 uboBuffers[frameIndex]->writeToBuffer(&ubo);
                 uboBuffers[frameIndex]->flush();
@@ -244,28 +252,24 @@ void Application::run() {
             
             // RenderPass
             renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::ShadowPass);
-            if (assetsLoaded) {
-                m_Pipelines.shadow->render(commandBuffer, frameIndex);
-            }
+            m_Pipes.shadow.render(commandBuffer, frameIndex);
             renderer.endRenderPass(commandBuffer);
             
             renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::WorldSpace);
-            if (assetsLoaded) {
-                m_Pipelines.scene->render(commandBuffer, frameIndex);
-                m_Pipelines.skybox->render(commandBuffer, frameIndex);
-                if (debugMode) m_Pipelines.debug->render(commandBuffer, frameIndex);
-            }
+            m_Pipes.scene.render(commandBuffer, frameIndex);
+            m_Pipes.skybox.render(commandBuffer, frameIndex);
+            if (debugMode) m_Pipes.debug.render(commandBuffer, frameIndex);
             renderer.endRenderPass(commandBuffer);
             
             renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::ScreenSpace);
-            if (assetsLoaded && !previewMode) {
-                m_Pipelines.composit->render(commandBuffer, frameIndex);
+            if (!previewMode) {
+                m_Pipes.composit.render(commandBuffer, frameIndex);
             }
             renderer.endRenderPass(commandBuffer);
             
             renderer.beginSwapChainRenderPass(commandBuffer);
-            if (assetsLoaded && previewMode) {
-                m_Pipelines.composit->render(commandBuffer, frameIndex);
+            if (previewMode) {
+                m_Pipes.composit.render(commandBuffer, frameIndex);
             } else {
                 ui.draw(commandBuffer, frameIndex);
             }
@@ -284,11 +288,11 @@ void Application::run() {
 void Application::shortcutCallback(Shortcut shortcut) {
     if (assetsLoaded && shortcut == CTRL_F) {
         vkDeviceWaitIdle(vulkanDevice.device());
-        if (previewMode) {
-            m_Pipelines.composit->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::ScreenSpace));
+        if (m_Pipes.composit.ptr && previewMode) {
+            m_Pipes.composit.ptr->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::ScreenSpace));
             previewMode = false;
-        } else {
-            m_Pipelines.composit->recreatePipeline(renderer.getSwapChainRenderPass());
+        } else if (m_Pipes.composit.ptr) {
+            m_Pipes.composit.ptr->recreatePipeline(renderer.getSwapChainRenderPass());
             previewMode = true;
         }
     }

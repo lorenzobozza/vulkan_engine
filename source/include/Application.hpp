@@ -36,6 +36,8 @@
 #include <string>
 #include <chrono>
 
+#include <mutex>
+
 
 struct Perf {
 private:
@@ -72,13 +74,16 @@ private:
     Renderer renderer{window, vulkanDevice};
     Image vulkanImage{vulkanDevice};
     
+
     struct RenderSystems_s {
-        std::unique_ptr<ShadowPipeline> shadow;
-        std::unique_ptr<ScenePipeline> scene;
-        std::unique_ptr<SkyboxPipeline> skybox;
-        std::unique_ptr<CompositingPipeline> composit;
-        std::unique_ptr<DebugPipeline> debug;
-    } m_Pipelines;
+        struct {
+            std::unique_ptr<PipelineWrapper> ptr;
+            std::mutex mutex;
+            void render(VkCommandBuffer cb, int idx) { if (ptr) ptr->safe_render(cb, idx, mutex); }
+            template<class T>
+            T* ptr_cast(void) { return reinterpret_cast<T*>(ptr.get()); }
+        } shadow, scene, skybox, composit, debug;
+    } m_Pipes;
     
     struct {
         std::unique_ptr<HDRi> instance;

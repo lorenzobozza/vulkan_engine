@@ -11,6 +11,7 @@
 #include <array>
 #include <vector>
 #include <string>
+#include <mutex>
 
 #include "Device.hpp"
 #include "Pipeline.hpp"
@@ -27,6 +28,7 @@ public:
 		PipelineWrapper &operator=(const PipelineWrapper &) = delete;
 		
 		virtual void render(VkCommandBuffer commandBuffer, int frameIndex) = 0;
+    virtual void safe_render(VkCommandBuffer commandBuffer, int frameIndex, std::mutex& mutex) final;
 		virtual void recreatePipeline(VkRenderPass renderPass = VK_NULL_HANDLE, VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_FLAG_BITS_MAX_ENUM) final;
 		
 		virtual void setMultiSampling(VkSampleCountFlagBits samples) final { m_SampleCount = samples; }

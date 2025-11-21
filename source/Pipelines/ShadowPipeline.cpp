@@ -62,10 +62,6 @@ ShadowPipeline::Dependencies ShadowPipeline::createLayoutDependencies(void) {
 }
 
 void ShadowPipeline::render(VkCommandBuffer commandBuffer, int frameIndex) {
-		if (getPipelineStatus() != Pipeline::Status::OK) {
-				return;
-		}
-		
 		m_Pipeline->bind(commandBuffer);
 		
 		vkCmdBindDescriptorSets(

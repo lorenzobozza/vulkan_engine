@@ -29,27 +29,48 @@ static unsigned ctz(int n) {
     return bits;
 }
 
-class NodeTree : public Widget {
+class NodeTreeViewer : public Widget {
 public:
-    NodeTree(std::vector<NodeSet::Node*> nodes) : m_nodes(nodes) {}
+    NodeTreeViewer() = default;
+    NodeTreeViewer(std::shared_ptr<Node::Tree> node_tree) : nodeTree(node_tree) {}
+    
+    void setTree(std::shared_ptr<Node::Tree> node_tree) { nodeTree = node_tree; }
 
 private:
-    std::vector<NodeSet::Node*> m_nodes;
+    std::shared_ptr<Node::Tree> nodeTree;
     void content(void) override {
         ImGui::Begin("Node Visualizer");
-        for (NodeSet::Node* node : m_nodes) {
-            if (node->p_Parent == nullptr) {
-                child(node);
-            }
+        if (nodeTree) {
+            expandTree(nodeTree->nodes[0]);
+        } else {
+            ImGui::TextUnformatted("Load a model");
         }
         ImGui::End();
     }
     
-    void child(NodeSet::Node* parentNode) {
-        for (NodeSet::Node* node : m_nodes) {
-            if (node->p_Parent == parentNode) {
-                ImGui::TreeNodeEx((node->Name.empty() ? "##empty" : node->Name.c_str()), ImGuiTreeNodeFlags_DefaultOpen);
-                child(node);
+    std::string printProps(uint8_t flags) {
+        std::string props = "";
+        props += (flags & Node::Flags::TRANSL) ? "T" : "";
+        props += (flags & Node::Flags::SCALE) ? "S" : "";
+        props += (flags & Node::Flags::QUAT) ? "R" : "";
+        props += (flags & Node::Flags::MATRIX) ? "M" : "";
+        props += (flags & Node::Flags::MESH) ? " \x7e" : "";
+        return props;
+    }
+    
+    void expandTree(Node& parentNode) {
+    ImGuiTreeNodeFlags base_flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_SpanAllColumns;
+        if (parentNode.parent == -1) base_flags |= ImGuiTreeNodeFlags_DefaultOpen;
+        for (uint32_t childIndex : parentNode.children) {
+            Node& child = nodeTree->nodes[childIndex];
+            bool hasChildren = child.children.size() > 0;
+            ImGuiTreeNodeFlags node_flags = hasChildren ? base_flags : base_flags | ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+            bool isOpen = ImGui::TreeNodeEx((child.name.empty() ? "##empty" : child.name.c_str()), node_flags);
+            ImVec2 size = ImGui::GetItemRectSize();
+            ImGui::SameLine(size.x - 50.f);
+            ImGui::TextUnformatted(printProps(child.flags).c_str());
+            if (isOpen && hasChildren) {
+                expandTree(child);
                 ImGui::TreePop();
             }
         }
@@ -59,7 +80,7 @@ private:
 class Viewport : public Widget {
 public:
     void addFlags(unsigned int flags) { m_flags |= flags; }
-    void setExtent(float width, float height) { m_extent = ImVec2(width, height); }
+    void setExtent(float width, float height) { m_extent = ImVec2(width * 0.8f, height * 0.8f); }
     uint8_t loading = 0xFF;
 
 private:
@@ -72,7 +93,7 @@ private:
         ImGui::BeginMenuBar();
         static int source = 1;
         ImGui::Text("Main Viewport");
-        ImGui::SameLine(m_extent.x * 0.8f);
+        ImGui::SameLine(m_extent.x * 0.79f);
         ImGui::Combo("##framecombo", &source, "World Space\0Screen Space\0Shadow\0");
         ImGui::EndMenuBar();
         

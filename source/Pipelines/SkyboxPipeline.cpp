@@ -55,10 +55,6 @@ SkyboxPipeline::Dependencies SkyboxPipeline::createLayoutDependencies(void) {
 }
 
 void SkyboxPipeline::render(VkCommandBuffer commandBuffer, int frameIndex) {
-		if (getPipelineStatus() != Pipeline::Status::OK) {
-				return;
-		}
-		
 		m_Pipeline->bind(commandBuffer);
 		
 		vkCmdBindDescriptorSets(
