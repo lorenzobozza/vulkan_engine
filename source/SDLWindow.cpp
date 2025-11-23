@@ -10,7 +10,6 @@
 #include "Log.hpp"
 
 #include <stdexcept>
-#include <iostream>
 
 #include <imgui.h>
 

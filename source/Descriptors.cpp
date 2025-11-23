@@ -10,7 +10,6 @@
 // std
 #include <cassert>
 #include <stdexcept>
-#include <iostream>
 
 // *************** Descriptor Set Layout Builder *********************
 

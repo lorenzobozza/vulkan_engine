@@ -8,7 +8,6 @@
 #ifndef importGLTF_hpp
 #define importGLTF_hpp
 
-#include <iostream>
 #include <string>
 
 #include <glm/glm.hpp>

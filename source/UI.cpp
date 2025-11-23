@@ -14,7 +14,6 @@
 
 #include <imgui_internal.h>
 
-#include <iostream>
 #include <fstream>
 
 UI::UI(Device &device, Renderer& renderer) : device{device}, m_Renderer{renderer} {
@@ -668,6 +667,7 @@ void UI::setBessDarkColors(void) {
     ImVec4 *colors = style.Colors;
     
     constexpr float baseHue = 0.67f;
+    constexpr float controlHue = 0.70f;
     
     // Primary background
     colors[ImGuiCol_WindowBg] =             hslToRgb(baseHue, 0.12f, 0.08f);
@@ -680,9 +680,9 @@ void UI::setBessDarkColors(void) {
     colors[ImGuiCol_HeaderActive] =         hslToRgb(baseHue, 0.16f, 0.30f);
     
     // Buttons
-    colors[ImGuiCol_Button] =               hslToRgb(0.62f, 0.14f, 0.23f);
-    colors[ImGuiCol_ButtonHovered] =        hslToRgb(0.63f, 0.14f, 0.35f);
-    colors[ImGuiCol_ButtonActive] =         hslToRgb(0.63f, 0.17f, 0.42f);
+    colors[ImGuiCol_Button] =               hslToRgb(controlHue + .02f, 0.34f, 0.23f);
+    colors[ImGuiCol_ButtonHovered] =        hslToRgb(controlHue + .03f, 0.34f, 0.35f);
+    colors[ImGuiCol_ButtonActive] =         hslToRgb(controlHue + .03f, 0.37f, 0.42f);
     
     // Frame BG
     colors[ImGuiCol_FrameBg] =              hslToRgb(baseHue, 0.09f, 0.16f);
@@ -710,15 +710,15 @@ void UI::setBessDarkColors(void) {
     colors[ImGuiCol_TextDisabled] =         hslToRgb(baseHue, 0.05f, 0.52f);
     
     // Highlights
-    colors[ImGuiCol_CheckMark] =            hslToRgb(0.60f, 1.00f, 0.60f);
-    colors[ImGuiCol_SliderGrab] =           hslToRgb(0.60f, 1.00f, 0.60f);
-    colors[ImGuiCol_SliderGrabActive] =     hslToRgb(0.58f, 1.00f, 0.65f);
-    colors[ImGuiCol_ResizeGrip] =           hslToRgb(0.60f, 1.00f, 0.60f);
-    colors[ImGuiCol_ResizeGripHovered] =    hslToRgb(0.58f, 1.00f, 0.65f);
-    colors[ImGuiCol_ResizeGripActive] =     hslToRgb(0.55f, 1.00f, 0.70f);
+    colors[ImGuiCol_CheckMark] =            hslToRgb(controlHue, 1.00f, 0.60f);
+    colors[ImGuiCol_SliderGrab] =           hslToRgb(controlHue, 1.00f, 0.60f);
+    colors[ImGuiCol_SliderGrabActive] =     hslToRgb(controlHue - .02f, 1.00f, 0.65f);
+    colors[ImGuiCol_ResizeGrip] =           hslToRgb(controlHue, 1.00f, 0.60f);
+    colors[ImGuiCol_ResizeGripHovered] =    hslToRgb(controlHue - .02f, 1.00f, 0.65f);
+    colors[ImGuiCol_ResizeGripActive] =     hslToRgb(controlHue - .05f, 1.00f, 0.70f);
     
-    colors[ImGuiCol_DockingPreview] =       hslToRgb(0.60f, 0.50f, 0.30f);
-    colors[ImGuiCol_PlotLines] =            hslToRgb(0.60f, 0.80f, 0.70f);
+    colors[ImGuiCol_DockingPreview] =       hslToRgb(controlHue, 0.50f, 0.30f);
+    colors[ImGuiCol_PlotLines] =            hslToRgb(controlHue, 0.80f, 0.70f);
     
     // Scrollbar
     colors[ImGuiCol_ScrollbarBg] =          hslToRgb(baseHue, 0.09f, 0.11f);
@@ -727,11 +727,12 @@ void UI::setBessDarkColors(void) {
     colors[ImGuiCol_ScrollbarGrabActive] =  hslToRgb(baseHue, 0.10f, 0.50f);
     
     // Style tweaks
-    style.WindowRounding = 5.0f;
-    style.FrameRounding = 5.0f;
-    style.GrabRounding = 5.0f;
-    style.TabRounding = 5.0f;
-    style.PopupRounding = 5.0f;
+    float radius = 10.f;
+    style.WindowRounding = radius;
+    style.FrameRounding = radius;
+    style.GrabRounding = radius;
+    style.TabRounding = radius;
+    style.PopupRounding = radius;
     style.ScrollbarRounding = 5.0f;
     style.WindowPadding = ImVec2(10, 10);
     style.FramePadding = ImVec2(6, 4);

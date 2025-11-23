@@ -25,6 +25,7 @@ struct PipelineConfigInfo {
     VkPipelineViewportStateCreateInfo viewportInfo;
     VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo;
     VkPipelineRasterizationStateCreateInfo rasterizationInfo;
+//    VkPipelineRasterizationLineStateCreateInfo lineRasterizationInfo;
     VkPipelineMultisampleStateCreateInfo multisampleInfo;
     VkPipelineColorBlendAttachmentState colorBlendAttachment;
     VkPipelineColorBlendStateCreateInfo colorBlendInfo;

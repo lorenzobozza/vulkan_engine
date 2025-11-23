@@ -28,7 +28,7 @@ project "Core"
 	}
 
 	links {
-		"vulkan.1.3.236",
+		"vulkan.1.4.328",
 		"shaderc_shared.1",
 		"SDL2-2.0.0",
 		"tiff.6",

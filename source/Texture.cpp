@@ -14,7 +14,6 @@
 #include "libtiff/tiffio.h"
 
 // std
-#include <iostream>
 #include <chrono>
 
 Texture::Texture(Device &dev, Image &image, std::string filePath, bool mipMapping, VkFormat format)

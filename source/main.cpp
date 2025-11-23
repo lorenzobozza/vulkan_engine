@@ -9,8 +9,8 @@
 
 //std
 #include <cstdlib>
-#include <iostream>
 #include <stdexcept>
+#include <print>
 
 int main(int argc, const char * argv[]) {
     
@@ -19,7 +19,7 @@ int main(int argc, const char * argv[]) {
     try {
         app.run();
     } catch (const std::exception &e) {
-        std::cerr << e.what() << '\n';
+        std::println("Exception caught: {}", e.what());
         return EXIT_FAILURE;
     }
 

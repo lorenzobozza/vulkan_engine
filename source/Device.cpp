@@ -10,7 +10,6 @@
 
 // std headers
 #include <cstring>
-#include <iostream>
 #include <set>
 #include <unordered_set>
 
@@ -23,7 +22,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
     void *pUserData) {
     
     if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
-        std::cerr << "~Validation Layer~\n" << pCallbackData->pMessage << std::endl;
+        std::println("~Validation Layer~\n{}", pCallbackData->pMessage);
         Log::getInstance()->error("~Validation Layer~\n{}", pCallbackData->pMessage);
     }
 
@@ -89,10 +88,10 @@ void Device::createInstance() {
   VkApplicationInfo appInfo = {};
   appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
   appInfo.pApplicationName = "VulkanEngine App";
-  appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+  appInfo.applicationVersion = VK_MAKE_VERSION(0, 0, 1);
   appInfo.pEngineName = "Test Engine";
-  appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-  appInfo.apiVersion = VK_API_VERSION_1_0;
+  appInfo.engineVersion = VK_MAKE_VERSION(0, 0, 1);
+  appInfo.apiVersion = VK_API_VERSION_1_4;
 
   VkInstanceCreateInfo createInfo = {};
   createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;

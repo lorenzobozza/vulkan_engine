@@ -5,12 +5,12 @@
 //  Created by Lorenzo Bozza on 05/11/21.
 //
 
-#include "Renderer.hpp"
-
 #include <array>
 #include <cassert>
 #include <stdexcept>
-#include <iostream>
+
+#include "Renderer.hpp"
+#include "Log.hpp"
 
 Renderer::Renderer(SDLWindow &passWindow, Device &passDevice) : window{passWindow}, device{passDevice} {
     recreateSwapChain();
@@ -117,12 +117,10 @@ VkCommandBuffer Renderer::beginFrame() {
     
     auto result = swapChain->acquireNextImage(&currentImageIndex);
     
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        recreateSwapChain(true);
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+        recreateSwapChain();
         return nullptr;
-    }
-    
-    if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+    } else if (result != VK_SUCCESS) {
         throw std::runtime_error("Failed to acquire swap chain image");
     }
     
@@ -149,7 +147,7 @@ void Renderer::endFrame() {
     
     auto result = swapChain->submitCommandBuffers(&commandBuffer, &currentImageIndex);
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        recreateSwapChain(true);
+        recreateSwapChain();
     } else if (result != VK_SUCCESS) {
         throw std::runtime_error("Failed to acquire swap chain image");
     }

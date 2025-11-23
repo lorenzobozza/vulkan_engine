@@ -365,7 +365,7 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform)
                         }
                         break;
                     default:
-                        std::cerr << "Index component type " << accessor.componentType << " not supported!" << std::endl;
+                        std::println("Index component type {} not supported!", accessor.componentType);
                         return;
                 }
                 

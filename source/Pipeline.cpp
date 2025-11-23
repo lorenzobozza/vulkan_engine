@@ -10,7 +10,6 @@
 
 #include <fstream>
 #include <stdexcept>
-#include <iostream>
 
 Pipeline::Pipeline(Device &dev, const std::string &vertFilepath, const std::string &fragFilepath, const PipelineConfigInfo &configInfo) : device{dev} {
     m_internalStatus = createGraphicsPipeline(vertFilepath, fragFilepath, configInfo);
@@ -118,6 +117,13 @@ void Pipeline::defaultPipelineConfigInfo(PipelineConfigInfo &configInfo) {
     configInfo.viewportInfo.scissorCount = 1;
     configInfo.viewportInfo.pScissors = nullptr;
     
+//    configInfo.lineRasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_LINE_STATE_CREATE_INFO;
+//    configInfo.lineRasterizationInfo.lineRasterizationMode = VK_LINE_RASTERIZATION_MODE_RECTANGULAR_SMOOTH;
+//    configInfo.lineRasterizationInfo.stippledLineEnable = VK_TRUE;
+//    configInfo.lineRasterizationInfo.lineStippleFactor = 2;
+//    configInfo.lineRasterizationInfo.lineStipplePattern = 0xFF;
+    
+//    configInfo.rasterizationInfo.pNext = &configInfo.lineRasterizationInfo;
     configInfo.rasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     configInfo.rasterizationInfo.depthClampEnable = VK_FALSE;
     configInfo.rasterizationInfo.rasterizerDiscardEnable = VK_FALSE;

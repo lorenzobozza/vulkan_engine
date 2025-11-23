@@ -40,7 +40,7 @@ struct WidgetStruct {
 };
 
 void Application::run() {
-    
+
     /**** User Interface Setup */
     UI ui(vulkanDevice, renderer);
     
@@ -219,7 +219,10 @@ void Application::run() {
         // Prepare next GUI Frame
         ui.newFrame();
         
-        window.pollWindowEvents([this, widgets](){ renderer.recreateSwapChain(); widgets.view->setExtent(renderer.getSwapChainExtent().width, renderer.getSwapChainExtent().height); });
+        window.pollWindowEvents([this, widgets]() {
+            renderer.recreateSwapChain();
+            widgets.view->setExtent(renderer.getSwapChainExtent().width, renderer.getSwapChainExtent().height);
+        });
         
         updateCamera(camera, cameraHandle, window.getMovement(), window.getRotation(), renderer.getAspectRatio(), m_Perf.cpuTime + m_Perf.gpuTime);
         
