@@ -16,7 +16,7 @@
 
 #include <fstream>
 
-UI::UI(Device &device, Renderer& renderer) : device{device}, m_Renderer{renderer} {
+UI::UI(const Device& device, Renderer& renderer) : device{device}, m_Renderer{renderer} {
     vertexBuffers = new std::vector<std::unique_ptr<Buffer>>(SwapChain::MAX_FRAMES_IN_FLIGHT);
     indexBuffers = new std::vector<std::unique_ptr<Buffer>>(SwapChain::MAX_FRAMES_IN_FLIGHT);
     
@@ -166,11 +166,11 @@ void UI::createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath) 
 }
 
 void UI::createDescriptors(void) {
-    descriptor.layout = DescriptorSetLayout::Builder(device.device())
+    descriptor.layout = DescriptorSetLayout::Builder(device)
         .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
         .build_ptr();
     
-    descriptor.pool = DescriptorPool::Builder(device.device())
+    descriptor.pool = DescriptorPool::Builder(device)
         .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
         .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
         .build_ptr();
@@ -401,7 +401,7 @@ void UI::loadFontTexture(void) {
     samplerInfo.addressModeW = samplerInfo.addressModeU;
     
     samplerInfo.anisotropyEnable = VK_FALSE;
-    samplerInfo.maxAnisotropy = device.properties.limits.maxSamplerAnisotropy;
+    samplerInfo.maxAnisotropy = device.getPhysicalDeviceProp().limits.maxSamplerAnisotropy;
     
     samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
     samplerInfo.unnormalizedCoordinates = VK_FALSE;

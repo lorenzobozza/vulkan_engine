@@ -24,8 +24,8 @@ class SwapChain {
   
   static bool enableVSync;
 
-  SwapChain(Device &deviceRef, VkExtent2D windowExtent);
-  SwapChain(Device &deviceRef, VkExtent2D windowExtent, std::shared_ptr<SwapChain> previous);
+  SwapChain(const Device& deviceRef, VkExtent2D windowExtent);
+  SwapChain(const Device& deviceRef, VkExtent2D windowExtent, std::shared_ptr<SwapChain> previous);
   ~SwapChain();
 
   SwapChain(const SwapChain &) = delete;
@@ -90,7 +90,7 @@ class SwapChain {
     std::vector<VkImage> swapChainImages;
     std::vector<VkImageView> swapChainImageViews;
 
-    Device &device;
+    const Device& device;
     VkExtent2D windowExtent;
 
     VkSwapchainKHR swapChain;

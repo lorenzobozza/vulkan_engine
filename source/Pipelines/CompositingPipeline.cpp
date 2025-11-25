@@ -38,11 +38,11 @@ CompositingPipeline::Dependencies CompositingPipeline::createLayoutDependencies(
     };
     m_Quad = std::make_unique<Model>(m_Device, data);
     
-    m_Descriptor.layout = DescriptorSetLayout::Builder(m_Device.device())
+    m_Descriptor.layout = DescriptorSetLayout::Builder(m_Device)
         .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
         .build_ptr();
     
-    m_Descriptor.pool = DescriptorPool::Builder(m_Device.device())
+    m_Descriptor.pool = DescriptorPool::Builder(m_Device)
         .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
         .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
         .build_ptr();

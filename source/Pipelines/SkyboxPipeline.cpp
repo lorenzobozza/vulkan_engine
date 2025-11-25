@@ -23,12 +23,12 @@ void SkyboxPipeline::customizePipelineConfig(PipelineConfigInfo& config) {
 SkyboxPipeline::Dependencies SkyboxPipeline::createLayoutDependencies(void) {
 		m_Cube = std::make_unique<Model>(m_Device, Model::Data::makeSimpleCube(true));
 		
-		m_Descriptor.layout = DescriptorSetLayout::Builder(m_Device.device())
+		m_Descriptor.layout = DescriptorSetLayout::Builder(m_Device)
 				.addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
 				.addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 				.build_ptr();
 		
-		m_Descriptor.pool = DescriptorPool::Builder(m_Device.device())
+		m_Descriptor.pool = DescriptorPool::Builder(m_Device)
 				.setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
 				.addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT)
 				.addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)

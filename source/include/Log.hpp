@@ -57,7 +57,7 @@ public:
         if (error_counter < 100) {
 						stream << "[Error] " << std::format(__fmt, std::forward<_Args>(__args)...) << '\n';
 						error_notification = true;
-						if (++error_counter == 100) stream << "\nCLOSING STREAM, TOO MUCH ERRORS\n";
+						if (++error_counter == 100) stream << "\nCLOSING STREAM, TOO MANY ERRORS\n";
         }
     }
     
@@ -85,8 +85,8 @@ private:
     std::stringstream stream;
 
 public:
-    Log(Log& conLogt) = delete;
-    void operator=(Log& conLogt) = delete;
+    Log(Log&) = delete;
+    Log& operator=(Log&) = delete;
 };
 
 #endif /* Log_h */

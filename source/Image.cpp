@@ -8,7 +8,7 @@
 #include "include/Image.hpp"
 
 
-Image::Image(Device &dev) : device{dev} {
+Image::Image(const Device& dev) : device{dev} {
     auto indices = device.getFamilyIndices();
 
     VkCommandPoolCreateInfo poolInfo = {};

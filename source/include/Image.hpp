@@ -17,7 +17,7 @@
 
 class Image {
 public:
-    Image(Device &dev);
+    Image(const Device& dev);
     ~Image();
     
     void createImage(
@@ -62,7 +62,7 @@ public:
     void endSingleTimeCommands(VkCommandBuffer commandBuffer);
     
 private:
-    Device &device;
+    const Device& device;
     
     VkCommandPool commandPool;
 };

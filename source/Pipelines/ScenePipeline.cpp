@@ -32,7 +32,7 @@ void ScenePipeline::customizePipelineConfig(PipelineConfigInfo& config) {
 
 ScenePipeline::Dependencies ScenePipeline::createLayoutDependencies(void) {
 		
-		m_MainDescriptor.layout = DescriptorSetLayout::Builder(m_Device.device())
+		m_MainDescriptor.layout = DescriptorSetLayout::Builder(m_Device)
 				.addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
 				.addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 				.addBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
@@ -40,7 +40,7 @@ ScenePipeline::Dependencies ScenePipeline::createLayoutDependencies(void) {
 				.addBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 				.build_ptr();
 		
-		m_MaterialDescriptor.layout = DescriptorSetLayout::Builder(m_Device.device())
+		m_MaterialDescriptor.layout = DescriptorSetLayout::Builder(m_Device)
 				.addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 				.addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 				.addBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
@@ -49,7 +49,7 @@ ScenePipeline::Dependencies ScenePipeline::createLayoutDependencies(void) {
 		
 		const uint32_t numOfMaterials = (uint32_t)m_FrameData.materials.size();
 		
-		m_MainDescriptor.pool = DescriptorPool::Builder(m_Device.device())
+		m_MainDescriptor.pool = DescriptorPool::Builder(m_Device)
 				.setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
 				.addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT)
 				.addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
@@ -58,7 +58,7 @@ ScenePipeline::Dependencies ScenePipeline::createLayoutDependencies(void) {
 				.addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
 				.build_ptr();
 		
-		m_MaterialDescriptor.pool = DescriptorPool::Builder(m_Device.device())
+		m_MaterialDescriptor.pool = DescriptorPool::Builder(m_Device)
 				.setMaxSets(numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
 				.addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)
 				.addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, numOfMaterials * SwapChain::MAX_FRAMES_IN_FLIGHT)

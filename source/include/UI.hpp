@@ -29,7 +29,7 @@ public:
     }
     bool& getVisibility(void) { return private_visibility; }
     const std::string getName(void) { return typeid(*this).name(); }
-    ~Widget() = default;
+    virtual ~Widget() = default;
 
 private:
     virtual void content(void) = 0;
@@ -39,7 +39,7 @@ private:
 
 class UI {
 public:
-    UI(Device &device, Renderer& renderer);
+    UI(const Device& device, Renderer& renderer);
     ~UI();
     
     struct PushConstBlock {
@@ -72,7 +72,7 @@ private:
     void createDescriptors(void);
     void createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath);
 
-    Device &device;
+    const Device& device;
     Image vulkanImage{device};
     Renderer& m_Renderer;
     

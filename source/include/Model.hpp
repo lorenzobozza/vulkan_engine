@@ -49,14 +49,14 @@ public:
         static Data makeSimpleCube(bool invert = false);
     };
     
-    Model(Device &dev, const Data &data);
+    Model(const Device& dev, const Data& data);
     ~Model();
     
     // Prevent Obj copy
     Model(const Model &) = delete;
     Model &operator=(const Model &) = delete;
         
-    static std::unique_ptr<Model> createModelFromFile(Device &device, const std::string &filePath, bool allUniqueVertices = VK_FALSE);
+    static std::unique_ptr<Model> createModelFromFile(const Device& device, const std::string &filePath, bool allUniqueVertices = VK_FALSE);
     
     void bind(VkCommandBuffer commandBuffer);
     void draw(VkCommandBuffer commandBuffer);
@@ -65,7 +65,7 @@ private:
     void createVertexBuffer(const std::vector<Vertex> &vertices);
     void createIndexBuffer(const std::vector<uint32_t> &indices);
     
-    Device &device;
+    const Device& device;
     
     std::unique_ptr<Buffer> vertexBuffer;
     uint32_t vertexCount;

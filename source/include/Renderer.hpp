@@ -51,7 +51,7 @@ private:
 
 public:
     
-    Renderer(SDLWindow &pasWindow, Device &passDevice);
+    Renderer(SDLWindow& pasWindow, const Device& passDevice, VkSampleCountFlagBits& msaaSampleCount);
     ~Renderer();
     
     // Prevent Obj copy
@@ -78,7 +78,7 @@ public:
     VkExtent2D getSwapChainExtent() { return swapChain->getSwapChainExtent(); }
     VkFence *getSwapChainImageFence(int imageIndex) { return swapChain->getCurrentImageFence(imageIndex); }
     
-    void integrateBrdfLut(std::string shaderPath);
+    void integrateBrdfLut(void);
     VkDescriptorImageInfo* getBrdfLutInfo() { return &brdfImageInfo; }
 
     bool isVSyncEnabled() { return swapChain->isVSyncEnabled(); }
@@ -120,10 +120,11 @@ private:
     };
     
     SDLWindow &window;
-    Device &device;
+    const Device& device;
     std::unique_ptr<SwapChain> swapChain;
     std::vector<VkCommandBuffer> commandBuffers;
     
+    VkSampleCountFlagBits& m_MSAASampleCount;
     
     FrameBufferAttachment brdf;
     VkSampler brdfSampler;

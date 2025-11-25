@@ -8,8 +8,6 @@
 #ifndef Application_hpp
 #define Application_hpp
 
-#include <print>
-
 #include "SDLWindow.hpp"
 #include "Device.hpp"
 #include "Descriptors.hpp"
@@ -18,7 +16,6 @@
 #include "Primitive.hpp"
 #include "Camera.hpp"
 #include "Texture.hpp"
-#include "TextRender.hpp"
 #include "HDRi.hpp"
 #include "Material.hpp"
 #include "Light.hpp"
@@ -29,14 +26,13 @@
 #include "CompositingPipeline.hpp"
 #include "DebugPipeline.hpp"
 
-//std
 #include <memory>
 #include <vector>
 #include <array>
 #include <string>
 #include <chrono>
-
 #include <mutex>
+#include <print>
 
 
 struct Perf {
@@ -60,21 +56,21 @@ public:
     Application() = default;
     ~Application() = default;
     
-    // Prevent Obj copy
     Application(const Application &) = delete;
     Application &operator=(const Application &) = delete;
     
     void run(void);
     
 private:
-    void shortcutCallback(Shortcut);
+    void shortcutCallback(Shortcut shortcut);
     
-    SDLWindow window{WIDTH, HEIGHT, "Vulkan Engine Development"};
-    Device vulkanDevice{window};
-    Renderer renderer{window, vulkanDevice};
-    Image vulkanImage{vulkanDevice};
+    SDLWindow m_Window{WIDTH, HEIGHT, "Acinonyx"};
+    Device m_Device{m_Window};
+    Image m_Image{m_Device};
     
-
+    VkSampleCountFlagBits m_MSAASampleCount = VK_SAMPLE_COUNT_1_BIT;
+    Renderer m_Renderer{m_Window, m_Device, m_MSAASampleCount};
+    
     struct RenderSystems_s {
         struct {
             std::unique_ptr<PipelineWrapper> ptr;
@@ -90,24 +86,21 @@ private:
         VkDescriptorImageInfo* descriptor;
     } m_Environment, m_Prefiltered, m_Irradiance;
     
-    std::vector<std::unique_ptr<Texture>> textures{};
-    std::unordered_map<std::string, Material> materials{};
-    std::vector<Light> lights{};
+    std::vector<std::unique_ptr<Texture>> m_Textures{};
+    std::unordered_map<std::string, Material> m_Materials{};
+    std::vector<Light> m_Lights{};
     
-    bool assetsLoaded = false;
-    bool previewMode = false;
-    bool debugMode = false;
+    bool m_AssetsLoaded = false;
+    bool m_PreviewMode = false;
+    bool m_DebugMode = false;
     
-    Primitive::Map primitives;
+    Primitive::Map m_Primitives;
     
-    int frameIndex{0};
-    
+    int m_FrameIndex{0};
     Perf m_Perf;
-    
-    const std::string binaryDir = "./";
-    
-    ScenePipeline::UniformBuffer ubo{};
-    std::unique_ptr<Buffer> uboBuffers[SwapChain::MAX_FRAMES_IN_FLIGHT];
+   
+    ScenePipeline::UniformBuffer m_Ubo{};
+    std::unique_ptr<Buffer> m_UboBuffers[SwapChain::MAX_FRAMES_IN_FLIGHT];
 };
 
 #endif /* Application_hpp */

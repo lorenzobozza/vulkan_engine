@@ -10,7 +10,7 @@
 
 static const VkExtent2D lutExtent = {256, 256};
 
-void Renderer::integrateBrdfLut(std::string shaderPath) {
+void Renderer::integrateBrdfLut(void) {
     VkAttachmentDescription attachment = {};
 
     attachment.format = VK_FORMAT_R16G16_SFLOAT;
@@ -147,7 +147,7 @@ void Renderer::integrateBrdfLut(std::string shaderPath) {
     samplerInfo.addressModeW = samplerInfo.addressModeU;
     
     samplerInfo.anisotropyEnable = VK_FALSE;
-    samplerInfo.maxAnisotropy = device.properties.limits.maxSamplerAnisotropy;
+    samplerInfo.maxAnisotropy = device.getPhysicalDeviceProp().limits.maxSamplerAnisotropy;
     
     samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
     samplerInfo.unnormalizedCoordinates = VK_FALSE;

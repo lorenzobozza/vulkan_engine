@@ -16,7 +16,7 @@
 // std
 #include <chrono>
 
-Texture::Texture(Device &dev, Image &image, std::string filePath, bool mipMapping, VkFormat format)
+Texture::Texture(const Device& dev, Image &image, std::string filePath, bool mipMapping, VkFormat format)
     : device{dev}, image{image}, textureFilePath{filePath}, mipMapping{mipMapping}, viewType{VK_IMAGE_VIEW_TYPE_2D}, format{format} {
     loadTexture();
     createDefaultTextureSampler();
@@ -25,7 +25,7 @@ Texture::Texture(Device &dev, Image &image, std::string filePath, bool mipMappin
     TIFFSetWarningHandler(NULL);
 }
 
-Texture::Texture(Device &dev, Image &image, void* data, uint32_t texWidth, uint32_t texHeight, uint8_t depth, bool mipMapping, VkFormat format, VkSamplerCreateInfo *samplerInfo) : device{dev}, image{image}, mipMapping{mipMapping}, viewType{VK_IMAGE_VIEW_TYPE_2D}, format{format} {
+Texture::Texture(const Device& dev, Image &image, void* data, uint32_t texWidth, uint32_t texHeight, uint8_t depth, bool mipMapping, VkFormat format, VkSamplerCreateInfo *samplerInfo) : device{dev}, image{image}, mipMapping{mipMapping}, viewType{VK_IMAGE_VIEW_TYPE_2D}, format{format} {
 
     VkDeviceSize imageSize = texWidth * texHeight * depth * sizeof(uint8_t);
     
@@ -53,7 +53,7 @@ Texture::Texture(Device &dev, Image &image, void* data, uint32_t texWidth, uint3
     
     samplerInfo->sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     
-    float maxSamplerAnisotropy = device.properties.limits.maxSamplerAnisotropy;
+    float maxSamplerAnisotropy = device.getPhysicalDeviceProp().limits.maxSamplerAnisotropy;
     
     samplerInfo->anisotropyEnable = mipLevels > 1 ? VK_TRUE : VK_FALSE;
     samplerInfo->maxAnisotropy = (maxSamplerAnisotropy > 8.0f) ? 8.0f : maxSamplerAnisotropy;
@@ -275,7 +275,7 @@ void Texture::createDefaultTextureSampler() {
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     
-    float maxSamplerAnisotropy = device.properties.limits.maxSamplerAnisotropy;
+    float maxSamplerAnisotropy = device.getPhysicalDeviceProp().limits.maxSamplerAnisotropy;
     
     samplerInfo.anisotropyEnable = mipLevels > 1 ? VK_TRUE : VK_FALSE;
     samplerInfo.maxAnisotropy = (maxSamplerAnisotropy > 8.0f) ? 8.0f : maxSamplerAnisotropy;

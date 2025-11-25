@@ -9,8 +9,8 @@
 
 #include <array>
 
-HDRi::HDRi(Device &device, VkDescriptorImageInfo* srcDescriptor, VkExtent2D extent, std::string shader, std::string binaryPath, uint16_t mipLevels)
-    : device{device}, srcDescriptor{srcDescriptor}, extent{extent}, shader{shader}, binaryPath{binaryPath}, mipLevels{mipLevels} {
+HDRi::HDRi(const Device& device, VkDescriptorImageInfo* srcDescriptor, VkExtent2D extent, std::string shader, uint16_t mipLevels)
+    : device{device}, srcDescriptor{srcDescriptor}, extent{extent}, shader{shader}, mipLevels{mipLevels} {
     
     initHDRi();
     renderFaces();
@@ -241,7 +241,7 @@ void HDRi::renderFaces() {
     samplerInfo.addressModeW = samplerInfo.addressModeU;
     
     samplerInfo.anisotropyEnable = VK_FALSE;
-    samplerInfo.maxAnisotropy = device.properties.limits.maxSamplerAnisotropy;
+    samplerInfo.maxAnisotropy = device.getPhysicalDeviceProp().limits.maxSamplerAnisotropy;
     
     samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
     samplerInfo.unnormalizedCoordinates = VK_FALSE;
@@ -324,12 +324,12 @@ void HDRi::createDescriptorSets() {
     uboBuffer->map();
     
     descriptor.layout =
-        DescriptorSetLayout::Builder(device.device())
+        DescriptorSetLayout::Builder(device)
             .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
             .addBinding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .build_ptr();
     
-    descriptor.pool = DescriptorPool::Builder(device.device())
+    descriptor.pool = DescriptorPool::Builder(device)
            .setMaxSets(1)
            .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1)

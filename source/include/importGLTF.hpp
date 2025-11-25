@@ -76,7 +76,7 @@ struct Node {
 class NodeSet {
 public:
     struct InitStruct {
-        Device& device;
+        const Device& device;
         Image& image;
         Primitive::Map& primitives;
         std::vector<std::unique_ptr<Texture>>& textures;
@@ -96,7 +96,7 @@ private:
     std::string m_FilePath;
     tinygltf::Model m_gltfModel;
     
-    Device& m_Device;
+    const Device& m_Device;
     Image& m_Image;
     Primitive::Map& m_Primitives;
     std::vector<std::unique_ptr<Texture>>& m_Textures;

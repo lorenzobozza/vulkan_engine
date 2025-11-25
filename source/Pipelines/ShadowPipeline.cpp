@@ -26,11 +26,11 @@ void ShadowPipeline::customizePipelineConfig(PipelineConfigInfo& config) {
 
 ShadowPipeline::Dependencies ShadowPipeline::createLayoutDependencies(void) {
 		
-		m_Descriptor.layout = DescriptorSetLayout::Builder(m_Device.device())
+		m_Descriptor.layout = DescriptorSetLayout::Builder(m_Device)
 				.addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
 				.build_ptr();
 		
-		m_Descriptor.pool = DescriptorPool::Builder(m_Device.device())
+		m_Descriptor.pool = DescriptorPool::Builder(m_Device)
 				.setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
 				.addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT)
 				.build_ptr();

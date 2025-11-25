@@ -11,7 +11,8 @@
 #include <fstream>
 #include <stdexcept>
 
-Pipeline::Pipeline(Device &dev, const std::string &vertFilepath, const std::string &fragFilepath, const PipelineConfigInfo &configInfo) : device{dev} {
+Pipeline::Pipeline(const Device& dev, const std::string &vertFilepath, const std::string &fragFilepath, const PipelineConfigInfo &configInfo)
+: device{dev} {
     m_internalStatus = createGraphicsPipeline(vertFilepath, fragFilepath, configInfo);
 }
 

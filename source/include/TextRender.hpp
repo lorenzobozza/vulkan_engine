@@ -13,7 +13,6 @@
 #include "Descriptors.hpp"
 #include "Pipeline.hpp"
 #include "Primitive.hpp"
-#include "FrameInfo.hpp"
 #include "Image.hpp"
 
 // lib
@@ -38,7 +37,7 @@ public:
         glm::vec2   uv;
     };
 
-    TextRender(Device &device, VkRenderPass renderPass, const char* fontPath);
+    TextRender(const Device& device, VkRenderPass renderPass, const char* fontPath);
     ~TextRender();
     
     unsigned int renderText(std::string text, float x, float y, float scale, glm::vec3 color = glm::vec3{1.f}, float aspect = 1.f);
@@ -46,7 +45,7 @@ public:
 
 private:
 
-    Device &device;
+    const Device& device;
     Primitive::Map meshes;
     Image vulkanImage{device};
     std::unordered_map<char, Character> characters;

@@ -35,7 +35,7 @@ public:
 		virtual Pipeline::Status getPipelineStatus(void) final {return (m_Pipeline != nullptr ? m_Pipeline->getInternalStatus() : Pipeline::Status::ERR);}
 
 protected:
-		PipelineWrapper(Device& device, VkRenderPass renderPass, std::string shader, std::string _shader = "NULL")
+		PipelineWrapper(const Device& device, VkRenderPass renderPass, std::string shader, std::string _shader = "NULL")
 						: m_Device(device), m_RenderPass(renderPass), str_vert(shader), str_frag(_shader) {}
 		virtual void _inheritedConstructor(void) final;
 
@@ -50,7 +50,7 @@ protected:
 		virtual void createPipelineLayout(void) final;
 		virtual Dependencies createLayoutDependencies(void) = 0;
 
-		Device& m_Device;
+		const Device& m_Device;
 		
 		VkRenderPass m_RenderPass;
 		VkPipelineLayout m_PipelineLayout;

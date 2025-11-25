@@ -12,12 +12,11 @@
 #include "Descriptors.hpp"
 #include "Camera.hpp"
 #include "Primitive.hpp"
-#include "FrameInfo.hpp"
 #include "Texture.hpp"
 
 class HDRi {
 public:
-    HDRi(Device &device, VkDescriptorImageInfo* srcDescriptor, VkExtent2D extent, std::string shader, std::string binaryPath, uint16_t mipLevels = 1);
+    HDRi(const Device& device, VkDescriptorImageInfo* srcDescriptor, VkExtent2D extent, std::string shader, uint16_t mipLevels = 1);
     ~HDRi();
     
     VkDescriptorImageInfo* getImageDescriptor() { return &offscreenPass.descriptor; }
@@ -65,7 +64,7 @@ private:
     
     static glm::mat4 lookAtFace(const uint16_t index);
     
-    Device &device;
+    const Device& device;
     Camera cubeCamera{};
     Image vulkanImage{device};
     
@@ -83,7 +82,6 @@ private:
     VkSampler cubeSampler;
     
     std::string shader;
-    std::string binaryPath;
     uint16_t mipLevels;
     bool isFrameStarted = false;
 

@@ -17,12 +17,12 @@
 
 bool SwapChain::enableVSync = true;
 
-SwapChain::SwapChain(Device &deviceRef, VkExtent2D extent)
+SwapChain::SwapChain(const Device& deviceRef, VkExtent2D extent)
     : device{deviceRef}, windowExtent{extent} {
     init();
 }
 
-SwapChain::SwapChain(Device &deviceRef, VkExtent2D extent, std::shared_ptr<SwapChain> previous)
+SwapChain::SwapChain(const Device& deviceRef, VkExtent2D extent, std::shared_ptr<SwapChain> previous)
     : device{deviceRef}, windowExtent{extent}, oldSwapChain{previous} {
     init();
     

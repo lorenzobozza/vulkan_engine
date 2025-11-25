@@ -10,7 +10,7 @@
 
 void Renderer::createOffscreenPass(RenderPass index) {
     OffscreenPassAttachments& attachments = offscreen[index];
-    VkSampleCountFlagBits sampleCount = (index == RenderPass::ScreenSpace) ? VK_SAMPLE_COUNT_1_BIT : device.msaaSamples;
+    VkSampleCountFlagBits sampleCount = (index == RenderPass::ScreenSpace) ? VK_SAMPLE_COUNT_1_BIT : m_MSAASampleCount;
 
     // Color Resources
     attachments.extent = getSwapChainExtent();
@@ -237,7 +237,7 @@ void Renderer::createOffscreenPass(RenderPass index) {
     samplerInfo.addressModeW = samplerInfo.addressModeU;
     
     samplerInfo.anisotropyEnable = VK_FALSE;
-    samplerInfo.maxAnisotropy = device.properties.limits.maxSamplerAnisotropy;
+    samplerInfo.maxAnisotropy = device.getPhysicalDeviceProp().limits.maxSamplerAnisotropy;
     
     samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
     samplerInfo.unnormalizedCoordinates = VK_FALSE;
@@ -264,11 +264,11 @@ void Renderer::createOffscreenPass(RenderPass index) {
     }
     
     // Descriptor set for next Render Pass
-    attachments.descriptor.layout = DescriptorSetLayout::Builder(device.device())
+    attachments.descriptor.layout = DescriptorSetLayout::Builder(device)
             .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .build_ptr();
     
-    attachments.descriptor.pool = DescriptorPool::Builder(device.device())
+    attachments.descriptor.pool = DescriptorPool::Builder(device)
            .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
            .build_ptr();
@@ -359,7 +359,7 @@ void Renderer::createDepthPass(RenderPass index) {
     samplerInfo.addressModeW = samplerInfo.addressModeU;
     
     samplerInfo.anisotropyEnable = VK_FALSE;
-    samplerInfo.maxAnisotropy = device.properties.limits.maxSamplerAnisotropy;
+    samplerInfo.maxAnisotropy = device.getPhysicalDeviceProp().limits.maxSamplerAnisotropy;
     
     samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
     samplerInfo.unnormalizedCoordinates = VK_FALSE;
@@ -387,11 +387,11 @@ void Renderer::createDepthPass(RenderPass index) {
     }
     
     // Descriptor set for next Render Pass
-    attachments.descriptor.layout = DescriptorSetLayout::Builder(device.device())
+    attachments.descriptor.layout = DescriptorSetLayout::Builder(device)
             .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .build_ptr();
     
-    attachments.descriptor.pool = DescriptorPool::Builder(device.device())
+    attachments.descriptor.pool = DescriptorPool::Builder(device)
            .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
            .build_ptr();

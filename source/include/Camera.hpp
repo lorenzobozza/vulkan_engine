@@ -8,7 +8,6 @@
 #ifndef Camera_hpp
 #define Camera_hpp
 
-//libs
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
@@ -20,22 +19,21 @@ public:
     void setViewDirection(glm::vec3 position, glm::vec3 direction, glm::vec3 up = glm::vec3{.0f, -1.f, .0f});
     void setViewTarget(glm::vec3 position, glm::vec3 direction, glm::vec3 up = glm::vec3{.0f, -1.f, .0f});
     void setViewYXZ(glm::vec3 position, glm::vec3 rotation);
-    
-    const glm::mat4 &getProjection() const { return projectionMatrix; }
-    const glm::mat4 &getView() const { return viewMatrix; }
-    const glm::mat4 &getInverseView() const { return inverseViewMatrix; }
-    
     void setView(glm::mat4 view) { viewMatrix = view; }
 
+    const glm::mat4& getProjection() const { return projectionMatrix; }
+    const glm::mat4& getView() const { return viewMatrix; }
+    const glm::mat4& getInverseView() const { return inverseViewMatrix; }
+    
 private:
     glm::mat4 projectionMatrix{1.f};
     glm::mat4 viewMatrix{1.f};
     glm::mat4 inverseViewMatrix{1.f};
     
     void setPerspectiveProjection(float aspect, float fovy, float near, float far);
-
+    
     class SetProjection {
-        public:
+    public:
         SetProjection(Camera *camera) : camera{camera} {};
         
         SetProjection& operator[](int offset) { paramOffset = offset; return *this; }
@@ -47,7 +45,7 @@ private:
             camera->setPerspectiveProjection(aspect, fovy, near, far);
         }
         
-        private:
+    private:
         void setPerspectiveParameters(float param, int index);
         
         Camera *camera;

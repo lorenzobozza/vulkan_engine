@@ -6,6 +6,7 @@
 //
 
 #include "include/TextRender.hpp"
+#include "SwapChain.hpp"
 
 // lib
 #include <ft2build.h>
@@ -16,7 +17,7 @@ struct PushConstantData {
   int textureIndex{};
 };
 
-TextRender::TextRender(Device &device, VkRenderPass renderPass, const char* fontPath) : device{device}, fontPath{fontPath} {
+TextRender::TextRender(const Device& device, VkRenderPass renderPass, const char* fontPath) : device{device}, fontPath{fontPath} {
     loadFaces('!', '~'); // all faces from ! to ~
     createImageStack();
     createSampler();
@@ -180,11 +181,11 @@ void TextRender::createDescriptors() {
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     };
     
-    descriptor.layout = DescriptorSetLayout::Builder(device.device())
+    descriptor.layout = DescriptorSetLayout::Builder(device)
             .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
             .build_ptr();
     
-    descriptor.pool = DescriptorPool::Builder(device.device())
+    descriptor.pool = DescriptorPool::Builder(device)
            .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
            .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
            .build_ptr();

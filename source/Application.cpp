@@ -5,26 +5,21 @@
 //  Created by Lorenzo Bozza on 09/11/21.
 //
 
-#include "include/Application.hpp"
-#include "include/UI.hpp"
-#include "include/Buffer.hpp"
-#include "include/importGLTF.hpp"
-#include "include/Material.hpp"
+#include "Application.hpp"
+
+#include "UI.hpp"
+#include "Buffer.hpp"
+#include "importGLTF.hpp"
 #include "Widgets.hpp"
 
-
-//libs
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
 
-#include <imgui_internal.h>
-
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
-//std
 #include <thread>
 
 static void updateCamera(Camera& camera, Primitive& cameraHandle, uint8_t move, glm::vec3 rotate, float newAspect, float frameTime);
@@ -40,31 +35,31 @@ struct WidgetStruct {
 };
 
 void Application::run() {
-
+    
     /**** User Interface Setup */
-    UI ui(vulkanDevice, renderer);
+    UI ui(m_Device, m_Renderer);
     
     UI::setBessDarkColors();
-    window.updateUiScaling();
+    m_Window.updateUiScaling();
     
     WidgetStruct widgets {
         .view = std::make_shared<Viewport>(),
         .log = std::make_shared<LogView>(),
         .nodes = std::make_shared<NodeTreeViewer>(),
         .assets = std::make_shared<AssetTree>(),
-        .material = std::make_shared<MeterialViewer>(materials),
-        .settings = std::make_shared<Settings>(vulkanDevice,window,renderer,m_Perf)
+        .material = std::make_shared<MeterialViewer>(m_Materials),
+        .settings = std::make_shared<Settings>(m_Device, m_Window, m_Renderer, m_Perf, m_MSAASampleCount)
     };
     widgets.menu = std::make_shared<Menu>(widgets.log->getVisibility(), widgets.material->getVisibility());
     widgets.log->getVisibility() = false;
     widgets.material->getVisibility() = false;
-    widgets.view->setExtent(renderer.getSwapChainExtent().width, renderer.getSwapChainExtent().height);
+    widgets.view->setExtent(m_Renderer.getSwapChainExtent().width, m_Renderer.getSwapChainExtent().height);
     widgets.view->addFlags(ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_AlwaysAutoResize|ImGuiWindowFlags_NoBackground);
     
     ui.addWidgets(widgets.view, widgets.log, widgets.assets, widgets.material, widgets.settings, widgets.menu, widgets.nodes);
     
     Camera camera{};
-    camera.setProjection.perspective(renderer.getAspectRatio(), glm::radians(75.f), .01f, 100.f);
+    camera.setProjection.perspective(m_Renderer.getAspectRatio(), glm::radians(75.f), .01f, 100.f);
     Primitive cameraHandle = Primitive::new_primitive();
     cameraHandle.transform.translation = {-5.f, -2.f, .0f};
     cameraHandle.transform.rotation.y = glm::half_pi<float>();
@@ -72,49 +67,49 @@ void Application::run() {
     std::thread([this, &widgets]() {
         
         /**** Fallback Material */
-        Material globalMaterial(&textures);
+        Material globalMaterial(&m_Textures);
         globalMaterial.color = {1.f, 1.f, 1.f, 1.f};
-        materials.emplace("Global_Default_Material", globalMaterial);
+        m_Materials.emplace("Global_Default_Material", globalMaterial);
         
         /**** Load HDRi Texture */
-        textures.push_back(std::make_unique<Texture>(
-            this->vulkanDevice,
-            vulkanImage,
+        m_Textures.push_back(std::make_unique<Texture>(
+            this->m_Device,
+            m_Image,
             "../../../assets/textures/mondello_4k.hdr",
             false,
             VK_FORMAT_R32G32B32A32_SFLOAT
         ));
-        auto equirectangular = textures.back()->descriptorInfo();
+        auto equirectangular = m_Textures.back()->descriptorInfo();
         
         /**** Allocate Uniform Buffer Object Buffers */
         for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
-            uboBuffers[i] = std::make_unique<Buffer>(
-                vulkanDevice,
+            m_UboBuffers[i] = std::make_unique<Buffer>(
+                m_Device,
                 sizeof(ScenePipeline::UniformBuffer),
                 1,
                 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
             );
-            uboBuffers[i]->map();
+            m_UboBuffers[i]->map();
         }
         
         widgets.view->loading = 3;
         
         /**** Load Scene from glTF file */
         // TODO: better task-set creation
-        NodeSet::InitStruct initNodeStruct{vulkanDevice, vulkanImage, primitives, textures, materials, lights};
-        NodeSet _gltf(initNodeStruct, binaryDir + "../../../assets/models/Sponza.glb");
+        NodeSet::InitStruct initNodeStruct{m_Device, m_Image, m_Primitives, m_Textures, m_Materials, m_Lights};
+        NodeSet _gltf(initNodeStruct, "../../../assets/models/Sponza.glb");
         
         /**** Load Point-Light Nodes from scene */
         // TODO: clean this mess
-        ubo.lightInfo = (uint8_t)lights.size();
+        m_Ubo.lightInfo = (uint8_t)m_Lights.size();
         uint8_t index = 0;
-        for (auto& light : lights) {
+        for (auto& light : m_Lights) {
             if (index < 8 && light.m_type < Light::Type::Spot) {
-                if (light.m_type == Light::Type::Directional) ubo.lightSpaceMatrix = light.m_data.lightSpaceMatrix;
-                ubo.lightVector[index] = glm::vec4(light.m_data.pos, 0.f);
-                ubo.lightChroma[index] = light.m_data.color;
-                ubo.lightInfo |= (light.m_type & 0x1) << (index + 8);
+                if (light.m_type == Light::Type::Directional) m_Ubo.lightSpaceMatrix = light.m_data.lightSpaceMatrix;
+                m_Ubo.lightVector[index] = glm::vec4(light.m_data.pos, 0.f);
+                m_Ubo.lightChroma[index] = light.m_data.color;
+                m_Ubo.lightInfo |= (light.m_type & 0x1) << (index + 8);
                 ++index;
             }
         }
@@ -122,122 +117,122 @@ void Application::run() {
         widgets.view->loading = 2;
         
         /**** HDRi, IBL, SkyBox  */
-        m_Environment.instance = std::make_unique<HDRi>(vulkanDevice, &equirectangular, VkExtent2D(1024, 1024), "equirectangular", binaryDir, 9);
+        m_Environment.instance = std::make_unique<HDRi>(m_Device, &equirectangular, VkExtent2D(1024, 1024), "equirectangular", 9);
         m_Environment.descriptor = m_Environment.instance->getImageDescriptor();
         
-        m_Prefiltered.instance = std::make_unique<HDRi>(vulkanDevice, m_Environment.descriptor, VkExtent2D(512, 512), "prefiltering", binaryDir, 8);
+        m_Prefiltered.instance = std::make_unique<HDRi>(m_Device, m_Environment.descriptor, VkExtent2D(512, 512), "prefiltering", 8);
         m_Prefiltered.descriptor = m_Prefiltered.instance->getImageDescriptor();
         
-        m_Irradiance.instance = std::make_unique<HDRi>(vulkanDevice, m_Environment.descriptor, VkExtent2D(32, 32), "irradiance", binaryDir);
+        m_Irradiance.instance = std::make_unique<HDRi>(m_Device, m_Environment.descriptor, VkExtent2D(32, 32), "irradiance");
         m_Irradiance.descriptor = m_Irradiance.instance->getImageDescriptor();
         
         
         widgets.view->loading = 1;
         
-        renderer.integrateBrdfLut(binaryDir);
+        m_Renderer.integrateBrdfLut();
         
         /**** Shadow Pipeline */
         m_Pipes.shadow.ptr = std::make_unique<ShadowPipeline>(
-            vulkanDevice,
-            renderer.getOffscreenRenderPass(RenderPass::ShadowPass),
+            m_Device,
+            m_Renderer.getOffscreenRenderPass(RenderPass::ShadowPass),
             "shadow",
             ShadowPipeline::FrameData {
-              .primitives = primitives,
-              .uboDescriptors = {uboBuffers[0]->descriptorInfo(), uboBuffers[1]->descriptorInfo(), uboBuffers[2]->descriptorInfo()}
+              .primitives = m_Primitives,
+              .uboDescriptors = {m_UboBuffers[0]->descriptorInfo(), m_UboBuffers[1]->descriptorInfo(), m_UboBuffers[2]->descriptorInfo()}
             }
         );
         
         /**** Scene Pipeline */
         m_Pipes.scene.ptr = std::make_unique<ScenePipeline>(
-            vulkanDevice,
-            renderer.getOffscreenRenderPass(RenderPass::WorldSpace),
+            m_Device,
+            m_Renderer.getOffscreenRenderPass(RenderPass::WorldSpace),
             "shader",
             ScenePipeline::FrameData {
-            .primitives = primitives,
-            .materials = materials,
-            .uboDescriptors = {uboBuffers[0]->descriptorInfo(), uboBuffers[1]->descriptorInfo(), uboBuffers[2]->descriptorInfo()},
+            .primitives = m_Primitives,
+            .materials = m_Materials,
+            .uboDescriptors = {m_UboBuffers[0]->descriptorInfo(), m_UboBuffers[1]->descriptorInfo(), m_UboBuffers[2]->descriptorInfo()},
                 .imageDescriptors = {
-                    .brdf = renderer.getBrdfLutInfo(),
+                    .brdf = m_Renderer.getBrdfLutInfo(),
                     .reflection = m_Prefiltered.descriptor,
                     .irradiance = m_Irradiance.descriptor,
-                    .shadow = renderer.getImageDescriptor(RenderPass::ShadowPass)
+                    .shadow = m_Renderer.getImageDescriptor(RenderPass::ShadowPass)
                 }
             }
         );
         
         /**** Debug Pipeline */
         m_Pipes.debug.ptr = std::make_unique<DebugPipeline>(
-            vulkanDevice,
-            renderer.getOffscreenRenderPass(RenderPass::WorldSpace),
+            m_Device,
+            m_Renderer.getOffscreenRenderPass(RenderPass::WorldSpace),
             "debug",
             DebugPipeline::FrameData {
-                .primitives = primitives,
-                .uboDescriptors = {uboBuffers[0]->descriptorInfo(), uboBuffers[1]->descriptorInfo(), uboBuffers[2]->descriptorInfo()}
+                .primitives = m_Primitives,
+                .uboDescriptors = {m_UboBuffers[0]->descriptorInfo(), m_UboBuffers[1]->descriptorInfo(), m_UboBuffers[2]->descriptorInfo()}
             }
         );
         
         /**** Skybox Pipeline */
         m_Pipes.skybox.ptr = std::make_unique<SkyboxPipeline>(
-            vulkanDevice,
-            renderer.getOffscreenRenderPass(RenderPass::WorldSpace),
+            m_Device,
+            m_Renderer.getOffscreenRenderPass(RenderPass::WorldSpace),
             "skybox",
             SkyboxPipeline::FrameData {
-                .uboDescriptors = {uboBuffers[0]->descriptorInfo(), uboBuffers[1]->descriptorInfo(), uboBuffers[2]->descriptorInfo()},
+                .uboDescriptors = {m_UboBuffers[0]->descriptorInfo(), m_UboBuffers[1]->descriptorInfo(), m_UboBuffers[2]->descriptorInfo()},
                 .envImageDescriptor = m_Environment.descriptor
             }
         );
         
         /**** Composition Pipeline */
         m_Pipes.composit.ptr = std::make_unique<CompositingPipeline>(
-            vulkanDevice,
-            renderer.getOffscreenRenderPass(RenderPass::ScreenSpace),
+            m_Device,
+            m_Renderer.getOffscreenRenderPass(RenderPass::ScreenSpace),
             "composition",
-            renderer.getDescriptorSets(RenderPass::WorldSpace)
+            m_Renderer.getDescriptorSets(RenderPass::WorldSpace)
         );
         
         widgets.nodes->setTree(_gltf.getNodes());
         
         widgets.settings->recreatePipelinesCallback([this](void){
             if (m_Pipes.shadow.ptr && m_Pipes.scene.ptr && m_Pipes.skybox.ptr) {
-                m_Pipes.shadow.ptr->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::ShadowPass));
-                m_Pipes.scene.ptr->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
-                m_Pipes.skybox.ptr->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
-                m_Pipes.debug.ptr->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::WorldSpace), vulkanDevice.msaaSamples);
+                m_Pipes.shadow.ptr->recreatePipeline(m_Renderer.getOffscreenRenderPass(RenderPass::ShadowPass));
+                m_Pipes.scene.ptr->recreatePipeline(m_Renderer.getOffscreenRenderPass(RenderPass::WorldSpace), m_MSAASampleCount);
+                m_Pipes.skybox.ptr->recreatePipeline(m_Renderer.getOffscreenRenderPass(RenderPass::WorldSpace), m_MSAASampleCount);
+                m_Pipes.debug.ptr->recreatePipeline(m_Renderer.getOffscreenRenderPass(RenderPass::WorldSpace), m_MSAASampleCount);
             }
         });
         
         widgets.view->loading = 0;
-        assetsLoaded = true;
+        m_AssetsLoaded = true;
         
     }).detach();
     
     
-    while(window.isWindowOpen()) {
+    while(m_Window.isWindowOpen()) {
         
         m_Perf.startFrame();
         
         // Prepare next GUI Frame
         ui.newFrame();
         
-        window.pollWindowEvents([this, widgets]() {
-            renderer.recreateSwapChain();
-            widgets.view->setExtent(renderer.getSwapChainExtent().width, renderer.getSwapChainExtent().height);
+        m_Window.pollWindowEvents([this, widgets]() {
+            m_Renderer.recreateSwapChain();
+            widgets.view->setExtent(m_Renderer.getSwapChainExtent().width, m_Renderer.getSwapChainExtent().height);
         });
         
-        updateCamera(camera, cameraHandle, window.getMovement(), window.getRotation(), renderer.getAspectRatio(), m_Perf.cpuTime + m_Perf.gpuTime);
+        updateCamera(camera, cameraHandle, m_Window.getMovement(), m_Window.getRotation(), m_Renderer.getAspectRatio(), m_Perf.cpuTime + m_Perf.gpuTime);
         
-        shortcutCallback(window.getShortcut());
+        shortcutCallback(m_Window.getShortcut());
         
         m_Perf.cpuEnd();
         
-        if (auto commandBuffer = renderer.beginFrame()) {
-            frameIndex = renderer.getFrameIndex();
+        if (auto commandBuffer = m_Renderer.beginFrame()) {
+            m_FrameIndex = m_Renderer.getFrameIndex();
             
             // Update Uniform Buffer Object
-            ubo.projectionView = camera.getProjection();
-            ubo.viewMatrix = camera.getView();
-            ubo.invViewMatrix = camera.getInverseView();
-            ubo.debugMode = widgets.settings->debugMode;
+            m_Ubo.projectionView = camera.getProjection();
+            m_Ubo.viewMatrix = camera.getView();
+            m_Ubo.invViewMatrix = camera.getInverseView();
+            m_Ubo.debugMode = widgets.settings->debugMode;
             
             if (m_Pipes.composit.ptr) {
                 auto p = m_Pipes.composit.ptr_cast<CompositingPipeline>();
@@ -246,61 +241,61 @@ void Application::run() {
                 p->peak_brightness = widgets.settings->otherData.peak_brightness;
                 p->debugMode = widgets.settings->otherData.debugMode;
                 
-                uboBuffers[frameIndex]->writeToBuffer(&ubo);
-                uboBuffers[frameIndex]->flush();
+                m_UboBuffers[m_FrameIndex]->writeToBuffer(&m_Ubo);
+                m_UboBuffers[m_FrameIndex]->flush();
             }
             
             // Update UI Buffer
-            ui.updateBuffers(frameIndex);
+            ui.updateBuffers(m_FrameIndex);
             
             // RenderPass
-            renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::ShadowPass);
-            m_Pipes.shadow.render(commandBuffer, frameIndex);
-            renderer.endRenderPass(commandBuffer);
+            m_Renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::ShadowPass);
+            m_Pipes.shadow.render(commandBuffer, m_FrameIndex);
+            m_Renderer.endRenderPass(commandBuffer);
             
-            renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::WorldSpace);
-            m_Pipes.scene.render(commandBuffer, frameIndex);
-            m_Pipes.skybox.render(commandBuffer, frameIndex);
-            if (debugMode) m_Pipes.debug.render(commandBuffer, frameIndex);
-            renderer.endRenderPass(commandBuffer);
+            m_Renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::WorldSpace);
+            m_Pipes.scene.render(commandBuffer, m_FrameIndex);
+            m_Pipes.skybox.render(commandBuffer, m_FrameIndex);
+            if (m_DebugMode) m_Pipes.debug.render(commandBuffer, m_FrameIndex);
+            m_Renderer.endRenderPass(commandBuffer);
             
-            renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::ScreenSpace);
-            if (!previewMode) {
-                m_Pipes.composit.render(commandBuffer, frameIndex);
+            m_Renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::ScreenSpace);
+            if (!m_PreviewMode) {
+                m_Pipes.composit.render(commandBuffer, m_FrameIndex);
             }
-            renderer.endRenderPass(commandBuffer);
+            m_Renderer.endRenderPass(commandBuffer);
             
-            renderer.beginSwapChainRenderPass(commandBuffer);
-            if (previewMode) {
-                m_Pipes.composit.render(commandBuffer, frameIndex);
+            m_Renderer.beginSwapChainRenderPass(commandBuffer);
+            if (m_PreviewMode) {
+                m_Pipes.composit.render(commandBuffer, m_FrameIndex);
             } else {
-                ui.draw(commandBuffer, frameIndex);
+                ui.draw(commandBuffer, m_FrameIndex);
             }
-            renderer.endRenderPass(commandBuffer);
+            m_Renderer.endRenderPass(commandBuffer);
             
-            renderer.endFrame();
+            m_Renderer.endFrame();
         }
         
         m_Perf.gpuEnd();
         
-        }
-    vkDeviceWaitIdle(vulkanDevice.device());
+    }
+    vkDeviceWaitIdle(m_Device.device());
     
 }
 
 void Application::shortcutCallback(Shortcut shortcut) {
-    if (assetsLoaded && shortcut == CTRL_F) {
-        vkDeviceWaitIdle(vulkanDevice.device());
-        if (m_Pipes.composit.ptr && previewMode) {
-            m_Pipes.composit.ptr->recreatePipeline(renderer.getOffscreenRenderPass(RenderPass::ScreenSpace));
-            previewMode = false;
+    if (m_AssetsLoaded && shortcut == CTRL_F) {
+        vkDeviceWaitIdle(m_Device.device());
+        if (m_Pipes.composit.ptr && m_PreviewMode) {
+            m_Pipes.composit.ptr->recreatePipeline(m_Renderer.getOffscreenRenderPass(RenderPass::ScreenSpace));
+            m_PreviewMode = false;
         } else if (m_Pipes.composit.ptr) {
-            m_Pipes.composit.ptr->recreatePipeline(renderer.getSwapChainRenderPass());
-            previewMode = true;
+            m_Pipes.composit.ptr->recreatePipeline(m_Renderer.getSwapChainRenderPass());
+            m_PreviewMode = true;
         }
     }
     if (shortcut == CTRL_D) {
-        debugMode ^= true;
+        m_DebugMode ^= true;
     }
 }
 

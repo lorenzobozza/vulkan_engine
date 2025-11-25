@@ -12,7 +12,8 @@
 #include "Renderer.hpp"
 #include "Log.hpp"
 
-Renderer::Renderer(SDLWindow &passWindow, Device &passDevice) : window{passWindow}, device{passDevice} {
+Renderer::Renderer(SDLWindow &passWindow, const Device& passDevice, VkSampleCountFlagBits& msaaSampleCount)
+: window(passWindow), device(passDevice), m_MSAASampleCount(msaaSampleCount) {
     recreateSwapChain();
     
     createCommandBuffers();

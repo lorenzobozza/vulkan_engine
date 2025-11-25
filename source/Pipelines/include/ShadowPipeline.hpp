@@ -18,7 +18,7 @@ public:
 				std::array<VkDescriptorBufferInfo, SwapChain::MAX_FRAMES_IN_FLIGHT> uboDescriptors;
 		};
 
-		ShadowPipeline(Device& device, VkRenderPass renderPass, std::string shader, FrameData frameData)
+		ShadowPipeline(const Device& device, VkRenderPass renderPass, std::string shader, FrameData frameData)
 				: PipelineWrapper(device, renderPass, shader), m_FrameData(frameData) { _inheritedConstructor(); }
 				
 		void render(VkCommandBuffer commandBuffer, int frameIndex) override;

@@ -12,7 +12,7 @@
 
 class CompositingPipeline : public PipelineWrapper {
 public:
-    CompositingPipeline(Device& device, VkRenderPass renderPass, std::string shader, std::vector<VkDescriptorSet>* frameDescriptorSets)
+    CompositingPipeline(const Device& device, VkRenderPass renderPass, std::string shader, std::vector<VkDescriptorSet>* frameDescriptorSets)
     : PipelineWrapper(device, renderPass, shader), m_DescriptorSets(frameDescriptorSets) { _inheritedConstructor(); }
     
     

@@ -122,7 +122,7 @@ private:
 						case 2:
 						case 3:
 								pos = ImVec2(ImGui::GetWindowPos().x + 20.f, ImGui::GetWindowPos().y + 50.f);
-								ImGui::GetWindowDrawList()->AddText(ImGui::GetFont(), 50.0, pos, 0xFFFF55FF, msg.c_str());
+								ImGui::GetWindowDrawList()->AddText(ImGui::GetFont(), 50.0, pos, 0xFFCC00AA, msg.c_str());
 								break;
 						default:
 								break;
@@ -150,9 +150,9 @@ class LogView : public Widget {
 
 class Settings : public Widget {
 public:
-    Settings(Device& device, SDLWindow& window, Renderer& renderer, Perf& perf)
-        : m_device(device), m_window(window), m_renderer(renderer), m_Perf(perf) {
-        aaPresets.resize(1 + ctz(m_device.maxSampleCount));
+    Settings(const Device& device, SDLWindow& window, Renderer& renderer, Perf& perf, VkSampleCountFlagBits& msaaSampleCount)
+        : m_device(device), m_window(window), m_renderer(renderer), m_Perf(perf), m_MSAASampleCount(msaaSampleCount) {
+        aaPresets.resize(1 + ctz(m_device.getSupportedSmapleCount()));
     }
         
     void recreatePipelinesCallback(std::function<void()> fn) { recreatePipelines = fn; }
@@ -167,10 +167,11 @@ public:
     unsigned int debugMode = 0;
     
 private:
-    Device& m_device;
+    const Device& m_device;
     SDLWindow& m_window;
     Renderer& m_renderer;
     Perf& m_Perf;
+    VkSampleCountFlagBits& m_MSAASampleCount;
     
     std::vector<const char*> aaPresets = {"No AA", "MSAA 2X", "MSAA 4X", "MSAA 8X", "MSAA 16X"};
     
@@ -223,10 +224,10 @@ private:
         }
         
         ImGui::NewLine();
-        static int aaIndex = ctz(m_device.msaaSamples);
+        static int aaIndex = ctz(m_MSAASampleCount);
         ImGui::Text("Anti-Aliasing");
         if (ImGui::Combo("##antialiasing", &aaIndex, aaPresets.data(), (int)aaPresets.size())) {
-            m_device.msaaSamples = static_cast<VkSampleCountFlagBits>(1 << aaIndex);
+            m_MSAASampleCount = static_cast<VkSampleCountFlagBits>(1 << aaIndex);
             m_renderer.recreateSwapChain(true);
             recreatePipelines();
         }

@@ -195,14 +195,14 @@ Model::Data Model::Data::makeSimpleCube(bool invert) {
     return cubeData;
 }
 
-Model::Model(Device &dev, const Data &data) : device{dev} {
+Model::Model(const Device& dev, const Data &data) : device{dev} {
     createVertexBuffer(data.vertices);
     createIndexBuffer(data.indices);
 }
 
 Model::~Model() {}
 
-std::unique_ptr<Model> Model::createModelFromFile(Device &device, const std::string &filePath, bool allUniqueVertices) {
+std::unique_ptr<Model> Model::createModelFromFile(const Device& device, const std::string &filePath, bool allUniqueVertices) {
     Data data{};
     data.loadModel(filePath, allUniqueVertices);
     return std::make_unique<Model>(device, data);

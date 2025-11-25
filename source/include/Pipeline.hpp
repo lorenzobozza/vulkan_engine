@@ -39,7 +39,7 @@ struct PipelineConfigInfo {
 
 class Pipeline {
 public:
-    Pipeline(Device &dev, const std::string &vertFilepath, const std::string &fragFilepath, const PipelineConfigInfo &configInfo);
+    Pipeline(const Device& dev, const std::string &vertFilepath, const std::string &fragFilepath, const PipelineConfigInfo &configInfo);
     
     ~Pipeline();
     
@@ -63,7 +63,7 @@ private:
     
     void createShaderModule(std::vector<uint32_t>& vecShader, VkShaderModule *shaderModule);
     
-    Device &device;
+    const Device& device;
     VkPipeline graphicsPipeline;
     VkShaderModule vertShaderModule;
     VkShaderModule fragShaderModule;

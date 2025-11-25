@@ -18,7 +18,7 @@ public:
 				VkDescriptorImageInfo* envImageDescriptor;
 		};
 
-		SkyboxPipeline(Device& device, VkRenderPass renderPass, std::string shader, FrameData frameData)
+		SkyboxPipeline(const Device& device, VkRenderPass renderPass, std::string shader, FrameData frameData)
 				: PipelineWrapper(device, renderPass, shader), m_FrameData(frameData) { _inheritedConstructor(); }
 				
 		void render(VkCommandBuffer commandBuffer, int frameIndex) override;
