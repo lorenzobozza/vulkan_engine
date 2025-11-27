@@ -1,0 +1,93 @@
+//
+//  Nodes.hpp
+//  vulkan_engine
+//
+//  Created by Lorenzo Bozza on 20/09/23.
+//
+
+#ifndef Nodes_hpp
+#define Nodes_hpp
+
+#include "Device.hpp"
+#include "Texture.hpp"
+#include "Primitive.hpp"
+#include "Material.hpp"
+#include "Light.hpp"
+
+#include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/quaternion.hpp>
+
+#define TINYGLTF_NO_STB_IMAGE_WRITE
+#include <tinygltf/tiny_gltf.h>
+
+#include <string>
+
+struct Node {
+    struct Tree {
+        Tree(size_t reserve) { nodes.reserve(reserve); }
+        uint32_t add(const Node& n, uint32_t parent = UINT32_MAX);
+        void pop(uint32_t node);
+        std::vector<Node> nodes;
+    };
+    
+    Node(std::string name) : name(name) {}
+    
+    int32_t parent = -1;
+    std::vector<uint32_t> children;
+    
+    std::string name;
+    glm::mat4 matrix{1.0f};
+    glm::quat quat{1.0f, 0.0f, 0.0f, 0.0f};
+    glm::vec3 scale{1.0f};
+    glm::vec3 transl{0.0f};
+    
+    enum Flags {
+        MATRIX = 0x1,
+        QUAT = 0x2,
+        SCALE = 0x4,
+        TRANSL = 0x8,
+        MESH = 0x10,
+        LIGHT = 0x20
+    };
+    int8_t flags = 0;
+};
+
+class NodeSet {
+public:
+    struct InitStruct {
+        const Device& device;
+        const Image& image;
+        Primitive::Map& primitives;
+        Assets& assets;
+        std::vector<Light>& lights;
+    };
+    
+    NodeSet(const NodeSet&) = delete;
+    NodeSet& operator=(const NodeSet&) = delete;
+    
+    NodeSet(InitStruct& init, std::string filePath);
+    ~NodeSet();
+    
+    std::shared_ptr<Node::Tree> getNodes(void) const { return m_NodeTree; }
+    
+private:
+    void parseGLTF(void);
+    void loadNodeFromModel(int gltfIndex, uint32_t parentIndex);
+    void parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform);
+    void parseLightFromNode(const tinygltf::Node& node, glm::mat4 transform);
+    void loadMaterialsToVRAM(void);
+    void fillSamplerInfo(int textureIndex, VkSamplerCreateInfo *samplerInfo);
+    
+    std::string m_FilePath;
+    tinygltf::Model m_gltfModel;
+    
+    const Device& m_Device;
+    const Image& m_Image;
+    Primitive::Map& m_Primitives;
+    Assets& m_Assets;
+    std::vector<Light>& m_Lights;
+    std::shared_ptr<Node::Tree> m_NodeTree;
+};
+
+#endif /* Nodes_hpp */

@@ -9,7 +9,7 @@
 
 #include "UI.hpp"
 #include "Buffer.hpp"
-#include "importGLTF.hpp"
+#include "Nodes.hpp"
 #include "Widgets.hpp"
 
 #define GLM_FORCE_RADIANS
@@ -47,7 +47,7 @@ void Application::run() {
         .log = std::make_shared<LogView>(),
         .nodes = std::make_shared<NodeTreeViewer>(),
         .assets = std::make_shared<AssetTree>(),
-        .material = std::make_shared<MeterialViewer>(m_Materials),
+        .material = std::make_shared<MeterialViewer>(m_Assets),
         .settings = std::make_shared<Settings>(m_Device, m_Window, m_Renderer, m_Perf, m_MSAASampleCount)
     };
     widgets.menu = std::make_shared<Menu>(widgets.log->getVisibility(), widgets.material->getVisibility());
@@ -67,19 +67,19 @@ void Application::run() {
     std::thread([this, &widgets]() {
         
         /**** Fallback Material */
-        Material globalMaterial(&m_Textures);
-        globalMaterial.color = {1.f, 1.f, 1.f, 1.f};
-        m_Materials.emplace("Global_Default_Material", globalMaterial);
+//        Material globalMaterial;
+//        globalMaterial.color = {1.f, 1.f, 1.f, 1.f};
+//        m_MaterialMap.materials.emplace("Global_Default_Material", globalMaterial);
         
         /**** Load HDRi Texture */
-        m_Textures.push_back(std::make_unique<Texture>(
+        m_Assets.textures.push_back(std::make_unique<Texture>(
             this->m_Device,
             m_Image,
             "../../../assets/textures/mondello_4k.hdr",
             false,
             VK_FORMAT_R32G32B32A32_SFLOAT
         ));
-        auto equirectangular = m_Textures.back()->descriptorInfo();
+        auto equirectangular = m_Assets.textures.back()->descriptorInfo();
         
         /**** Allocate Uniform Buffer Object Buffers */
         for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
@@ -97,19 +97,19 @@ void Application::run() {
         
         /**** Load Scene from glTF file */
         // TODO: better task-set creation
-        NodeSet::InitStruct initNodeStruct{m_Device, m_Image, m_Primitives, m_Textures, m_Materials, m_Lights};
-        NodeSet _gltf(initNodeStruct, "../../../assets/models/Sponza.glb");
+        NodeSet::InitStruct initNodeStruct{m_Device, m_Image, m_Primitives, m_Assets, m_Lights};
+        NodeSet _gltf(initNodeStruct, "../../../assets/models/CartoonStyle.glb");
         
         /**** Load Point-Light Nodes from scene */
         // TODO: clean this mess
         m_Ubo.lightInfo = (uint8_t)m_Lights.size();
         uint8_t index = 0;
         for (auto& light : m_Lights) {
-            if (index < 8 && light.m_type < Light::Type::Spot) {
-                if (light.m_type == Light::Type::Directional) m_Ubo.lightSpaceMatrix = light.m_data.lightSpaceMatrix;
-                m_Ubo.lightVector[index] = glm::vec4(light.m_data.pos, 0.f);
-                m_Ubo.lightChroma[index] = light.m_data.color;
-                m_Ubo.lightInfo |= (light.m_type & 0x1) << (index + 8);
+            if (index < 8 && light.m_Type < Light::Type::Spot) {
+                if (light.m_Type == Light::Type::Directional) m_Ubo.lightSpaceMatrix = light.m_Data.lightSpaceMatrix;
+                m_Ubo.lightVector[index] = glm::vec4(light.m_Data.pos, 0.f);
+                m_Ubo.lightChroma[index] = light.m_Data.color;
+                m_Ubo.lightInfo |= (light.m_Type & 0x1) << (index + 8);
                 ++index;
             }
         }
@@ -117,13 +117,13 @@ void Application::run() {
         widgets.view->loading = 2;
         
         /**** HDRi, IBL, SkyBox  */
-        m_Environment.instance = std::make_unique<HDRi>(m_Device, &equirectangular, VkExtent2D(1024, 1024), "equirectangular", 9);
+        m_Environment.instance = std::make_unique<CubeMap>(m_Device, &equirectangular, VkExtent2D(1024, 1024), "equirectangular", 9);
         m_Environment.descriptor = m_Environment.instance->getImageDescriptor();
         
-        m_Prefiltered.instance = std::make_unique<HDRi>(m_Device, m_Environment.descriptor, VkExtent2D(512, 512), "prefiltering", 8);
+        m_Prefiltered.instance = std::make_unique<CubeMap>(m_Device, m_Environment.descriptor, VkExtent2D(512, 512), "prefiltering", 8);
         m_Prefiltered.descriptor = m_Prefiltered.instance->getImageDescriptor();
         
-        m_Irradiance.instance = std::make_unique<HDRi>(m_Device, m_Environment.descriptor, VkExtent2D(32, 32), "irradiance");
+        m_Irradiance.instance = std::make_unique<CubeMap>(m_Device, m_Environment.descriptor, VkExtent2D(32, 32), "irradiance");
         m_Irradiance.descriptor = m_Irradiance.instance->getImageDescriptor();
         
         
@@ -149,7 +149,7 @@ void Application::run() {
             "shader",
             ScenePipeline::FrameData {
             .primitives = m_Primitives,
-            .materials = m_Materials,
+            .assets = m_Assets,
             .uboDescriptors = {m_UboBuffers[0]->descriptorInfo(), m_UboBuffers[1]->descriptorInfo(), m_UboBuffers[2]->descriptorInfo()},
                 .imageDescriptors = {
                     .brdf = m_Renderer.getBrdfLutInfo(),

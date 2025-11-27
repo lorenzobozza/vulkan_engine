@@ -52,7 +52,7 @@ unsigned int TextRender::renderText(std::string text, float x, float y, float sc
             float w = (ch.Size.x / 100.f) * scale * (1.f / aspect);
             float h = (ch.Size.y / 100.f) * scale;
             
-            Model::Data rectMesh{};
+            Mesh::Data rectMesh{};
             rectMesh.vertices = {
                 {{xpos,     ypos + h, 0.f}, color, {0.f, 0.f, -1.f}, {}, {0.f,      1.f}},
                 {{xpos + w, ypos + h, 0.f}, color, {0.f, 0.f, -1.f}, {}, {ch.uv.x,  1.f}},
@@ -63,7 +63,7 @@ unsigned int TextRender::renderText(std::string text, float x, float y, float sc
             rectMesh.indices = {0,3,2,0,2,1};
         
             auto rect = Primitive::new_primitive();
-            rect.setModel(std::make_shared<Model>(device, rectMesh));
+            rect.model = std::make_shared<Mesh>(device, rectMesh);
             rect.transform.translation = {x, y, 0.f};
             rect.textureIndex = ch.TextureID;
             
@@ -174,7 +174,7 @@ void TextRender::loadFaces(const char firstChar, const char lastChar) {
     FT_Done_FreeType(ft);
 }
 
-void TextRender::createDescriptors() {
+void TextRender::createDescriptors(void) {
     VkDescriptorImageInfo fontFaces {
         bitmapSampler,
         bitmapImageView,
@@ -198,7 +198,7 @@ void TextRender::createDescriptors() {
     }
 }
 
-void TextRender::createImageStack() {
+void TextRender::createImageStack(void) {
     VkDeviceSize imageSize = bitmapSize * bitmapSize * layers;
     
     if (!bitmaps) {
@@ -259,7 +259,7 @@ void TextRender::createImageStack() {
     bitmapImageView = vulkanImage.createImageView(bitmapImage, VK_IMAGE_VIEW_TYPE_2D_ARRAY, VK_FORMAT_R8_SRGB, layers);
 }
 
-void TextRender::createSampler() {
+void TextRender::createSampler(void) {
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     samplerInfo.magFilter = VK_FILTER_LINEAR;
@@ -287,7 +287,7 @@ void TextRender::createSampler() {
     }
 }
 
-void TextRender::createPipelineLayout() {
+void TextRender::createPipelineLayout(void) {
     VkPushConstantRange pushConstantRange;
 
     pushConstantRange.stageFlags = VK_SHADER_STAGE_ALL_GRAPHICS;

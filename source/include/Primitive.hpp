@@ -8,14 +8,11 @@
 #ifndef Primitive_hpp
 #define Primitive_hpp
 
-#include "Model.hpp"
+#include "Mesh.hpp"
 
-//lib
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/quaternion.hpp>
 
-//std
-#include <memory>
 #include <unordered_map>
 
 struct TransformComponent {
@@ -36,26 +33,23 @@ public:
     using id_t = unsigned int;
     using Map = std::unordered_map<id_t, Primitive>;
     
-    // Allocate a new Primitive with an unique identifier
+    Primitive(const Primitive &) = delete;
+    Primitive& operator=(const Primitive &) = delete;
+    
+    Primitive(Primitive &&) = default;
+    Primitive& operator=(Primitive &&) = default;
+    
     static Primitive new_primitive() {
         static id_t currentId = 0;
         return Primitive{currentId++};
     }
     
-    // Only allow move operations
-    Primitive(const Primitive &) = delete;
-    Primitive& operator=(const Primitive &) = delete;
-    Primitive(Primitive &&) = default;
-    Primitive& operator=(Primitive &&) = default;
+    id_t getId() const { return m_Id; }
     
-    id_t getId() { return id; }
+    std::shared_ptr<Mesh> model;
     
-    void setModel(const std::shared_ptr<Model>& sp) {model = sp;}
-    std::shared_ptr<Model> model;
-    
-    // Debug
-    std::shared_ptr<Model> aabb;
-    std::shared_ptr<Model> normals;
+    std::shared_ptr<Mesh> aabb;
+    std::shared_ptr<Mesh> normals;
     
     glm::vec3 color{};
     int textureIndex{-1};
@@ -66,9 +60,8 @@ public:
     std::string material{"Global_Default_Material"};
     
 private:
-    Primitive(id_t objId) : id{objId} {}
-    id_t id;
-
+    Primitive(id_t objId) : m_Id(objId) {}
+    id_t m_Id;
 };
 
 #endif /* Primitive_hpp */

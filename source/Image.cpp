@@ -7,25 +7,24 @@
 
 #include "include/Image.hpp"
 
-
-Image::Image(const Device& dev) : device{dev} {
-    auto indices = device.getFamilyIndices();
-
+Image::Image(const Device& dev) : m_Device(dev) {
+    auto indices = m_Device.getFamilyIndices();
+    
     VkCommandPoolCreateInfo poolInfo = {};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     poolInfo.queueFamilyIndex = indices.transferFamily;
     poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-
-    if (vkCreateCommandPool(device.device(), &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
+    
+    if (vkCreateCommandPool(m_Device.device(), &poolInfo, nullptr, &m_CommandPool) != VK_SUCCESS) {
         throw std::runtime_error("failed to create command pool!");
     }
 }
 
 Image::~Image() {
-    vkDestroyCommandPool(device.device(), commandPool, nullptr);
+    vkDestroyCommandPool(m_Device.device(), m_CommandPool, nullptr);
 }
 
-void Image::createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, uint32_t layerCount, uint32_t levelCount, VkImageCreateFlags flags) {
+void Image::createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, uint32_t layerCount, uint32_t levelCount, VkImageCreateFlags flags) const {
     VkImageCreateInfo imageInfo{};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -41,27 +40,27 @@ void Image::createImage(uint32_t width, uint32_t height, VkFormat format, VkImag
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageInfo.flags = flags;
-
-    if (vkCreateImage(device.device(), &imageInfo, nullptr, &image) != VK_SUCCESS) {
+    
+    if (vkCreateImage(m_Device.device(), &imageInfo, nullptr, &image) != VK_SUCCESS) {
         throw std::runtime_error("failed to create image!");
     }
-
+    
     VkMemoryRequirements memRequirements;
-    vkGetImageMemoryRequirements(device.device(), image, &memRequirements);
-
+    vkGetImageMemoryRequirements(m_Device.device(), image, &memRequirements);
+    
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = device.findMemoryType(memRequirements.memoryTypeBits, properties);
-
-    if (vkAllocateMemory(device.device(), &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
+    allocInfo.memoryTypeIndex = m_Device.findMemoryType(memRequirements.memoryTypeBits, properties);
+    
+    if (vkAllocateMemory(m_Device.device(), &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate image memory!");
     }
-
-    vkBindImageMemory(device.device(), image, imageMemory, 0);
+    
+    vkBindImageMemory(m_Device.device(), image, imageMemory, 0);
 }
 
-void Image::transitionImageLayout(VkCommandBuffer &commandBuffer, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t layerCount, uint32_t levelCount, uint32_t baseMipLevel, VkImageAspectFlags aspectMask) {
+void Image::transitionImageLayout(VkCommandBuffer &commandBuffer, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t layerCount, uint32_t levelCount, uint32_t baseMipLevel, VkImageAspectFlags aspectMask) const {
     VkImageMemoryBarrier barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
     barrier.oldLayout = oldLayout;
@@ -127,30 +126,27 @@ void Image::transitionImageLayout(VkCommandBuffer &commandBuffer, VkImage image,
     else {
         throw std::invalid_argument("unsupported layout transition!");
     }
-
-    vkCmdPipelineBarrier(
-        commandBuffer,
-        sourceStage, destinationStage,
-        0,
-        0, nullptr,
-        0, nullptr,
-        1, &barrier
-    );
+    
+    vkCmdPipelineBarrier(commandBuffer,
+                         sourceStage, destinationStage,
+                         0,
+                         0, nullptr,
+                         0, nullptr,
+                         1, &barrier);
 }
 
-void Image::copyBufferToImage(
-    VkCommandBuffer &commandBuffer, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t layerCount, uint32_t mipLevel) {
+void Image::copyBufferToImage(VkCommandBuffer &commandBuffer, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t layerCount, uint32_t mipLevel) const {
     
     VkBufferImageCopy region{};
     region.bufferOffset = 0;
     region.bufferRowLength = 0;
     region.bufferImageHeight = 0;
-
+    
     region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     region.imageSubresource.mipLevel = mipLevel;
     region.imageSubresource.baseArrayLayer = 0;
     region.imageSubresource.layerCount = layerCount;
-
+    
     region.imageOffset = {0, 0, 0};
     region.imageExtent = {
         width,
@@ -158,17 +154,15 @@ void Image::copyBufferToImage(
         1
     };
     
-    vkCmdCopyBufferToImage(
-        commandBuffer,
-        buffer,
-        image,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        1,
-        &region
-    );
+    vkCmdCopyBufferToImage(commandBuffer,
+                           buffer,
+                           image,
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                           1,
+                           &region);
 }
 
-VkImageView Image::createImageView(VkImage image, VkImageViewType viewType, VkFormat format, uint32_t layerCount, uint32_t levelCount, VkImageAspectFlags aspectMask) {
+VkImageView Image::createImageView(VkImage image, VkImageViewType viewType, VkFormat format, uint32_t layerCount, uint32_t levelCount, VkImageAspectFlags aspectMask) const {
     if ( viewType == VK_IMAGE_VIEW_TYPE_2D && layerCount > 1) { viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY; }
     VkImageViewCreateInfo viewInfo{};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -180,43 +174,43 @@ VkImageView Image::createImageView(VkImage image, VkImageViewType viewType, VkFo
     viewInfo.subresourceRange.levelCount = levelCount;
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = layerCount;
-
+    
     VkImageView imageView;
-    if (vkCreateImageView(device.device(), &viewInfo, nullptr, &imageView) != VK_SUCCESS) {
+    if (vkCreateImageView(m_Device.device(), &viewInfo, nullptr, &imageView) != VK_SUCCESS) {
         throw std::runtime_error("failed to create texture image view!");
     }
-
+    
     return imageView;
 }
 
-VkCommandBuffer Image::beginSingleTimeCommands() {
-  VkCommandBufferAllocateInfo allocInfo{};
-  allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-  allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-  allocInfo.commandPool = commandPool;
-  allocInfo.commandBufferCount = 1;
-
-  VkCommandBuffer commandBuffer;
-  vkAllocateCommandBuffers(device.device(), &allocInfo, &commandBuffer);
-
-  VkCommandBufferBeginInfo beginInfo{};
-  beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-  beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-  vkBeginCommandBuffer(commandBuffer, &beginInfo);
-  return commandBuffer;
+VkCommandBuffer Image::beginSingleTimeCommands(void) const {
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = m_CommandPool;
+    allocInfo.commandBufferCount = 1;
+    
+    VkCommandBuffer commandBuffer;
+    vkAllocateCommandBuffers(m_Device.device(), &allocInfo, &commandBuffer);
+    
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    return commandBuffer;
 }
 
-void Image::endSingleTimeCommands(VkCommandBuffer commandBuffer) {
-  vkEndCommandBuffer(commandBuffer);
-
-  VkSubmitInfo submitInfo{};
-  submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-  submitInfo.commandBufferCount = 1;
-  submitInfo.pCommandBuffers = &commandBuffer;
-  
-  vkQueueSubmit(device.transferQueue(), 1, &submitInfo, VK_NULL_HANDLE);
-  vkQueueWaitIdle(device.transferQueue());
-  
-  vkFreeCommandBuffers(device.device(), commandPool, 1, &commandBuffer);
+void Image::endSingleTimeCommands(VkCommandBuffer commandBuffer) const {
+    vkEndCommandBuffer(commandBuffer);
+    
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+    
+    vkQueueSubmit(m_Device.transferQueue(), 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(m_Device.transferQueue());
+    
+    vkFreeCommandBuffers(m_Device.device(), m_CommandPool, 1, &commandBuffer);
 }

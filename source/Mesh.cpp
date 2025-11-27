@@ -5,7 +5,7 @@
 //  Created by Lorenzo Bozza on 08/11/21.
 //
 
-#include "include/Model.hpp"
+#include "Mesh.hpp"
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include <tiny-obj/tiny_obj_loader.h>
@@ -13,10 +13,7 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/hash.hpp>
 
-//std
 #include <cassert>
-#include <cstring>
-#include <unordered_map>
 
 template <typename T, typename... Rest>
 static void hashCombine(std::size_t& seed, const T& v, const Rest&... rest) {
@@ -25,18 +22,18 @@ static void hashCombine(std::size_t& seed, const T& v, const Rest&... rest) {
 };
 
 namespace std {
-    template <>
-    struct hash<Model::Vertex> {
-        size_t operator()(Model::Vertex const &vertex) const {
-            size_t seed = 0;
-            hashCombine(seed, vertex.position, vertex.color, vertex.normal, vertex.uv);
-            return seed;
-        }
-    };
+template <>
+struct hash<Mesh::Data::Vertex> {
+    size_t operator()(Mesh::Data::Vertex const &vertex) const {
+        size_t seed = 0;
+        hashCombine(seed, vertex.position, vertex.color, vertex.normal, vertex.uv);
+        return seed;
+    }
+};
 }
 
 
-std::vector<VkVertexInputBindingDescription> Model::Vertex::getBindingDescriptions() {
+std::vector<VkVertexInputBindingDescription> Mesh::Data::Vertex::getBindingDescriptions(void) {
     std::vector<VkVertexInputBindingDescription> bindingDescriptions(1);
     bindingDescriptions[0].binding = 0;
     bindingDescriptions[0].stride = sizeof(Vertex);
@@ -44,7 +41,7 @@ std::vector<VkVertexInputBindingDescription> Model::Vertex::getBindingDescriptio
     return bindingDescriptions;
 }
 
-std::vector<VkVertexInputAttributeDescription> Model::Vertex::getAttributeDescriptions() {
+std::vector<VkVertexInputAttributeDescription> Mesh::Data::Vertex::getAttributeDescriptions(void) {
     std::vector<VkVertexInputAttributeDescription> attributeDescriptions{};
     
     attributeDescriptions.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, position)});
@@ -53,15 +50,15 @@ std::vector<VkVertexInputAttributeDescription> Model::Vertex::getAttributeDescri
     attributeDescriptions.push_back({3, 0, VK_FORMAT_R32G32B32A32_SFLOAT, offsetof(Vertex, tangent)});
     attributeDescriptions.push_back({4, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, uv)});
     attributeDescriptions.push_back({5, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, uv1)});
-
+    
     return attributeDescriptions;
 }
 
-void Model::Data::computeTangentBasis(Model::Vertex &v0, Model::Vertex &v1, Model::Vertex &v2, glm::vec3 *tanOut) {
+void Mesh::Data::computeTangentBasis(Vertex &v0, Vertex &v1, Vertex &v2, glm::vec3 *tanOut) {
     // Edges of the triangle : position delta
     glm::vec3 deltaPos1 = v1.position - v0.position;
     glm::vec3 deltaPos2 = v2.position - v0.position;
-
+    
     // UV delta
     glm::vec2 deltaUV1 = v1.uv - v0.uv;
     glm::vec2 deltaUV2 = v2.uv - v0.uv;
@@ -76,9 +73,9 @@ void Model::Data::computeTangentBasis(Model::Vertex &v0, Model::Vertex &v1, Mode
     
     tanOut[0] = (deltaPos1 * deltaUV2.y - deltaPos2 * deltaUV1.y) * r;
     tanOut[1] = (deltaPos2 * deltaUV1.x - deltaPos1 * deltaUV2.x) * r;
- }
+}
 
-void Model::Data::loadModel(const std::string &filePath, bool allUniqueVertices) {
+void Mesh::Data::loadModel(const std::string &filePath, bool allUniqueVertices) {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
@@ -161,8 +158,8 @@ void Model::Data::loadModel(const std::string &filePath, bool allUniqueVertices)
     
 }
 
-Model::Data Model::Data::makeSimpleCube(bool invert) {
-    Model::Data cubeData;
+Mesh::Data Mesh::Data::makeSimpleCube(bool invert) {
+    Mesh::Data cubeData;
     cubeData.vertices = {
         {{-1.f, -1.f, 1.f}, {}, {}, {}, {0.f, 0.f}},
         {{1.f, -1.f, 1.f}, {}, {}, {}, {1.f, 0.f}},
@@ -195,94 +192,86 @@ Model::Data Model::Data::makeSimpleCube(bool invert) {
     return cubeData;
 }
 
-Model::Model(const Device& dev, const Data &data) : device{dev} {
+Mesh::Mesh(const Device& dev, const Data &data) : m_Device(dev) {
     createVertexBuffer(data.vertices);
     createIndexBuffer(data.indices);
 }
 
-Model::~Model() {}
+Mesh::~Mesh() {}
 
-std::unique_ptr<Model> Model::createModelFromFile(const Device& device, const std::string &filePath, bool allUniqueVertices) {
+std::unique_ptr<Mesh> Mesh::createModelFromObj(const Device& device, const std::string &filePath, bool allUniqueVertices) {
     Data data{};
     data.loadModel(filePath, allUniqueVertices);
-    return std::make_unique<Model>(device, data);
+    return std::make_unique<Mesh>(device, data);
 }
 
-void Model::bind(VkCommandBuffer commandBuffer) {
-    VkBuffer buffers[] = {vertexBuffer->getBuffer()};
+void Mesh::bind(VkCommandBuffer commandBuffer) {
+    VkBuffer buffers[] = {m_VertexBuffer->getBuffer()};
     VkDeviceSize offsets[] = {0};
     vkCmdBindVertexBuffers(commandBuffer, 0, 1, buffers, offsets);
     
-    if (hasIndexBuffer) {
-        vkCmdBindIndexBuffer(commandBuffer, indexBuffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
+    if (m_HasIndexBuffer) {
+        vkCmdBindIndexBuffer(commandBuffer, m_IndexBuffer->getBuffer(), 0, VK_INDEX_TYPE_UINT32);
     }
 }
 
-void Model::draw(VkCommandBuffer commandBuffer) {
-    if (hasIndexBuffer) {
-        vkCmdDrawIndexed(commandBuffer, indexCount, 1, 0, 0, 0);
+void Mesh::draw(VkCommandBuffer commandBuffer) {
+    if (m_HasIndexBuffer) {
+        vkCmdDrawIndexed(commandBuffer, m_IndexCount, 1, 0, 0, 0);
     } else {
-        vkCmdDraw(commandBuffer, vertexCount, 1, 0, 0);
+        vkCmdDraw(commandBuffer, m_VertexCount, 1, 0, 0);
     }
 }
 
-void Model::createVertexBuffer(const std::vector<Vertex> &vertices) {
-    vertexCount = static_cast<uint32_t>(vertices.size());
-    assert(vertexCount >= 3 && "createVertexBuffer(): Vertex count must be at least 3");
+void Mesh::createVertexBuffer(const std::vector<Data::Vertex> &vertices) {
+    m_VertexCount = static_cast<uint32_t>(vertices.size());
+    assert(m_VertexCount >= 3 && "createVertexBuffer(): Vertex count must be at least 3");
     
     uint32_t vertexSize = sizeof(vertices[0]);
-    VkDeviceSize bufferSize = vertexSize * vertexCount;
+    VkDeviceSize bufferSize = vertexSize * m_VertexCount;
     
     Buffer stagingBuffer{
-        device,
+        m_Device,
         vertexSize,
-        vertexCount,
+        m_VertexCount,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
     };
-
+    
     stagingBuffer.map();
     stagingBuffer.writeToBuffer((void *)vertices.data());
-
-
-    vertexBuffer = std::make_unique<Buffer>(
-        device,
-        vertexSize,
-        vertexCount,
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-    );
-
-    device.copyBuffer(stagingBuffer.getBuffer(), vertexBuffer->getBuffer(), bufferSize);
+    
+    
+    m_VertexBuffer = std::make_unique<Buffer>(m_Device, vertexSize, m_VertexCount,
+                                              VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                              VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    
+    m_Device.copyBuffer(stagingBuffer.getBuffer(), m_VertexBuffer->getBuffer(), bufferSize);
 }
 
-void Model::createIndexBuffer(const std::vector<uint32_t> &indices) {
-    indexCount = static_cast<uint32_t>(indices.size());
-    hasIndexBuffer = indexCount > 0;
+void Mesh::createIndexBuffer(const std::vector<uint32_t> &indices) {
+    m_IndexCount = static_cast<uint32_t>(indices.size());
+    m_HasIndexBuffer = m_IndexCount > 0;
     
-    if (!hasIndexBuffer) { return; }
+    if (!m_HasIndexBuffer) { return; }
     
     uint32_t indexSize = sizeof(indices[0]);
-    VkDeviceSize bufferSize = indexSize * indexCount;
+    VkDeviceSize bufferSize = indexSize * m_IndexCount;
     
     Buffer stagingBuffer{
-        device,
+        m_Device,
         indexSize,
-        indexCount,
+        m_IndexCount,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
     };
-
+    
     stagingBuffer.map();
     stagingBuffer.writeToBuffer((void *)indices.data());
-
-    indexBuffer = std::make_unique<Buffer>(
-        device,
-        indexSize,
-        indexCount,
-        VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-    );
-
-    device.copyBuffer(stagingBuffer.getBuffer(), indexBuffer->getBuffer(), bufferSize);
+    
+    m_IndexBuffer = std::make_unique<Buffer>(m_Device, indexSize, m_IndexCount,
+                                             VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                                             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    
+    m_Device.copyBuffer(stagingBuffer.getBuffer(), m_IndexBuffer->getBuffer(), bufferSize);
 }

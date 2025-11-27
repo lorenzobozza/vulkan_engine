@@ -9,43 +9,36 @@
 #define Pipeline_hpp
 
 #include "Device.hpp"
-#include "Model.hpp"
 
-// std headers
 #include <string>
-#include <vector>
 
 struct PipelineConfigInfo {
     PipelineConfigInfo(const PipelineConfigInfo&) = delete;
-    PipelineConfigInfo() = default;
     PipelineConfigInfo& operator=(const PipelineConfigInfo&) = delete;
+    PipelineConfigInfo() = default;
     
-    //VkViewport viewport;
-    //VkRect2D scissor;
-    VkPipelineViewportStateCreateInfo viewportInfo;
-    VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo;
-    VkPipelineRasterizationStateCreateInfo rasterizationInfo;
-//    VkPipelineRasterizationLineStateCreateInfo lineRasterizationInfo;
-    VkPipelineMultisampleStateCreateInfo multisampleInfo;
-    VkPipelineColorBlendAttachmentState colorBlendAttachment;
-    VkPipelineColorBlendStateCreateInfo colorBlendInfo;
-    VkPipelineDepthStencilStateCreateInfo depthStencilInfo;
-    std::vector<VkDynamicState> dynamicStateEnables;
-    VkPipelineDynamicStateCreateInfo dynamicStateInfo;
+    VkPipelineViewportStateCreateInfo viewportInfo = {};
+    VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo = {};
+    VkPipelineRasterizationStateCreateInfo rasterizationInfo = {};
+    VkPipelineMultisampleStateCreateInfo multisampleInfo = {};
+    VkPipelineColorBlendAttachmentState colorBlendAttachment = {};
+    VkPipelineColorBlendStateCreateInfo colorBlendInfo = {};
+    VkPipelineDepthStencilStateCreateInfo depthStencilInfo = {};
+    std::vector<VkDynamicState> dynamicStateEnables = {};
+    VkPipelineDynamicStateCreateInfo dynamicStateInfo = {};
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
     VkRenderPass renderPass = VK_NULL_HANDLE;
     uint32_t subpass = 0;
+    //    VkPipelineRasterizationLineStateCreateInfo lineRasterizationInfo;
 };
 
 class Pipeline {
 public:
+    Pipeline(const Pipeline&) = delete;
+    Pipeline &operator=(const Pipeline&) = delete;
+    
     Pipeline(const Device& dev, const std::string &vertFilepath, const std::string &fragFilepath, const PipelineConfigInfo &configInfo);
-    
     ~Pipeline();
-    
-    // Prevent Obj copy
-    Pipeline(const Pipeline &) = delete;
-    Pipeline &operator=(const Pipeline &) = delete;
     
     enum Status {
         OK = 0,
@@ -53,22 +46,18 @@ public:
     };
     
     void bind(VkCommandBuffer commandBuffer);
-    
-    Status getInternalStatus(void) { return m_internalStatus; }
-
+    Status getInternalStatus(void) const { return m_InternalStatus; }
     static void defaultPipelineConfigInfo(PipelineConfigInfo& configInfo);
     
 private:
     Status createGraphicsPipeline(const std::string &vertFilepath, const std::string &fragFilepath, const PipelineConfigInfo &configInfo);
-    
     void createShaderModule(std::vector<uint32_t>& vecShader, VkShaderModule *shaderModule);
     
-    const Device& device;
-    VkPipeline graphicsPipeline;
-    VkShaderModule vertShaderModule;
-    VkShaderModule fragShaderModule;
-    
-    Status m_internalStatus;
+    const Device& m_Device;
+    VkPipeline m_GraphicsPipeline;
+    VkShaderModule m_VertShaderModule;
+    VkShaderModule m_FragShaderModule;
+    Status m_InternalStatus;
 };
 
 #endif /* Pipeline_hpp */

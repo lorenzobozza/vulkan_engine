@@ -47,7 +47,7 @@ ScenePipeline::Dependencies ScenePipeline::createLayoutDependencies(void) {
 				.addBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
 				.build_ptr();
 		
-		const uint32_t numOfMaterials = (uint32_t)m_FrameData.materials.size();
+		const uint32_t numOfMaterials = (uint32_t)m_FrameData.assets.materials.size();
 		
 		m_MainDescriptor.pool = DescriptorPool::Builder(m_Device)
 				.setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
@@ -78,13 +78,13 @@ ScenePipeline::Dependencies ScenePipeline::createLayoutDependencies(void) {
 				
 				m_MainDescriptorSets[i] = descriptorSet;
 				
-				for (auto& kv : m_FrameData.materials) {
+				for (auto& kv : m_FrameData.assets.materials) {
 						auto& name = kv.first;
 						auto& material = kv.second;
-						VkDescriptorImageInfo color = material.getColorTextureIF(),
-						normal = material.getNormalTextureIF(),
-						occlusion = material.getOcclusionTextureIF(),
-						metalRough = material.getMetalRoughTextureIF();
+						VkDescriptorImageInfo color = material.getColorDescriptor(m_FrameData.assets.textures),
+						normal = material.getNormalDescriptor(m_FrameData.assets.textures),
+						occlusion = material.getOcclusionDescriptor(m_FrameData.assets.textures),
+						metalRough = material.getMetalRoughDescriptor(m_FrameData.assets.textures);
 						
 						DescriptorWriter(*m_MaterialDescriptor.layout, *m_MaterialDescriptor.pool)
 								.writeImage(0, &color)				// Color
@@ -142,12 +142,12 @@ void ScenePipeline::render(VkCommandBuffer commandBuffer, int frameIndex) {
 				
 				PushConstantData push{};
 				push.modelMatrix = primitive.transform.mat4();
-				push.textureIndex = m_FrameData.materials[primitive.material].getTextureBitmap();
-				push.metalness = m_FrameData.materials[primitive.material].metalness;
-				push.roughness = m_FrameData.materials[primitive.material].roughness;
-				push.color = m_FrameData.materials[primitive.material].color;
-				push.alphaMode = m_FrameData.materials[primitive.material].alphaMode;
-				push.alphaCutoff = m_FrameData.materials[primitive.material].alphaCutoff;
+				push.textureIndex = m_FrameData.assets.materials[primitive.material].getTextureBitmap();
+				push.metalness = m_FrameData.assets.materials[primitive.material].metalness;
+				push.roughness = m_FrameData.assets.materials[primitive.material].roughness;
+				push.color = m_FrameData.assets.materials[primitive.material].color;
+				push.alphaMode = m_FrameData.assets.materials[primitive.material].alphaMode;
+				push.alphaCutoff = m_FrameData.assets.materials[primitive.material].alphaCutoff;
 				
 				vkCmdPushConstants(
 					 commandBuffer,

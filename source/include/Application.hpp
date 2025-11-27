@@ -11,12 +11,12 @@
 #include "SDLWindow.hpp"
 #include "Device.hpp"
 #include "Descriptors.hpp"
-#include "Model.hpp"
+#include "Mesh.hpp"
 #include "Renderer.hpp"
 #include "Primitive.hpp"
 #include "Camera.hpp"
 #include "Texture.hpp"
-#include "HDRi.hpp"
+#include "CubeMap.hpp"
 #include "Material.hpp"
 #include "Light.hpp"
 
@@ -82,13 +82,15 @@ private:
     } m_Pipes;
     
     struct {
-        std::unique_ptr<HDRi> instance;
+        std::unique_ptr<CubeMap> instance;
         VkDescriptorImageInfo* descriptor;
     } m_Environment, m_Prefiltered, m_Irradiance;
     
     std::vector<std::unique_ptr<Texture>> m_Textures{};
     std::unordered_map<std::string, Material> m_Materials{};
-    std::vector<Light> m_Lights{};
+    
+    Assets m_Assets;
+    std::vector<Light> m_Lights;
     
     bool m_AssetsLoaded = false;
     bool m_PreviewMode = false;

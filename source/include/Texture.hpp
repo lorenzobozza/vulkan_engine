@@ -9,12 +9,13 @@
 #define Texture_hpp
 
 #include "Image.hpp"
+#include "Buffer.hpp"
 
 class Texture {
 public:
     
-    Texture(const Device& dev, Image &image, std::string filePath, bool mipMapping, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB);
-    Texture(const Device& dev, Image &image, void* data, uint32_t texWidth, uint32_t texHeight, uint8_t depth, bool mipMapping, VkFormat format, VkSamplerCreateInfo *samplerInfo);
+    Texture(const Device& dev, const Image& image, std::string filePath, bool mipMapping, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB);
+    Texture(const Device& dev, const Image& image, void* data, uint32_t texWidth, uint32_t texHeight, uint8_t depth, bool mipMapping, VkFormat format, VkSamplerCreateInfo *samplerInfo);
     ~Texture();
     
     VkDescriptorImageInfo descriptorInfo();
@@ -26,7 +27,7 @@ private:
     void createDefaultTextureSampler();
     
     const Device& device;
-    Image &image;
+    const Image& image;
     
     std::unique_ptr<Buffer> stagingBuffer;
     int _w, _h;

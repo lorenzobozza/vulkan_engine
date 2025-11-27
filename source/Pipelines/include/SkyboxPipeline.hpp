@@ -28,7 +28,7 @@ private:
 		void customizePipelineConfig(PipelineConfigInfo& config) override;
 
 		FrameData m_FrameData;
-		std::unique_ptr<Model> m_Cube;
+		std::unique_ptr<Mesh> m_Cube;
 				
 		struct {
 				std::unique_ptr<DescriptorSetLayout> layout;

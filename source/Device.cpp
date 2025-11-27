@@ -534,7 +534,7 @@ void Device::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize siz
 }
 
 void Device::createImageWithInfo(const VkImageCreateInfo &imageInfo, VkMemoryPropertyFlags properties,
-                                 VkImage &image, VkDeviceMemory &imageMemory) const {
+                                 VkImage& image, VkDeviceMemory &imageMemory) const {
     if (vkCreateImage(m_DeviceHandle, &imageInfo, nullptr, &image) != VK_SUCCESS) {
         throw std::runtime_error("failed to create image!");
     }

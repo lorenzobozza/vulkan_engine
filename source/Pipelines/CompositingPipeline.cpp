@@ -6,7 +6,6 @@
 //
 
 #include "CompositingPipeline.hpp"
-
 #include "Log.hpp"
 
 struct PushConstantData {
@@ -26,7 +25,7 @@ void CompositingPipeline::customizePipelineConfig(PipelineConfigInfo& config) {
 }
 
 CompositingPipeline::Dependencies CompositingPipeline::createLayoutDependencies(void) {
-    Model::Data data;
+    Mesh::Data data;
     data.vertices = {
         {{-1.f, -1.f, .0f}, {}, {}, {}, {0.f, 0.f}},
         {{1.f, -1.f, .0f}, {}, {}, {}, {1.f, 0.f}},
@@ -36,7 +35,7 @@ CompositingPipeline::Dependencies CompositingPipeline::createLayoutDependencies(
     data.indices = {
         0,1,2,2,3,0
     };
-    m_Quad = std::make_unique<Model>(m_Device, data);
+    m_Quad = std::make_unique<Mesh>(m_Device, data);
     
     m_Descriptor.layout = DescriptorSetLayout::Builder(m_Device)
         .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)

@@ -10,7 +10,7 @@
 
 #include "UI.hpp"
 #include "Log.hpp"
-#include "importGLTF.hpp"
+#include "Nodes.hpp"
 
 #include <imgui_internal.h>
 
@@ -55,6 +55,7 @@ private:
         props += (flags & Node::Flags::QUAT) ? "R" : "";
         props += (flags & Node::Flags::MATRIX) ? "M" : "";
         props += (flags & Node::Flags::MESH) ? " \x7e" : "";
+        props += (flags & Node::Flags::LIGHT) ? "§" : "";
         return props;
     }
     
@@ -281,9 +282,9 @@ private:
 
 class MeterialViewer : public Widget {
 public:
-    MeterialViewer(Material::Map& materials) : m_materials(materials) {}
+    MeterialViewer(Assets& assets) : m_Assets(assets) {}
 private:
-    std::unordered_map<std::string, Material>& m_materials;
+    Assets& m_Assets;
     void content(void) override {
         ImGui::Begin("Materials", nullptr, ImGuiWindowFlags_NoCollapse);
         if (ImGui::BeginTable("material_table", 5, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
@@ -294,7 +295,7 @@ private:
             ImGui::TableNextColumn(); ImGui::Text("Normal");
             ImGui::TableNextColumn(); ImGui::Text("Occlusion");
             ImGui::TableNextColumn(); ImGui::Text("Metal/Rough");
-            for (auto& kv: m_materials) {
+            for (auto& kv: m_Assets.materials) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
                 ImGui::Text("%s", kv.first.c_str());

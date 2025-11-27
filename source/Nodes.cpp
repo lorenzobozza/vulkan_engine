@@ -1,24 +1,27 @@
 //
-//  importGLTF.cpp
+//  Nodes.cpp
 //  vulkan_engine
 //
 //  Created by Lorenzo Bozza on 20/09/23.
 //
 
-#include <random>
-
-#include "importGLTF.hpp"
+#include "Nodes.hpp"
 #include "Log.hpp"
 
 #define TINYGLTF_IMPLEMENTATION
-
 #include <tinygltf/tiny_gltf.h>
-#include "mikktspace.h"
 
+#include "mikktspace.h"
 #include "TaskScheduler.h"
+
+#include <random>
 
 enki::TaskScheduler g_TS;
 
+static void convertImageData(tinygltf::Image& image);
+static bool tinygltf_LoadImageDataCallback(tinygltf::Image *image, const int image_idx, std::string *err,
+                                           std::string *warn, int req_width, int req_height,
+                                           const unsigned char *bytes, int size, void *user_data);
 // MikkTSpace callbacks
 int giveNumFaces(const SMikkTSpaceContext * pContext);
 int giveNumVerticesOfFace(const SMikkTSpaceContext * pContext, const int iFace);
@@ -27,78 +30,46 @@ void giveNormal(const SMikkTSpaceContext * pContext, float fvNormOut[], const in
 void giveTexCoord(const SMikkTSpaceContext * pContext, float fvTexcOut[], const int iFace, const int iVert);
 void takeTSpaceBasic(const SMikkTSpaceContext * pContext, const float fvTangent[], const float fSign, const int iFace, const int iVert);
 
-/*
- Copy raw unconverted data directly to destination
- it will be converted later using multithreading
- */
-static bool tinygltf_LoadImageDataCallback(
-                tinygltf::Image *image, const int image_idx, std::string *err,
-                std::string *warn, int req_width, int req_height,
-                const unsigned char *bytes, int size, void *user_data) {
-                   
-    image->image.resize(size);
-    std::copy(bytes, bytes + size, image->image.begin());
-                   
-    return true;
+
+uint32_t Node::Tree::add(const Node& n, uint32_t parent) {
+    if (parent == UINT32_MAX) {
+        nodes.emplace_back(n);
+        if (n.parent >= 0 && (uint32_t)n.parent < nodes.size())
+            nodes[n.parent].children.push_back((uint32_t)nodes.size() - 1);
+        return (uint32_t)nodes.size() - 1;
+    } else if (parent < nodes.size()) {
+        nodes.emplace_back(n);
+        nodes.back().parent = parent;
+        nodes[parent].children.push_back((uint32_t)nodes.size() - 1);
+        return (uint32_t)nodes.size() - 1;
+    }
+    return UINT32_MAX;
 }
-
-static void convertImageData(tinygltf::Image& image) {
-        
-    int w = 0, h = 0, comp = 0, req_comp = 4;
-
-    unsigned char *data = nullptr;
-
-    int bits = 8;
-    int pixel_type = TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE;
-
-    if (stbi_is_16_bit_from_memory(image.image.data(), (int)image.image.size())) {
-        data = reinterpret_cast<unsigned char *>(
-            stbi_load_16_from_memory(image.image.data(), (int)image.image.size(), &w, &h, &comp, req_comp));
-        if (data) {
-            bits = 16;
-            pixel_type = TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT;
+void Node::Tree::pop(uint32_t node) {
+    if (node < nodes.size()) {
+        int32_t parent = nodes[node].parent;
+        uint32_t child = 0;
+        for (auto it = nodes[parent].children.begin(); it < nodes[parent].children.end(); ++it, ++child) {
+            if (nodes[parent].children[child] == node) { nodes[parent].children.erase(it); break; }
         }
+        nodes.erase(nodes.begin() + node);
     }
-
-    if (!data) data = stbi_load_from_memory(image.image.data(), (int)image.image.size(), &w, &h, &comp, req_comp);
-
-    if ((w < 1) || (h < 1)) {
-        stbi_image_free(data);
-        return;
-    }
-
-    if (req_comp != 0) {
-        comp = req_comp;
-    }
-
-    image.width = w;
-    image.height = h;
-    image.component = comp;
-    image.bits = bits;
-    image.pixel_type = pixel_type;
-    image.image.resize(static_cast<size_t>(w * h * comp) * size_t(bits / 8));
-    std::copy(data, data + w * h * comp * (bits / 8), image.image.begin());
-    
-    stbi_image_free(data);
 }
 
 struct ImageParseTaskSet : enki::ITaskSet {
     ImageParseTaskSet(std::vector<tinygltf::Image>& images) : m_Images(images) { m_SetSize = (uint32_t)m_Images.size(); }
-
+    
     std::vector<tinygltf::Image>& m_Images;
     
     void ExecuteRange( enki::TaskSetPartition range_, uint32_t threadnum_ ) override {
-        for(unsigned int i = range_.start; i < range_.end; ++i )
-        {
+        for(unsigned int i = range_.start; i < range_.end; ++i ) {
             convertImageData(m_Images.at(i));
         }
     }
 };
 
-NodeSet::NodeSet(InitStruct& init, std::string filePath)
-    : m_Device{init.device}, m_Image{init.image}, m_Materials{init.materials},
-    m_Primitives{init.primitives}, m_Textures{init.textures}, m_Lights{init.lights}, m_FilePath{filePath} {
-
+NodeSet::NodeSet(InitStruct& init, std::string filePath) : m_Device(init.device), m_Image(init.image),
+m_Primitives(init.primitives), m_Assets(init.assets), m_Lights(init.lights), m_FilePath(filePath) {
     parseGLTF();
     
     const unsigned int vCpu = enki::GetNumHardwareThreads();
@@ -112,14 +83,13 @@ NodeSet::NodeSet(InitStruct& init, std::string filePath)
     g_TS.ShutdownNow();
     
     // glTF -> Vulkan, unit quaternion along X to rotate 180° about X
-    m_NodeTree = std::make_shared<Node::Tree>(m_gltfModel.scenes[m_gltfModel.defaultScene].nodes.size());
+    m_NodeTree = std::make_shared<Node::Tree>(m_gltfModel.nodes.size() + 1);
     Node root("_root");
     root.matrix = glm::toMat4(glm::quat{0.f, 1.f, 0.f, 0.f});
-    m_NodeTree->nodes.push_back(root);
+    m_NodeTree->add(root);
     
-    uint32_t index = 0;
     for(int gltfIndex: m_gltfModel.scenes[m_gltfModel.defaultScene].nodes) {
-        loadNodeFromModel(gltfIndex, 0, index);
+        loadNodeFromModel(gltfIndex, 0);
     }
     
     loadMaterialsToVRAM();
@@ -127,7 +97,7 @@ NodeSet::NodeSet(InitStruct& init, std::string filePath)
 
 NodeSet::~NodeSet() {}
 
-void NodeSet::parseGLTF() {
+void NodeSet::parseGLTF(void) {
     tinygltf::TinyGLTF loader;
     std::string err, warn;
     
@@ -143,29 +113,26 @@ void NodeSet::parseGLTF() {
         ret = loader.LoadASCIIFromFile(&m_gltfModel, &err, &warn, m_FilePath);
     }
     
-    
     if (!warn.empty()) {
         std::println("glTF Warning: {}", warn.c_str());
     }
-
+    
     if (!err.empty()) {
         std::println("glTF Error: {}", err.c_str());
     }
-
+    
     if (!ret) {
         std::println("Failed to parse glTF");
     }
 }
 
-void NodeSet::loadNodeFromModel(int gltfIndex, uint32_t parentIndex, uint32_t& actualIndex) {
+void NodeSet::loadNodeFromModel(int gltfIndex, uint32_t parentIndex) {
     const tinygltf::Node& gltfNode = m_gltfModel.nodes[gltfIndex];
     
-    uint32_t thisIndex = ++actualIndex;
-    m_NodeTree->nodes.push_back(Node(gltfNode.name));
-    m_NodeTree->nodes[parentIndex].children.push_back(thisIndex);
+    uint32_t thisIndex = m_NodeTree->add(Node(gltfNode.name), parentIndex);
     
-    Node& thisNode = m_NodeTree->nodes[thisIndex];
-    thisNode.parent = parentIndex;
+    {
+    Node& thisNode = m_NodeTree->nodes.back();
     
     if (gltfNode.scale.size() == 3) {
         thisNode.flags |= Node::Flags::SCALE;
@@ -185,51 +152,48 @@ void NodeSet::loadNodeFromModel(int gltfIndex, uint32_t parentIndex, uint32_t& a
         thisNode.matrix = glm::make_mat4x4(gltfNode.matrix.data());
     }
     if (gltfNode.mesh > -1) thisNode.flags |= Node::Flags::MESH;
+    if (gltfNode.light > -1) thisNode.flags |= Node::Flags::LIGHT;
     
     thisNode.matrix *= (glm::translate(glm::mat4(1.0), thisNode.transl) * glm::toMat4(thisNode.quat) * glm::scale(glm::mat4(1.0), thisNode.scale));
-    
+    }
     
     // Tree propagation
     if (gltfNode.children.size() > 0) {
         for (int gltfChild : gltfNode.children) {
-            loadNodeFromModel(gltfChild, thisIndex, actualIndex);
+            loadNodeFromModel(gltfChild, thisIndex);
         }
     }
     
-    
     // MAYBE we can determine if the transformation is needed to save time
-    glm::mat4 transform = thisNode.matrix;
+    glm::mat4 transform = m_NodeTree->nodes[thisIndex].matrix;
     
     // Move backwards to build the correct transformation matrix
-    int32_t parent = thisNode.parent;
+    int32_t parent = m_NodeTree->nodes[thisIndex].parent;
+    
     while (parent > -1) {
         transform = m_NodeTree->nodes[parent].matrix * transform;
         parent = m_NodeTree->nodes[parent].parent;
     }
-
-    parseMeshFromNode(gltfNode, transform);
+    
     parseLightFromNode(gltfNode, transform);
+    parseMeshFromNode(gltfNode, transform);
 }
 
 void NodeSet::parseLightFromNode(const tinygltf::Node& node, glm::mat4 transform) {
     int lightIdx = node.light;
     if (lightIdx > -1) {
         auto& light = m_gltfModel.lights[lightIdx];
-    
+        
         if (light.type == Light::gltfTypes[Light::Type::Point]) {
-            m_Lights.emplace_back(Light::makePoint(
-                glm::vec3(transform[3].x, transform[3].y, transform[3].z),
-                glm::vec4(glm::make_vec3(light.color.data()), light.intensity * 0.0184f)
-            ));
+            m_Lights.emplace_back(Light::makePoint(glm::vec3(transform[3].x, transform[3].y, transform[3].z),
+                                                   glm::vec4(glm::make_vec3(light.color.data()), light.intensity * 0.0184f)));
             
         } else if (light.type == Light::gltfTypes[Light::Type::Directional]) {
-            m_Lights.emplace_back(Light::makeDirectional(
-                glm::vec3(-transform[2].x, -transform[2].y, -transform[2].z),
-                glm::vec4(glm::make_vec3(light.color.data()), light.intensity * 0.00146f)
-            ));
-            m_Lights.back().m_data.lightSpaceMatrix =
+            m_Lights.emplace_back(Light::makeDirectional(glm::vec3(-transform[2].x, -transform[2].y, -transform[2].z),
+                                                         glm::vec4(glm::make_vec3(light.color.data()), light.intensity * 0.00146f)));
+            m_Lights.back().m_Data.lightSpaceMatrix =
             glm::orthoLH_ZO(-20.0f, 20.0f, -25.0f, 20.0f, -20.f, 10.f)
-            * glm::lookAt(m_Lights.back().m_data.dir, glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f));
+            * glm::lookAt(m_Lights.back().m_Data.dir, glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f));
             
         } else if (light.type == Light::gltfTypes[Light::Type::Spot]) {
             Log::getInstance()->warn("Node {} contains a Spot-Type light source, which is currently not supported.", light.name);
@@ -242,9 +206,9 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform)
         const tinygltf::Mesh& mesh = m_gltfModel.meshes[node.mesh];
         
         for (const tinygltf::Primitive& primitive : mesh.primitives) {
-            Model::Data data{};
+            Mesh::Data data{};
             uint32_t indexOffset = 0;
-
+            
             uint32_t indexCount = 0;
             uint32_t vertexCount = 0;
             glm::vec3 posMin{};
@@ -302,7 +266,7 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform)
                 bufferColor = reinterpret_cast<const float*>(&(m_gltfModel.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]));
                 colorByteStride = accessor.ByteStride(view) ? (accessor.ByteStride(view) / sizeof(float)) : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC3);
             }
-
+            
             // UVs
             if (primitive.attributes.find("TEXCOORD_0") != primitive.attributes.end()) {
                 const tinygltf::Accessor& uvAccessor = m_gltfModel.accessors[primitive.attributes.find("TEXCOORD_0")->second];
@@ -321,7 +285,7 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform)
             }
             
             for (size_t v = 0; v < posAccessor.count; v++) {
-                Model::Vertex vertex{};
+                Mesh::Data::Vertex vertex{};
                 vertex.position = glm::make_vec3(&bufferPos[v * posByteStride]);
                 vertex.normal = glm::normalize(glm::vec3(bufferNormals ? glm::make_vec3(&bufferNormals[v * normByteStride]) : glm::vec3(0.0f)));
                 
@@ -338,146 +302,106 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform)
                 const tinygltf::Accessor& accessor = m_gltfModel.accessors[primitive.indices > -1 ? primitive.indices : 0];
                 const tinygltf::BufferView& bufferView = m_gltfModel.bufferViews[accessor.bufferView];
                 const tinygltf::Buffer& buffer = m_gltfModel.buffers[bufferView.buffer];
-
+                
                 indexCount = static_cast<uint32_t>(accessor.count);
                 const void *dataPtr = &(buffer.data[accessor.byteOffset + bufferView.byteOffset]);
                 
                 switch (accessor.componentType) {
-                    case TINYGLTF_PARAMETER_TYPE_UNSIGNED_INT:
-                        {
-                        const uint32_t *buf = static_cast<const uint32_t*>(dataPtr);
-                        for (size_t i = 0; i < indexCount; i++)
-                            data.indices.push_back(static_cast<uint32_t>(buf[i]) + indexOffset);
-                        }
-                        break;
-                    case TINYGLTF_PARAMETER_TYPE_UNSIGNED_SHORT:
-                        {
-                        const uint16_t *buf = static_cast<const uint16_t*>(dataPtr);
-                        for (size_t i = 0; i < indexCount; i++)
-                            data.indices.push_back(static_cast<uint32_t>(buf[i]) + indexOffset);
-                        }
-                        break;
-                    case TINYGLTF_PARAMETER_TYPE_UNSIGNED_BYTE:
-                        {
-                        const uint8_t *buf = static_cast<const uint8_t*>(dataPtr);
-                        for (size_t i = 0; i < indexCount; i++)
-                            data.indices.push_back(static_cast<uint32_t>(buf[i]) + indexOffset);
-                        }
-                        break;
-                    default:
-                        std::println("Index component type {} not supported!", accessor.componentType);
-                        return;
+                case TINYGLTF_PARAMETER_TYPE_UNSIGNED_INT:
+                    {
+                    const uint32_t *buf = static_cast<const uint32_t*>(dataPtr);
+                    for (size_t i = 0; i < indexCount; i++)
+                        data.indices.push_back(static_cast<uint32_t>(buf[i]) + indexOffset);
+                    }
+                    break;
+                case TINYGLTF_PARAMETER_TYPE_UNSIGNED_SHORT:
+                    {
+                    const uint16_t *buf = static_cast<const uint16_t*>(dataPtr);
+                    for (size_t i = 0; i < indexCount; i++)
+                        data.indices.push_back(static_cast<uint32_t>(buf[i]) + indexOffset);
+                    }
+                    break;
+                case TINYGLTF_PARAMETER_TYPE_UNSIGNED_BYTE:
+                    {
+                    const uint8_t *buf = static_cast<const uint8_t*>(dataPtr);
+                    for (size_t i = 0; i < indexCount; i++)
+                        data.indices.push_back(static_cast<uint32_t>(buf[i]) + indexOffset);
+                    }
+                    break;
+                default:
+                    std::println("Index component type {} not supported!", accessor.componentType);
+                    return;
                 }
                 
                 indexOffset = static_cast<uint32_t>(data.vertices.size());
             }
-        
-    // TODO: Find a better way to handle the stiching lines when computing tangents
-    
-        SMikkTSpaceInterface myMikkInterface {
-            .m_getNumFaces = giveNumFaces,
-            .m_getNumVerticesOfFace = giveNumVerticesOfFace,
-            .m_getPosition = givePosition,
-            .m_getNormal = giveNormal,
-            .m_getTexCoord = giveTexCoord,
-            .m_setTSpaceBasic = takeTSpaceBasic
-        };
-        
-        SMikkTSpaceContext tSpaceContext {
-            .m_pInterface = &myMikkInterface,
-            .m_pUserData = (void*)&data,
-        };
-        
-        genTangSpaceDefault(&tSpaceContext);
-        
-        
-        /*
-            std::vector<glm::vec3> tangents(data.vertices.size(), glm::vec3(0.f));
-            std::vector<glm::vec3> bitangents(data.vertices.size(), glm::vec3(0.f));
-            glm::vec3 tanBasis[2];
             
-            // Compute Tangent Basis for each triangle
-            for (size_t i = 0; i < data.indices.size(); i+=3) {
-                data.computeTangentBasis(data.vertices.at(data.indices[i]), data.vertices.at(data.indices[i +1]), data.vertices.at(data.indices[i +2]), tanBasis);
-                tangents.at(data.indices[i]) += tanBasis[0];
-                tangents.at(data.indices[i +1]) += tanBasis[0];
-                tangents.at(data.indices[i +2]) += tanBasis[0];
-                bitangents.at(data.indices[i]) += tanBasis[1];
-                bitangents.at(data.indices[i +1]) += tanBasis[1];
-                bitangents.at(data.indices[i +2]) += tanBasis[1];
-            }
             
-            // Assign oriented Tangent Basis to each vertex
-            for (size_t i = 0; i < data.vertices.size(); i++) {
-                glm::vec3 N = glm::normalize(data.vertices.at(i).normal);
-                glm::vec3 T = glm::normalize(tangents.at(i));
-                // Re-Orthogonalize, then Normalize
-                T = glm::normalize(T - (glm::dot(N, T) * N));
-                float w = glm::dot(glm::cross(N, T), glm::normalize(bitangents.at(i))) < 0.f ? -1.f : 1.f;
-                
-                data.vertices.at(i).tangent = {T, w};
-            }
+            SMikkTSpaceInterface myMikkInterface {
+                .m_getNumFaces = giveNumFaces,
+                .m_getNumVerticesOfFace = giveNumVerticesOfFace,
+                .m_getPosition = givePosition,
+                .m_getNormal = giveNormal,
+                .m_getTexCoord = giveTexCoord,
+                .m_setTSpaceBasic = takeTSpaceBasic
+            };
             
-            // Show distribution of indices
-            {
-                //for (size_t i = 0; i < data.indices.size(); i++) {
-                //    data.vertices.at(data.indices.at(i)).tangent = glm::vec4(( (float)i / (float)data.indices.size() ), 0.0, 0.0, 0.0);
-                //}
-            }
-            */
+            SMikkTSpaceContext tSpaceContext {
+                .m_pInterface = &myMikkInterface,
+                .m_pUserData = (void*)&data,
+            };
+            
+            genTangSpaceDefault(&tSpaceContext);
+            
             
             int materialID = primitive.material;
             
             Primitive p = Primitive::new_primitive();
             
             {
-                std::random_device rd;  // Will be used to obtain a seed for the random number engine
-                std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
-                std::uniform_real_distribution<> dis(0.f, .5f);
-                const glm::vec3 color = {dis(gen), dis(gen), dis(gen)};
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::uniform_real_distribution<> dis(0.f, .5f);
+            const glm::vec3 color = {dis(gen), dis(gen), dis(gen)};
+            
+            Mesh::Data cubeData;
+            cubeData.vertices = {
+                {posMin,                         color, {}, {}, {0.f, 0.f}},
+                {{posMax.x, posMin.y, posMin.z}, color, {}, {}, {1.f, 0.f}},
+                {{posMax.x, posMax.y, posMin.z}, color, {}, {}, {1.f, 1.f}},
+                {{posMin.x, posMax.y, posMin.z}, color, {}, {}, {0.f, 1.f}},
                 
-                Model::Data cubeData;
-                cubeData.vertices = {
-                    {posMin,                         color, {}, {}, {0.f, 0.f}},
-                    {{posMax.x, posMin.y, posMin.z}, color, {}, {}, {1.f, 0.f}},
-                    {{posMax.x, posMax.y, posMin.z}, color, {}, {}, {1.f, 1.f}},
-                    {{posMin.x, posMax.y, posMin.z}, color, {}, {}, {0.f, 1.f}},
-                    
-                    {{posMin.x, posMin.y, posMax.z}, color, {}, {}, {0.f, 0.f}},
-                    {{posMax.x, posMin.y, posMax.z}, color, {}, {}, {1.f, 0.f}},
-                    {posMax,                         color, {}, {}, {1.f, 1.f}},
-                    {{posMin.x, posMax.y, posMax.z}, color, {}, {}, {0.f, 1.f}},
-                };
-                cubeData.indices = {
-                    0,1, 1,2, 2,3, 3,0,
-                    4,5, 5,6, 6,7, 7,4,
-                    0,4, 1,5, 2,6, 3,7,
-                };
-                p.aabb = std::make_shared<Model>(m_Device, cubeData);
+                {{posMin.x, posMin.y, posMax.z}, color, {}, {}, {0.f, 0.f}},
+                {{posMax.x, posMin.y, posMax.z}, color, {}, {}, {1.f, 0.f}},
+                {posMax,                         color, {}, {}, {1.f, 1.f}},
+                {{posMin.x, posMax.y, posMax.z}, color, {}, {}, {0.f, 1.f}},
+            };
+            cubeData.indices = {
+                0,1, 1,2, 2,3, 3,0,
+                4,5, 5,6, 6,7, 7,4,
+                0,4, 1,5, 2,6, 3,7,
+            };
+            p.aabb = std::make_shared<Mesh>(m_Device, cubeData);
             }
-            
             {
-                Model::Data normals;
-                normals.vertices.resize(data.vertices.size() * 2);
-                size_t i = 0;
-                for (auto& v : data.vertices) {
-                    normals.vertices[i].color = (v.normal + 1.f) * 0.5f;
-                    normals.vertices[i++].position = v.position;
-                    normals.vertices[i].color = (v.normal + 1.f) * 0.5f;
-                    normals.vertices[i++].position = v.position + (glm::normalize(v.normal) * .2f / p.transform.scale);
-                }
-                p.normals = std::make_shared<Model>(m_Device, normals);
+            Mesh::Data normals;
+            normals.vertices.resize(data.vertices.size() * 2);
+            size_t i = 0;
+            for (auto& v : data.vertices) {
+                normals.vertices[i].color = (v.normal + 1.f) * 0.5f;
+                normals.vertices[i++].position = v.position;
+                normals.vertices[i].color = (v.normal + 1.f) * 0.5f;
+                normals.vertices[i++].position = v.position + (glm::normalize(v.normal) * .2f / p.transform.scale);
+            }
+            p.normals = std::make_shared<Mesh>(m_Device, normals);
             }
             
-            
-            // TODO: This is not properly a model, should be called Mesh
-            p.setModel(std::make_shared<Model>(m_Device, data));
-            
+            p.model = std::make_shared<Mesh>(m_Device, data);
             
             p.transform.hasMatrix = true;
             p.transform.matrix = transform;
             
-            // TODO: Make the whole node transform hierarchy always affect the final matrix (probably needs cache)
+            // TODO: Make the whole node transform hierarchy always affect the final matrix (needs cache system)
             
             if (materialID > -1) {
                 if (m_gltfModel.materials[materialID].alphaMode != "OPAQUE") continue;
@@ -486,7 +410,6 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform)
                 p.material = "Global_Default_Material";
             }
             
-            // p is a temporary lvalue, we cast it back to rvalue to move the ownership to the map
             m_Primitives.emplace(p.getId(), std::move(p));
         }
         
@@ -495,23 +418,25 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform)
 
 
 void NodeSet::loadMaterialsToVRAM(void) {
-    size_t index = m_Textures.size();
+    size_t index = m_Assets.textures.size();
     size_t materialID{0};
     bool mipMapping = true;
     
     const VkFormat default_rgb_format = VK_FORMAT_R8G8B8_UNORM;
     const VkFormat default_rgba_format = VK_FORMAT_R8G8B8A8_UNORM;
     
+    m_Assets.textures.reserve(index + m_gltfModel.textures.size());
+    m_Assets.materials.reserve(m_Assets.materials.size() + m_gltfModel.materials.size());
     for (const tinygltf::Material &gltfMaterial : m_gltfModel.materials) {
-    
+        
         int colorTextureIndex = gltfMaterial.pbrMetallicRoughness.baseColorTexture.index;
         int normalTextureIndex = gltfMaterial.normalTexture.index;
         int metalRoughTextureIndex = gltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.index;
         int occlusionTextureIndex = gltfMaterial.occlusionTexture.index;
-
-        Material material{&m_Textures};
         
-        VkSamplerCreateInfo samplerInfo {};
+        Material material;
+        
+        VkSamplerCreateInfo samplerInfo = {};
         
         if (gltfMaterial.alphaMode == "BLEND") {
             material.alphaMode = Material::ALPHAMODE_BLEND;
@@ -526,20 +451,9 @@ void NodeSet::loadMaterialsToVRAM(void) {
             
             fillSamplerInfo(colorTextureIndex, &samplerInfo);
             
-            m_Textures.push_back(
-                std::make_unique<Texture>(
-                    m_Device,
-                    m_Image,
-                    (void*)color.image.data(),
-                    color.width,
-                    color.height,
-                    color.component,
-                    mipMapping,
-                    (color.component > 3 ? default_rgba_format : default_rgb_format),
-                    &samplerInfo
-                )
-            );
-            
+            m_Assets.textures.emplace_back(std::make_unique<Texture>(m_Device, m_Image, (void*)color.image.data(),
+                                                                     color.width, color.height, color.component, mipMapping,
+                                                                     (color.component > 3 ? default_rgba_format : default_rgb_format), &samplerInfo));
             material.setColorTexture(index++);
             material.setNormalTexCoordSet(gltfMaterial.pbrMetallicRoughness.baseColorTexture.texCoord);
             
@@ -550,18 +464,9 @@ void NodeSet::loadMaterialsToVRAM(void) {
             
             fillSamplerInfo(normalTextureIndex, &samplerInfo);
             
-            m_Textures.push_back(std::make_unique<Texture>(
-                m_Device,
-                m_Image,
-                (void*)normal.image.data(),
-                normal.width,
-                normal.height,
-                normal.component,
-                mipMapping,
-                (normal.component > 3 ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8_UNORM),
-                &samplerInfo
-            ));
-            
+            m_Assets.textures.emplace_back(std::make_unique<Texture>(m_Device, m_Image, (void*)normal.image.data(),
+                                                                     normal.width, normal.height, normal.component, mipMapping,
+                                                                     (normal.component > 3 ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8_UNORM), &samplerInfo));
             material.setNormalTexture(index++);
             material.setNormalTexCoordSet(gltfMaterial.normalTexture.texCoord);
         }
@@ -571,18 +476,9 @@ void NodeSet::loadMaterialsToVRAM(void) {
             
             fillSamplerInfo(occlusionTextureIndex, &samplerInfo);
             
-            m_Textures.push_back(std::make_unique<Texture>(
-                m_Device,
-                m_Image,
-                (void*)occlusion.image.data(),
-                occlusion.width,
-                occlusion.height,
-                occlusion.component,
-                mipMapping,
-                (occlusion.component > 3 ? default_rgba_format : default_rgb_format),
-                &samplerInfo
-            ));
-            
+            m_Assets.textures.emplace_back(std::make_unique<Texture>(m_Device, m_Image, (void*)occlusion.image.data(),
+                                                                     occlusion.width, occlusion.height, occlusion.component, mipMapping,
+                                                                     (occlusion.component > 3 ? default_rgba_format : default_rgb_format), &samplerInfo));
             material.setOcclusionTexture(index++);
             material.setOcclusionTexCoordSet(gltfMaterial.occlusionTexture.texCoord);
         }
@@ -594,59 +490,48 @@ void NodeSet::loadMaterialsToVRAM(void) {
             
             fillSamplerInfo(metalRoughTextureIndex, &samplerInfo);
             
-            m_Textures.push_back(std::make_unique<Texture>(
-                m_Device,
-                m_Image,
-                (void*)metalRough.image.data(),
-                metalRough.width,
-                metalRough.height,
-                metalRough.component,
-                mipMapping,
-                (metalRough.component > 3 ? default_rgba_format : default_rgb_format),
-                &samplerInfo
-            ));
-            
+            m_Assets.textures.emplace_back(std::make_unique<Texture>(m_Device, m_Image, (void*)metalRough.image.data(),
+                                                                     metalRough.width, metalRough.height, metalRough.component, mipMapping,
+                                                                     (metalRough.component > 3 ? default_rgba_format : default_rgb_format), &samplerInfo));
             material.setRoughMetalTexture(index++);
             material.setMetalRoughTexCoordSet(gltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.texCoord);
         }
         
-        m_Materials.emplace(gltfMaterial.name + "_" + std::to_string(materialID++), material);
+        m_Assets.materials.emplace(gltfMaterial.name + "_" + std::to_string(materialID++), std::move(material));
     }
 }
 
 static VkSamplerAddressMode getVkWrapMode(int32_t wrapMode) {
     switch (wrapMode) {
-        case -1:
-        case 10497:
-            return VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        case 33071:
-            return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        case 33648:
-            return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+    case -1:
+    case 10497:
+        return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    case 33071:
+        return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    case 33648:
+        return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
     }
-
-    //std::cerr << "Unknown wrap mode for getVkWrapMode: " << wrapMode << std::endl;
+    
     return VK_SAMPLER_ADDRESS_MODE_REPEAT;
 }
 
 static VkFilter getVkFilterMode(int32_t filterMode) {
     switch (filterMode) {
-        case -1:
-        case 9728:
-            return VK_FILTER_NEAREST;
-        case 9729:
-            return VK_FILTER_LINEAR;
-        case 9984:
-            return VK_FILTER_NEAREST;
-        case 9985:
-            return VK_FILTER_NEAREST;
-        case 9986:
-            return VK_FILTER_LINEAR;
-        case 9987:
-            return VK_FILTER_LINEAR;
+    case -1:
+    case 9728:
+        return VK_FILTER_NEAREST;
+    case 9729:
+        return VK_FILTER_LINEAR;
+    case 9984:
+        return VK_FILTER_NEAREST;
+    case 9985:
+        return VK_FILTER_NEAREST;
+    case 9986:
+        return VK_FILTER_LINEAR;
+    case 9987:
+        return VK_FILTER_LINEAR;
     }
-
-    //std::cerr << "Unknown filter mode for getVkFilterMode: " << filterMode << std::endl;
+    
     return VK_FILTER_NEAREST;
 }
 
@@ -654,24 +539,74 @@ void NodeSet::fillSamplerInfo(int textureIndex, VkSamplerCreateInfo *samplerInfo
     if ((int32_t)m_gltfModel.samplers.size() > textureIndex) {
         samplerInfo->magFilter = getVkFilterMode(m_gltfModel.samplers[textureIndex].magFilter);
         samplerInfo->minFilter = getVkFilterMode(m_gltfModel.samplers[textureIndex].minFilter);
-
+        
         samplerInfo->addressModeU = getVkWrapMode(m_gltfModel.samplers[textureIndex].wrapS);
         samplerInfo->addressModeV = getVkWrapMode(m_gltfModel.samplers[textureIndex].wrapT);
         samplerInfo->addressModeW = samplerInfo->addressModeV;
     } else {
         samplerInfo->magFilter = VK_FILTER_LINEAR;
         samplerInfo->minFilter = VK_FILTER_LINEAR;
-
+        
         samplerInfo->addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         samplerInfo->addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         samplerInfo->addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     }
 }
 
-// MIKKtSPACE
+
+static bool tinygltf_LoadImageDataCallback(tinygltf::Image *image, const int image_idx, std::string *err,
+                                           std::string *warn, int req_width, int req_height,
+                                           const unsigned char *bytes, int size, void *user_data) {
+    image->image.resize(size);
+    std::copy(bytes, bytes + size, image->image.begin());
+    return true;
+}
+
+/*
+ Copy raw unconverted data directly to destination
+ it will be converted later using multithreading
+ */
+static void convertImageData(tinygltf::Image& image) {
+    int w = 0, h = 0, comp = 0, req_comp = 4;
+    
+    unsigned char *data = nullptr;
+    
+    int bits = 8;
+    int pixel_type = TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE;
+    
+    if (stbi_is_16_bit_from_memory(image.image.data(), (int)image.image.size())) {
+        data = reinterpret_cast<unsigned char *>(
+                                                 stbi_load_16_from_memory(image.image.data(), (int)image.image.size(), &w, &h, &comp, req_comp));
+        if (data) {
+            bits = 16;
+            pixel_type = TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT;
+        }
+    }
+    
+    if (!data) data = stbi_load_from_memory(image.image.data(), (int)image.image.size(), &w, &h, &comp, req_comp);
+    
+    if ((w < 1) || (h < 1)) {
+        stbi_image_free(data);
+        return;
+    }
+    
+    if (req_comp != 0) {
+        comp = req_comp;
+    }
+    
+    image.width = w;
+    image.height = h;
+    image.component = comp;
+    image.bits = bits;
+    image.pixel_type = pixel_type;
+    image.image.resize(static_cast<size_t>(w * h * comp) * size_t(bits / 8));
+    std::copy(data, data + w * h * comp * (bits / 8), image.image.begin());
+    
+    stbi_image_free(data);
+}
 
 int giveNumFaces(const SMikkTSpaceContext * pContext) {
-    Model::Data const * data = (Model::Data*)pContext->m_pUserData;
+    Mesh::Data const * data = (Mesh::Data*)pContext->m_pUserData;
     
     return static_cast<int>( std::floor(data->indices.size() / 3) );
 }
@@ -679,7 +614,7 @@ int giveNumFaces(const SMikkTSpaceContext * pContext) {
 int giveNumVerticesOfFace(const SMikkTSpaceContext * pContext, const int iFace) { return 3; }
 
 void givePosition(const SMikkTSpaceContext * pContext, float fvPosOut[], const int iFace, const int iVert) {
-    Model::Data * const data = (Model::Data*)pContext->m_pUserData;
+    Mesh::Data * const data = (Mesh::Data*)pContext->m_pUserData;
     
     const int offset = iFace * 3;
     const int index = iVert + offset;
@@ -692,7 +627,7 @@ void givePosition(const SMikkTSpaceContext * pContext, float fvPosOut[], const i
 }
 
 void giveNormal(const SMikkTSpaceContext * pContext, float fvNormOut[], const int iFace, const int iVert) {
-    Model::Data * const data = (Model::Data*)pContext->m_pUserData;
+    Mesh::Data * const data = (Mesh::Data*)pContext->m_pUserData;
     
     const int offset = iFace * 3;
     const int index = iVert + offset;
@@ -705,7 +640,7 @@ void giveNormal(const SMikkTSpaceContext * pContext, float fvNormOut[], const in
 }
 
 void giveTexCoord(const SMikkTSpaceContext * pContext, float fvTexcOut[], const int iFace, const int iVert) {
-    Model::Data * const data = (Model::Data*)pContext->m_pUserData;
+    Mesh::Data * const data = (Mesh::Data*)pContext->m_pUserData;
     
     const int offset = iFace * 3;
     const int index = iVert + offset;
@@ -717,10 +652,45 @@ void giveTexCoord(const SMikkTSpaceContext * pContext, float fvTexcOut[], const 
 }
 
 void takeTSpaceBasic(const SMikkTSpaceContext * pContext, const float fvTangent[], const float fSign, const int iFace, const int iVert) {
-    Model::Data * const data = (Model::Data*)pContext->m_pUserData;
+    Mesh::Data * const data = (Mesh::Data*)pContext->m_pUserData;
     
     const int offset = iFace * 3;
     const int index = iVert + offset;
     
     data->vertices.at( data->indices.at(index) ).tangent = glm::vec4{fvTangent[0], fvTangent[1], fvTangent[2], fSign};
 }
+
+/*
+ std::vector<glm::vec3> tangents(data.vertices.size(), glm::vec3(0.f));
+ std::vector<glm::vec3> bitangents(data.vertices.size(), glm::vec3(0.f));
+ glm::vec3 tanBasis[2];
+ 
+ // Compute Tangent Basis for each triangle
+ for (size_t i = 0; i < data.indices.size(); i+=3) {
+ data.computeTangentBasis(data.vertices.at(data.indices[i]), data.vertices.at(data.indices[i +1]), data.vertices.at(data.indices[i +2]), tanBasis);
+ tangents.at(data.indices[i]) += tanBasis[0];
+ tangents.at(data.indices[i +1]) += tanBasis[0];
+ tangents.at(data.indices[i +2]) += tanBasis[0];
+ bitangents.at(data.indices[i]) += tanBasis[1];
+ bitangents.at(data.indices[i +1]) += tanBasis[1];
+ bitangents.at(data.indices[i +2]) += tanBasis[1];
+ }
+ 
+ // Assign oriented Tangent Basis to each vertex
+ for (size_t i = 0; i < data.vertices.size(); i++) {
+ glm::vec3 N = glm::normalize(data.vertices.at(i).normal);
+ glm::vec3 T = glm::normalize(tangents.at(i));
+ // Re-Orthogonalize, then Normalize
+ T = glm::normalize(T - (glm::dot(N, T) * N));
+ float w = glm::dot(glm::cross(N, T), glm::normalize(bitangents.at(i))) < 0.f ? -1.f : 1.f;
+ 
+ data.vertices.at(i).tangent = {T, w};
+ }
+ 
+ // Show distribution of indices
+ {
+ //for (size_t i = 0; i < data.indices.size(); i++) {
+ //    data.vertices.at(data.indices.at(i)).tangent = glm::vec4(( (float)i / (float)data.indices.size() ), 0.0, 0.0, 0.0);
+ //}
+ }
+ */

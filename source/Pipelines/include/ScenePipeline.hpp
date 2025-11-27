@@ -29,7 +29,7 @@ public:
 		};
 		struct FrameData {
 				Primitive::Map& primitives;
-				Material::Map& materials;
+				Assets& assets;
 				std::array<VkDescriptorBufferInfo, SwapChain::MAX_FRAMES_IN_FLIGHT> uboDescriptors;
 				struct {
 						VkDescriptorImageInfo *brdf, *reflection, *irradiance, *shadow;

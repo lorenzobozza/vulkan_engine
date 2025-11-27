@@ -9,6 +9,7 @@
 #define CompositingPipeline_hpp
 
 #include "PipelineWrapper.hpp"
+#include "Mesh.hpp"
 
 class CompositingPipeline : public PipelineWrapper {
 public:
@@ -27,7 +28,7 @@ private:
     Dependencies createLayoutDependencies(void) override;
     void customizePipelineConfig(PipelineConfigInfo& config) override;
     
-    std::unique_ptr<Model> m_Quad;
+    std::unique_ptr<Mesh> m_Quad;
     
     struct {
         std::unique_ptr<DescriptorSetLayout> layout;

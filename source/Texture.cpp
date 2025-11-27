@@ -16,7 +16,7 @@
 // std
 #include <chrono>
 
-Texture::Texture(const Device& dev, Image &image, std::string filePath, bool mipMapping, VkFormat format)
+Texture::Texture(const Device& dev, const Image& image, std::string filePath, bool mipMapping, VkFormat format)
     : device{dev}, image{image}, textureFilePath{filePath}, mipMapping{mipMapping}, viewType{VK_IMAGE_VIEW_TYPE_2D}, format{format} {
     loadTexture();
     createDefaultTextureSampler();
@@ -25,7 +25,8 @@ Texture::Texture(const Device& dev, Image &image, std::string filePath, bool mip
     TIFFSetWarningHandler(NULL);
 }
 
-Texture::Texture(const Device& dev, Image &image, void* data, uint32_t texWidth, uint32_t texHeight, uint8_t depth, bool mipMapping, VkFormat format, VkSamplerCreateInfo *samplerInfo) : device{dev}, image{image}, mipMapping{mipMapping}, viewType{VK_IMAGE_VIEW_TYPE_2D}, format{format} {
+Texture::Texture(const Device& dev, const Image& image, void* data, uint32_t texWidth, uint32_t texHeight, uint8_t depth, bool mipMapping, VkFormat format, VkSamplerCreateInfo *samplerInfo)
+: device{dev}, image{image}, mipMapping{mipMapping}, viewType{VK_IMAGE_VIEW_TYPE_2D}, format{format} {
 
     VkDeviceSize imageSize = texWidth * texHeight * depth * sizeof(uint8_t);
     
@@ -84,7 +85,7 @@ Texture::~Texture() {
     vkFreeMemory(device.device(), textureImageMemory, nullptr);
 }
 
-VkDescriptorImageInfo Texture::descriptorInfo() {
+VkDescriptorImageInfo Texture::descriptorInfo(void) {
     return VkDescriptorImageInfo {
         textureSampler,
         textureImageView,
@@ -92,7 +93,7 @@ VkDescriptorImageInfo Texture::descriptorInfo() {
     };
 }
 
-void Texture::loadTexture() {
+void Texture::loadTexture(void) {
     uint8_t depth;
     size_t bitsPerPixel;
     switch (format) {
@@ -204,7 +205,7 @@ void Texture::loadTexture() {
     
 }
 
-void Texture::createTextureImage() {
+void Texture::createTextureImage(void) {
     image.createImage(_w, _h, format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, textureImage, textureImageMemory, 1, mipLevels);
     
     auto commandBuffer = image.beginSingleTimeCommands();
@@ -261,11 +262,11 @@ void Texture::createTextureImage() {
     stagingBuffer = nullptr;
 }
 
-void Texture::createTextureImageView() {
+void Texture::createTextureImageView(void) {
     textureImageView = image.createImageView(textureImage, viewType, format, 1, mipLevels);
 }
 
-void Texture::createDefaultTextureSampler() {
+void Texture::createDefaultTextureSampler(void) {
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     samplerInfo.magFilter = VK_FILTER_LINEAR;

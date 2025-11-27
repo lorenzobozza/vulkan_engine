@@ -6,13 +6,16 @@
 //
 
 #include "Renderer.hpp"
+#include "Mesh.hpp"
+#include "Pipeline.hpp"
+
 #include <array>
 
 static const VkExtent2D lutExtent = {256, 256};
 
 void Renderer::integrateBrdfLut(void) {
     VkAttachmentDescription attachment = {};
-
+    
     attachment.format = VK_FORMAT_R16G16_SFLOAT;
     attachment.samples = VK_SAMPLE_COUNT_1_BIT;
     attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -21,11 +24,11 @@ void Renderer::integrateBrdfLut(void) {
     attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     attachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
+    
     VkAttachmentReference colorReference = {};
     colorReference.attachment = 0;
     colorReference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
+    
     VkSubpassDescription subpass = {};
     subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
@@ -46,7 +49,7 @@ void Renderer::integrateBrdfLut(void) {
     dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
     dependencies[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
     dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
-
+    
     VkRenderPassCreateInfo renderPassCreateInfo{};
     renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderPassCreateInfo.attachmentCount = 1;
@@ -57,11 +60,10 @@ void Renderer::integrateBrdfLut(void) {
     renderPassCreateInfo.pDependencies = dependencies.data();
     
     VkRenderPass renderPass;
-
-    if (vkCreateRenderPass(device.device(), &renderPassCreateInfo, nullptr, &renderPass) != VK_SUCCESS) {
+    if (vkCreateRenderPass(m_Device.device(), &renderPassCreateInfo, nullptr, &renderPass) != VK_SUCCESS) {
         throw std::runtime_error("failed to create brdf renderpass!");
     }
-
+    
     VkPipelineLayout pipelineLayout;
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -69,9 +71,10 @@ void Renderer::integrateBrdfLut(void) {
     pipelineLayoutInfo.pSetLayouts = nullptr;
     pipelineLayoutInfo.pushConstantRangeCount = 0;
     pipelineLayoutInfo.pPushConstantRanges = nullptr;
-    if (vkCreatePipelineLayout(device.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
+    if (vkCreatePipelineLayout(m_Device.device(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create pipeline layout!");
     }
+    
     PipelineConfigInfo pipelineConfig{};
     Pipeline::defaultPipelineConfigInfo(pipelineConfig);
     pipelineConfig.renderPass = renderPass;
@@ -79,7 +82,7 @@ void Renderer::integrateBrdfLut(void) {
     pipelineConfig.colorBlendAttachment.blendEnable = VK_FALSE;
     pipelineConfig.rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
     Pipeline pipeline{
-        device,
+        m_Device,
         "brdf.vert",
         "brdf.frag",
         pipelineConfig
@@ -100,16 +103,12 @@ void Renderer::integrateBrdfLut(void) {
     imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageInfo.flags = 0;
-
-    device.createImageWithInfo(
-        imageInfo,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        brdf.image,
-        brdf.mem);
-
+    
+    m_Device.createImageWithInfo(imageInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_Brdf.image, m_Brdf.mem);
+    
     VkImageViewCreateInfo viewInfo{};
     viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    viewInfo.image = brdf.image;
+    viewInfo.image = m_Brdf.image;
     viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     viewInfo.format = VK_FORMAT_R16G16_SFLOAT;
     viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -117,23 +116,23 @@ void Renderer::integrateBrdfLut(void) {
     viewInfo.subresourceRange.levelCount = 1;
     viewInfo.subresourceRange.baseArrayLayer = 0;
     viewInfo.subresourceRange.layerCount = 1;
-
-    if (vkCreateImageView(device.device(), &viewInfo, nullptr, &brdf.view) != VK_SUCCESS) {
-      throw std::runtime_error("failed to create brdf image view!");
+    
+    if (vkCreateImageView(m_Device.device(), &viewInfo, nullptr, &m_Brdf.view) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create brdf image view!");
     }
-        
+    
     VkFramebuffer frameBuffer;
-        
+    
     VkFramebufferCreateInfo fbufCreateInfo{};
     fbufCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
     fbufCreateInfo.renderPass = renderPass;
     fbufCreateInfo.attachmentCount = 1;
-    fbufCreateInfo.pAttachments = &brdf.view;
+    fbufCreateInfo.pAttachments = &m_Brdf.view;
     fbufCreateInfo.width = lutExtent.width;
     fbufCreateInfo.height = lutExtent.height;
     fbufCreateInfo.layers = 1;
-
-	if (vkCreateFramebuffer(device.device(), &fbufCreateInfo, nullptr, &frameBuffer) != VK_SUCCESS) {
+    
+    if (vkCreateFramebuffer(m_Device.device(), &fbufCreateInfo, nullptr, &frameBuffer) != VK_SUCCESS) {
         throw std::runtime_error("failed to create brdf framebuffer!");
     }
     
@@ -141,13 +140,13 @@ void Renderer::integrateBrdfLut(void) {
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     samplerInfo.magFilter = VK_FILTER_NEAREST;
     samplerInfo.minFilter = VK_FILTER_NEAREST;
-
+    
     samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     samplerInfo.addressModeV = samplerInfo.addressModeU;
     samplerInfo.addressModeW = samplerInfo.addressModeU;
     
     samplerInfo.anisotropyEnable = VK_FALSE;
-    samplerInfo.maxAnisotropy = device.getPhysicalDeviceProp().limits.maxSamplerAnisotropy;
+    samplerInfo.maxAnisotropy = m_Device.getPhysicalDeviceProp().limits.maxSamplerAnisotropy;
     
     samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
     samplerInfo.unnormalizedCoordinates = VK_FALSE;
@@ -160,7 +159,7 @@ void Renderer::integrateBrdfLut(void) {
     samplerInfo.minLod = 0.0f;
     samplerInfo.maxLod = 1.0f;
     
-    if (vkCreateSampler(device.device(), &samplerInfo, nullptr, &brdfSampler) != VK_SUCCESS) {
+    if (vkCreateSampler(m_Device.device(), &samplerInfo, nullptr, &m_BrdfSampler) != VK_SUCCESS) {
         throw std::runtime_error("failed to create brdf sampler!");
     }
     
@@ -169,10 +168,10 @@ void Renderer::integrateBrdfLut(void) {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandPool = device.getTransferCommandPool();
+    allocInfo.commandPool = m_Device.getTransferCommandPool();
     allocInfo.commandBufferCount = 1;
     
-    if (vkAllocateCommandBuffers(device.device(), &allocInfo, &commandBuffer) != VK_SUCCESS) {
+    if (vkAllocateCommandBuffers(m_Device.device(), &allocInfo, &commandBuffer) != VK_SUCCESS) {
         throw std::runtime_error("Failed to allocate command buffers");
     }
     
@@ -210,7 +209,7 @@ void Renderer::integrateBrdfLut(void) {
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
     
     //RENDER
-    Model::Data data;
+    Mesh::Data data;
     data.vertices = {
         {{-1.f, -1.f, .0f}, {}, {}, {}, {0.f, 0.f}},
         {{1.f, -1.f, .0f}, {}, {}, {}, {1.f, 0.f}},
@@ -221,7 +220,7 @@ void Renderer::integrateBrdfLut(void) {
         0,1,2,3,0,2
     };
     
-    Model quad{device, data};
+    Mesh quad{m_Device, data};
     
     pipeline.bind(commandBuffer);
     
@@ -236,34 +235,29 @@ void Renderer::integrateBrdfLut(void) {
     
     VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
+    
     VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
     submitInfo.pWaitDstStageMask = waitStages;
-
+    
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer;
     
-    if (vkQueueSubmit(device.transferQueue(), 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+    if (vkQueueSubmit(m_Device.transferQueue(), 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
         throw std::runtime_error("failed to submit draw command buffer!");
     }
     
-    vkQueueWaitIdle(device.transferQueue());
+    vkQueueWaitIdle(m_Device.transferQueue());
     
-    vkFreeCommandBuffers(
-        device.device(),
-        device.getTransferCommandPool(),
-        1,
-        &commandBuffer
-    );
+    vkFreeCommandBuffers(m_Device.device(), m_Device.getTransferCommandPool(), 1, &commandBuffer);
     commandBuffer = VK_NULL_HANDLE;
     
-    vkDestroyFramebuffer(device.device(), frameBuffer, nullptr);
-    vkDestroyPipelineLayout(device.device(), pipelineLayout, nullptr);
-    vkDestroyRenderPass(device.device(), renderPass, nullptr);
+    vkDestroyFramebuffer(m_Device.device(), frameBuffer, nullptr);
+    vkDestroyPipelineLayout(m_Device.device(), pipelineLayout, nullptr);
+    vkDestroyRenderPass(m_Device.device(), renderPass, nullptr);
     
-    brdfImageInfo = VkDescriptorImageInfo {
-        brdfSampler,
-        brdf.view,
+    m_BrdfImageInfo = VkDescriptorImageInfo {
+        m_BrdfSampler,
+        m_Brdf.view,
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     };
     
@@ -272,9 +266,9 @@ void Renderer::integrateBrdfLut(void) {
 
 void Renderer::destroyBrdfLut(void) {
     if (wasBrdfRequested) {
-        vkDestroySampler(device.device(), brdfSampler, nullptr);
-        vkDestroyImageView(device.device(), brdf.view, nullptr);
-        vkDestroyImage(device.device(), brdf.image, nullptr);
-        vkFreeMemory(device.device(), brdf.mem, nullptr);
+        vkDestroySampler(m_Device.device(), m_BrdfSampler, nullptr);
+        vkDestroyImageView(m_Device.device(), m_Brdf.view, nullptr);
+        vkDestroyImage(m_Device.device(), m_Brdf.image, nullptr);
+        vkFreeMemory(m_Device.device(), m_Brdf.mem, nullptr);
     }
 }

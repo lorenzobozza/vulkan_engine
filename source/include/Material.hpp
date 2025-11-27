@@ -5,7 +5,8 @@
 //  Created by Lorenzo Bozza on 12/09/25.
 //
 
-#pragma once
+#ifndef Material_hpp
+#define Material_hpp
 
 #include <glm/glm.hpp>
 #include "Texture.hpp"
@@ -20,27 +21,11 @@
 #define OCCLUSION_UV        0x40
 #define ROUGH_METAL_UV      0x80
 
-class Material {
-    
-    // Id == 0 default texture
-    size_t colorTextureId{0};
-    size_t normalTextureId{0};
-    size_t occlusionTextureId{0};
-    size_t roughMetalTextureId{0};
-    
-    unsigned int textureBitmap{0};
-    
-    std::vector<std::unique_ptr<Texture>> *pTexs{nullptr};
 
-    
+class Material {
 public:
-		using id_t = std::string;
-		using Map = std::unordered_map<id_t, Material>;
-		
-    Material(std::vector<std::unique_ptr<Texture>> *pTexs) : pTexs{pTexs} {}
-    Material() {}
-    
-    ~Material() {}
+    Material() = default;
+    ~Material() = default;
     
     glm::vec4 color{1.f};
     float metalness{0.f};
@@ -50,20 +35,36 @@ public:
     AlphaMode alphaMode = ALPHAMODE_OPAQUE;
     float alphaCutoff{0.5};
     
-    void setColorTexture(size_t id) { textureBitmap |= COLOR_TEXTURE; colorTextureId = id; }
-    void setNormalTexture(size_t id) { textureBitmap |= NORMAL_TEXTURE; normalTextureId = id; }
-    void setOcclusionTexture(size_t id) { textureBitmap |= OCCLUSION_TEXTURE; occlusionTextureId = id; }
-    void setRoughMetalTexture(size_t id) { textureBitmap |= ROUGH_METAL_TEXTURE; roughMetalTextureId = id; }
+    void setColorTexture(size_t id) { m_TextureBitmap |= COLOR_TEXTURE; m_ColorTextureId = id; }
+    void setNormalTexture(size_t id) { m_TextureBitmap |= NORMAL_TEXTURE; m_NormalTextureId = id; }
+    void setOcclusionTexture(size_t id) { m_TextureBitmap |= OCCLUSION_TEXTURE; m_OcclusionTextureId = id; }
+    void setRoughMetalTexture(size_t id) { m_TextureBitmap |= ROUGH_METAL_TEXTURE; m_RoughMetalTextureId = id; }
     
-    void setColorTexCoordSet(int set) { textureBitmap |= (set == 1) ? COLOR_UV : 0; }
-    void setNormalTexCoordSet(int set) { textureBitmap |= (set == 1) ? NORMAL_UV : 0; }
-    void setOcclusionTexCoordSet(int set) { textureBitmap |= (set == 1) ? OCCLUSION_UV : 0; }
-    void setMetalRoughTexCoordSet(int set) { textureBitmap |= (set == 1) ? ROUGH_METAL_UV : 0; }
+    void setColorTexCoordSet(int set) { m_TextureBitmap |= (set == 1) ? COLOR_UV : 0; }
+    void setNormalTexCoordSet(int set) { m_TextureBitmap |= (set == 1) ? NORMAL_UV : 0; }
+    void setOcclusionTexCoordSet(int set) { m_TextureBitmap |= (set == 1) ? OCCLUSION_UV : 0; }
+    void setMetalRoughTexCoordSet(int set) { m_TextureBitmap |= (set == 1) ? ROUGH_METAL_UV : 0; }
     
-    VkDescriptorImageInfo getColorTextureIF(void) { return pTexs->at(colorTextureId)->descriptorInfo(); }
-    VkDescriptorImageInfo getNormalTextureIF(void) { return pTexs->at(normalTextureId)->descriptorInfo(); }
-    VkDescriptorImageInfo getOcclusionTextureIF(void) { return pTexs->at(occlusionTextureId)->descriptorInfo(); }
-    VkDescriptorImageInfo getMetalRoughTextureIF(void) { return pTexs->at(roughMetalTextureId)->descriptorInfo(); }
+    using Textures = std::vector<std::unique_ptr<Texture>>;
+    VkDescriptorImageInfo getColorDescriptor(Textures& texVec) const { return texVec[m_ColorTextureId]->descriptorInfo(); }
+    VkDescriptorImageInfo getNormalDescriptor(Textures& texVec) const { return texVec[m_NormalTextureId]->descriptorInfo(); }
+    VkDescriptorImageInfo getOcclusionDescriptor(Textures& texVec) const { return texVec[m_OcclusionTextureId]->descriptorInfo(); }
+    VkDescriptorImageInfo getMetalRoughDescriptor(Textures& texVec) const { return texVec[m_RoughMetalTextureId]->descriptorInfo(); }
     
-    unsigned int getTextureBitmap(void) { return textureBitmap; }
+    unsigned int getTextureBitmap(void) { return m_TextureBitmap; }
+    
+private:
+    size_t m_ColorTextureId{0};
+    size_t m_NormalTextureId{0};
+    size_t m_OcclusionTextureId{0};
+    size_t m_RoughMetalTextureId{0};
+    
+    uint32_t m_TextureBitmap{0};
 };
+
+struct Assets {
+    std::vector<std::unique_ptr<Texture>> textures;
+    std::unordered_map<std::string, Material> materials;
+};
+
+#endif
