@@ -11,6 +11,7 @@
 #include "Primitive.hpp"
 
 #include <array>
+#include <stdexcept>
 
 CubeMap::CubeMap(const Device& device, VkDescriptorImageInfo* srcDescriptor, VkExtent2D extent, std::string shader, uint16_t mipLevels)
 : m_Device(device), m_SrcDescriptor(srcDescriptor), m_Extent(extent), m_ShaderName(shader), m_MipLevels(mipLevels) {

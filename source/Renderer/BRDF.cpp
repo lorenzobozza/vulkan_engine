@@ -10,6 +10,7 @@
 #include "Pipeline.hpp"
 
 #include <array>
+#include <stdexcept>
 
 static const VkExtent2D lutExtent = {256, 256};
 

@@ -8,9 +8,10 @@
 #include "old_TextRender.hpp"
 #include "SwapChain.hpp"
 
-// lib
 #include <ft2build.h>
 #include FT_FREETYPE_H
+
+#include <stdexcept>
 
 struct PushConstantData {
   glm::mat4 modelMatrix{1.f};

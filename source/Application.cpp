@@ -45,15 +45,15 @@ void Application::run() {
     WidgetStruct widgets {
         .view = std::make_shared<Viewport>(),
         .log = std::make_shared<LogView>(),
-        .nodes = std::make_shared<NodeTreeViewer>(),
         .assets = std::make_shared<AssetTree>(),
+        .nodes = std::make_shared<NodeTreeViewer>(),
         .material = std::make_shared<MeterialViewer>(m_Assets),
         .settings = std::make_shared<Settings>(m_Device, m_Window, m_Renderer, m_Perf, m_MSAASampleCount)
     };
     widgets.menu = std::make_shared<Menu>(widgets.log->getVisibility(), widgets.material->getVisibility());
     widgets.log->getVisibility() = false;
     widgets.material->getVisibility() = false;
-    widgets.view->setExtent(m_Renderer.getSwapChainExtent().width, m_Renderer.getSwapChainExtent().height);
+    widgets.view->setExtent((float)m_Renderer.getSwapChainExtent().width, (float)m_Renderer.getSwapChainExtent().height);
     widgets.view->addFlags(ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_AlwaysAutoResize|ImGuiWindowFlags_NoBackground);
     
     ui.addWidgets(widgets.view, widgets.log, widgets.assets, widgets.material, widgets.settings, widgets.menu, widgets.nodes);
@@ -216,7 +216,7 @@ void Application::run() {
         
         m_Window.pollWindowEvents([this, widgets]() {
             m_Renderer.recreateSwapChain();
-            widgets.view->setExtent(m_Renderer.getSwapChainExtent().width, m_Renderer.getSwapChainExtent().height);
+            widgets.view->setExtent((float)m_Renderer.getSwapChainExtent().width, (float)m_Renderer.getSwapChainExtent().height);
         });
         
         updateCamera(camera, cameraHandle, m_Window.getMovement(), m_Window.getRotation(), m_Renderer.getAspectRatio(), m_Perf.cpuTime + m_Perf.gpuTime);

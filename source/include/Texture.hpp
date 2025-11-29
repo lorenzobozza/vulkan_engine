@@ -11,6 +11,8 @@
 #include "Image.hpp"
 #include "Buffer.hpp"
 
+#include <memory>
+
 class Texture {
 public:
     Texture(const Texture&) = delete;

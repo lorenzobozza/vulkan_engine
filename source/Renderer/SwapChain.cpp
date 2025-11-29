@@ -7,6 +7,7 @@
 
 #include "SwapChain.hpp"
 
+#include <stdexcept>
 
 bool SwapChain::VSync = true;
 

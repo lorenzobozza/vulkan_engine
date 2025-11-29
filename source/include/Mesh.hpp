@@ -16,6 +16,7 @@
 #include <glm/glm.hpp>
 
 #include <vector>
+#include <memory>
 
 class Mesh {
 public:

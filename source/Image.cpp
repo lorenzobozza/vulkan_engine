@@ -7,6 +7,8 @@
 
 #include "include/Image.hpp"
 
+#include <stdexcept>
+
 Image::Image(const Device& dev) : m_Device(dev) {
     auto indices = m_Device.getFamilyIndices();
     
