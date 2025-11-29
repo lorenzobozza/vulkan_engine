@@ -53,11 +53,11 @@ public:
     static constexpr int WIDTH = 1920;
     static constexpr int HEIGHT = 1080;
     
-    Application() = default;
-    ~Application() = default;
-    
     Application(const Application &) = delete;
     Application &operator=(const Application &) = delete;
+    
+    Application() = default;
+    ~Application() = default;
     
     void run(void);
     

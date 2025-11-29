@@ -1,6 +1,6 @@
 //
 //  Widgets.hpp
-//  
+//
 //
 //  Created by Lorenzo Bozza on 03/11/25.
 //
@@ -35,7 +35,7 @@ public:
     NodeTreeViewer(std::shared_ptr<Node::Tree> node_tree) : nodeTree(node_tree) {}
     
     void setTree(std::shared_ptr<Node::Tree> node_tree) { nodeTree = node_tree; }
-
+    
 private:
     std::shared_ptr<Node::Tree> nodeTree;
     void content(void) override {
@@ -60,7 +60,7 @@ private:
     }
     
     void expandTree(Node& parentNode) {
-    ImGuiTreeNodeFlags base_flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_SpanAllColumns;
+        ImGuiTreeNodeFlags base_flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_SpanAllColumns;
         if (parentNode.parent == -1) base_flags |= ImGuiTreeNodeFlags_DefaultOpen;
         for (uint32_t childIndex : parentNode.children) {
             Node& child = nodeTree->nodes[childIndex];
@@ -83,7 +83,7 @@ public:
     void addFlags(unsigned int flags) { m_flags |= flags; }
     void setExtent(float width, float height) { m_extent = ImVec2(width * 0.8f, height * 0.8f); }
     uint8_t loading = 0xFF;
-
+    
 private:
     void content(void) override {
         ImGui::SetNextWindowContentSize(m_extent);
@@ -105,33 +105,33 @@ private:
         
         std::string msg;
         ImVec2 pos;
-				switch (loading) {
-						case 1:
-								msg = "Compiling Shaders...";
-								break;
-						case 2:
-								msg = "Loading Environment...";
-								break;
-						case 3:
-								msg = "Loading Models...";
-								break;
-						default:
-								break;
-				}
-				switch (loading) {
-						case 1:
-						case 2:
-						case 3:
-								pos = ImVec2(ImGui::GetWindowPos().x + 20.f, ImGui::GetWindowPos().y + 50.f);
-								ImGui::GetWindowDrawList()->AddText(ImGui::GetFont(), 50.0, pos, 0xFFCC00AA, msg.c_str());
-								break;
-						default:
-								break;
-				}
-				
+        switch (loading) {
+        case 1:
+            msg = "Compiling Shaders...";
+            break;
+        case 2:
+            msg = "Loading Environment...";
+            break;
+        case 3:
+            msg = "Loading Models...";
+            break;
+        default:
+            break;
+        }
+        switch (loading) {
+        case 1:
+        case 2:
+        case 3:
+            pos = ImVec2(ImGui::GetWindowPos().x + 20.f, ImGui::GetWindowPos().y + 50.f);
+            ImGui::GetWindowDrawList()->AddText(ImGui::GetFont(), 50.0, pos, 0xFFCC00AA, msg.c_str());
+            break;
+        default:
+            break;
+        }
+        
         ImGui::End();
     }
-
+    
     unsigned int m_flags = 0;
     ImVec2 m_extent{};
 };
@@ -152,10 +152,10 @@ class LogView : public Widget {
 class Settings : public Widget {
 public:
     Settings(const Device& device, SDLWindow& window, Renderer& renderer, Perf& perf, VkSampleCountFlagBits& msaaSampleCount)
-        : m_device(device), m_window(window), m_renderer(renderer), m_Perf(perf), m_MSAASampleCount(msaaSampleCount) {
+    : m_device(device), m_window(window), m_renderer(renderer), m_Perf(perf), m_MSAASampleCount(msaaSampleCount) {
         aaPresets.resize(1 + ctz(m_device.getSupportedSmapleCount()));
     }
-        
+    
     void recreatePipelinesCallback(std::function<void()> fn) { recreatePipelines = fn; }
     
     struct {
@@ -179,7 +179,7 @@ private:
     std::function<void()> recreatePipelines;
     void content(void) override {
         ImGui::Begin("Settings", nullptr, ImGuiWindowFlags_NoCollapse);
-    
+        
         ImGui::Text("CPU Time %.2fms", m_Perf.cpuTime * 1000.f);
         ImGui::Text("GPU Time %.2fms", m_Perf.gpuTime * 1000.f);
         
@@ -197,15 +197,15 @@ private:
         setNewMode = setNewMode || ImGui::Combo("##resolution", &res, m_window.supportedResNames.c_str());
         if (setNewMode) {
             switch (windowMode) {
-                case 0:
-                    m_window.setWindowFullScreen(0, m_window.supportedModes[res]);
-                    break;
-                case 1:
-                    m_window.setWindowFullScreen(SDL_WINDOW_FULLSCREEN_DESKTOP, m_window.supportedModes[res]);
-                    break;
-                case 2:
-                    m_window.setWindowFullScreen(SDL_WINDOW_FULLSCREEN, m_window.supportedModes[res]);
-                    break;
+            case 0:
+                m_window.setWindowFullScreen(0, m_window.supportedModes[res]);
+                break;
+            case 1:
+                m_window.setWindowFullScreen(SDL_WINDOW_FULLSCREEN_DESKTOP, m_window.supportedModes[res]);
+                break;
+            case 2:
+                m_window.setWindowFullScreen(SDL_WINDOW_FULLSCREEN, m_window.supportedModes[res]);
+                break;
             }
         }
         
@@ -232,10 +232,10 @@ private:
             m_renderer.recreateSwapChain(true);
             recreatePipelines();
         }
-        static bool vsync = SwapChain::enableVSync;
+        static bool vsync = SwapChain::VSync;
         ImGui::Checkbox(vsync ? "VSync Enabled" : "VSync Disabled", &vsync);
-        if (SwapChain::enableVSync != vsync) {
-            SwapChain::enableVSync = vsync;
+        if (SwapChain::VSync != vsync) {
+            SwapChain::VSync = vsync;
             m_renderer.recreateSwapChain();
         }
         
@@ -248,7 +248,7 @@ private:
         ImGui::SliderFloat("##gamma", &otherData.gamma, 1.f, 3.f);
         static bool noise = false;
         if (ImGui::Checkbox("Film Grain", &noise)) otherData.debugMode = noise ? 1 : 0;
-
+        
         ImGui::End();
     }
 };
@@ -288,7 +288,7 @@ private:
     void content(void) override {
         ImGui::Begin("Materials", nullptr, ImGuiWindowFlags_NoCollapse);
         if (ImGui::BeginTable("material_table", 5, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
-        {
+            {
             ImGui::TableNextRow();
             ImGui::TableNextColumn(); ImGui::Text("Name");
             ImGui::TableNextColumn(); ImGui::Text("Color");
@@ -310,7 +310,7 @@ private:
                 ImGui::Text("%s", (kv.second.getTextureBitmap() & 0x8) == 0 ? ( "M: " + std::to_string(kv.second.metalness) + ", R: " + std::to_string(kv.second.roughness) ).c_str() : "Texture");
             }
             ImGui::EndTable();
-        }
+            }
         ImGui::End();
     }
 };

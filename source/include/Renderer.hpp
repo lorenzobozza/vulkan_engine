@@ -46,14 +46,15 @@ private:
     } m_Offscreen[RenderPass::TotalCount];
     
 public:
-    Renderer(const Renderer &) = delete;
-    Renderer &operator=(const Renderer &) = delete;
+    Renderer(const Renderer&) = delete;
+    Renderer& operator=(const Renderer&) = delete;
+    Renderer(Renderer&&) = delete;
+    Renderer& operator=(Renderer&&) = delete;
     
     Renderer(SDLWindow& pasWindow, const Device& passDevice, VkSampleCountFlagBits& msaaSampleCount);
     ~Renderer();
     
     bool isFrameInProgress(void) const { return m_IsFrameStarted; }
-    bool isVSyncEnabled(void) const { return m_SwapChain->isVSyncEnabled(); }
     VkImage getImage(int index) const { return m_SwapChain->getImage(index); }
     float getAspectRatio(void) const { return m_SwapChain->extentAspectRatio(); }
     VkRenderPass getSwapChainRenderPass(void) const { return m_SwapChain->getCompositionRenderPass(); }

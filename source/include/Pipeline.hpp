@@ -36,6 +36,8 @@ class Pipeline {
 public:
     Pipeline(const Pipeline&) = delete;
     Pipeline &operator=(const Pipeline&) = delete;
+    Pipeline(Pipeline&&) = delete;
+    Pipeline &operator=(Pipeline&&) = delete;
     
     Pipeline(const Device& dev, const std::string &vertFilepath, const std::string &fragFilepath, const PipelineConfigInfo &configInfo);
     ~Pipeline();

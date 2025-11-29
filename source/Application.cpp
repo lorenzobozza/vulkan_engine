@@ -72,7 +72,7 @@ void Application::run() {
 //        m_MaterialMap.materials.emplace("Global_Default_Material", globalMaterial);
         
         /**** Load HDRi Texture */
-        m_Assets.textures.push_back(std::make_unique<Texture>(
+        m_Assets.textures.push_back(std::make_unique<const Texture>(
             this->m_Device,
             m_Image,
             "../../../assets/textures/mondello_4k.hdr",

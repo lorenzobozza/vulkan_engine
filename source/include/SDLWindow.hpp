@@ -15,7 +15,6 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_vulkan.h>
 
-// std
 #include <vector>
 #include <string>
 #include <functional>
@@ -28,59 +27,52 @@ enum Shortcut {
 
 class SDLWindow {
 public:
-    SDLWindow(int w, int h, std::string name);
-    SDLWindow(std::string name);
-    ~SDLWindow();
+    SDLWindow(const SDLWindow&) = delete;
+    SDLWindow& operator=(const SDLWindow&) = delete;
+    SDLWindow(SDLWindow&&) = delete;
+    SDLWindow& operator=(SDLWindow&&) = delete;
     
-    // Prevent Obj copy
-    SDLWindow(const SDLWindow &) = delete;
-    SDLWindow &operator=(const SDLWindow &) = delete;
+    SDLWindow(int w, int h, std::string name);
+    ~SDLWindow();
     
     void createWindowSurface(VkInstance instance, VkSurfaceKHR *surface);
     
-    void setWindowExtent(int Width, int Height) { m_windowExtent.width = Width; m_windowExtent.height = Height; }
-    void setWindowFullScreen(uint32_t flags, const SDL_DisplayMode& displayMode);
-    
-    VkExtent2D getExtent() const { return m_windowExtent; }
-    VkExtent2D getSurfaceExtent() const { return m_surfaceExtent; }
-    VkExtent2D getDesktopExtent() const { return {(uint32_t)desktopMode.w, (uint32_t)desktopMode.h}; }
-    SDL_Window *getWindow() const { return window; }
-    uint8_t getMovement(void) { return movement; }
-    glm::vec3 getRotation(void) { glm::vec3 tmp = rotate; rotate = {}; return tmp; }
-    bool isWindowOpen(void) { return keepRuning; }
-    void updateUiScaling(void);
-    
-    void pollWindowEvents(std::function<void()> callback);
-    void closeWindow(void) { keepRuning = false; }
-    
+    VkExtent2D getExtent(void) const { return m_windowExtent; }
+    VkExtent2D getSurfaceExtent(void) const { return m_surfaceExtent; }
+    VkExtent2D getDesktopExtent(void) const { return {(uint32_t)m_DesktopMode.w, (uint32_t)m_DesktopMode.h}; }
+    SDL_Window *getWindow(void) const { return m_Window; }
+    uint8_t getMovement(void) const { return m_Movement; }
+    bool isWindowOpen(void) const { return m_IsRunning; }
+    glm::vec3 getRotation(void) { glm::vec3 tmp = m_Rotate; m_Rotate = {}; return tmp; }
     Shortcut getShortcut(void);
     
+    void updateUiScaling(void);
+    void pollWindowEvents(std::function<void()> callback);
+    void closeWindow(void) { m_IsRunning = false; }
+    void setWindowExtent(int Width, int Height) { m_windowExtent.width = Width; m_windowExtent.height = Height; }
+    void setWindowFullScreen(uint32_t flags, const SDL_DisplayMode& displayMode);
     std::string openFileDialog(std::string folder);
     
     std::string supportedResNames;
     std::vector<SDL_DisplayMode> supportedModes;
-    SDL_DisplayMode desktopMode;
     
 private:
-    void initWindow();
+    void initWindow(void);
     void fetchShortcuts(SDL_Keymod, SDL_KeyCode);
-    
-    Shortcut m_LastShortcut = UNDEFINED_SHORTCUT;
     
     VkExtent2D m_windowExtent;
     VkExtent2D m_surfaceExtent;
+    Shortcut m_LastShortcut = UNDEFINED_SHORTCUT;
     
-    bool fullScreen = false;
+    std::string m_WindowName;
+    SDL_Window* m_Window;
+    SDL_DisplayMode m_DesktopMode;
     
-    std::string windowName;
-    SDL_Window* window;
+    float m_DpiScaling{1.f};
+    bool m_IsRunning = true;
     
-    float dpi_scale_fact{1.f};
-    bool keepRuning = true;
-    
-    // Inputs
-    uint8_t movement{0x00};
-    glm::vec3 rotate{.0f};
+    uint8_t m_Movement{0x00};
+    glm::vec3 m_Rotate{.0f};
 };
 
 #endif /* SDLWindow_hpp */

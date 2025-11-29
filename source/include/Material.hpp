@@ -45,7 +45,7 @@ public:
     void setOcclusionTexCoordSet(int set) { m_TextureBitmap |= (set == 1) ? OCCLUSION_UV : 0; }
     void setMetalRoughTexCoordSet(int set) { m_TextureBitmap |= (set == 1) ? ROUGH_METAL_UV : 0; }
     
-    using Textures = std::vector<std::unique_ptr<Texture>>;
+    using Textures = std::vector<std::unique_ptr<const Texture>>;
     VkDescriptorImageInfo getColorDescriptor(Textures& texVec) const { return texVec[m_ColorTextureId]->descriptorInfo(); }
     VkDescriptorImageInfo getNormalDescriptor(Textures& texVec) const { return texVec[m_NormalTextureId]->descriptorInfo(); }
     VkDescriptorImageInfo getOcclusionDescriptor(Textures& texVec) const { return texVec[m_OcclusionTextureId]->descriptorInfo(); }
@@ -63,7 +63,7 @@ private:
 };
 
 struct Assets {
-    std::vector<std::unique_ptr<Texture>> textures;
+    std::vector<std::unique_ptr<const Texture>> textures;
     std::unordered_map<std::string, Material> materials;
 };
 

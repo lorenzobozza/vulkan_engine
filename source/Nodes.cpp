@@ -451,9 +451,9 @@ void NodeSet::loadMaterialsToVRAM(void) {
             
             fillSamplerInfo(colorTextureIndex, &samplerInfo);
             
-            m_Assets.textures.emplace_back(std::make_unique<Texture>(m_Device, m_Image, (void*)color.image.data(),
-                                                                     color.width, color.height, color.component, mipMapping,
-                                                                     (color.component > 3 ? default_rgba_format : default_rgb_format), &samplerInfo));
+            m_Assets.textures.emplace_back(std::make_unique<const Texture>(m_Device, m_Image, (void*)color.image.data(),
+                                                                           color.width, color.height, color.component, mipMapping,
+                                                                           (color.component > 3 ? default_rgba_format : default_rgb_format), &samplerInfo));
             material.setColorTexture(index++);
             material.setNormalTexCoordSet(gltfMaterial.pbrMetallicRoughness.baseColorTexture.texCoord);
             
@@ -464,9 +464,9 @@ void NodeSet::loadMaterialsToVRAM(void) {
             
             fillSamplerInfo(normalTextureIndex, &samplerInfo);
             
-            m_Assets.textures.emplace_back(std::make_unique<Texture>(m_Device, m_Image, (void*)normal.image.data(),
-                                                                     normal.width, normal.height, normal.component, mipMapping,
-                                                                     (normal.component > 3 ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8_UNORM), &samplerInfo));
+            m_Assets.textures.emplace_back(std::make_unique<const Texture>(m_Device, m_Image, (void*)normal.image.data(),
+                                                                           normal.width, normal.height, normal.component, mipMapping,
+                                                                           (normal.component > 3 ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8_UNORM), &samplerInfo));
             material.setNormalTexture(index++);
             material.setNormalTexCoordSet(gltfMaterial.normalTexture.texCoord);
         }
@@ -476,9 +476,9 @@ void NodeSet::loadMaterialsToVRAM(void) {
             
             fillSamplerInfo(occlusionTextureIndex, &samplerInfo);
             
-            m_Assets.textures.emplace_back(std::make_unique<Texture>(m_Device, m_Image, (void*)occlusion.image.data(),
-                                                                     occlusion.width, occlusion.height, occlusion.component, mipMapping,
-                                                                     (occlusion.component > 3 ? default_rgba_format : default_rgb_format), &samplerInfo));
+            m_Assets.textures.emplace_back(std::make_unique<const Texture>(m_Device, m_Image, (void*)occlusion.image.data(),
+                                                                           occlusion.width, occlusion.height, occlusion.component, mipMapping,
+                                                                           (occlusion.component > 3 ? default_rgba_format : default_rgb_format), &samplerInfo));
             material.setOcclusionTexture(index++);
             material.setOcclusionTexCoordSet(gltfMaterial.occlusionTexture.texCoord);
         }
@@ -490,9 +490,9 @@ void NodeSet::loadMaterialsToVRAM(void) {
             
             fillSamplerInfo(metalRoughTextureIndex, &samplerInfo);
             
-            m_Assets.textures.emplace_back(std::make_unique<Texture>(m_Device, m_Image, (void*)metalRough.image.data(),
-                                                                     metalRough.width, metalRough.height, metalRough.component, mipMapping,
-                                                                     (metalRough.component > 3 ? default_rgba_format : default_rgb_format), &samplerInfo));
+            m_Assets.textures.emplace_back(std::make_unique<const Texture>(m_Device, m_Image, (void*)metalRough.image.data(),
+                                                                           metalRough.width, metalRough.height, metalRough.component, mipMapping,
+                                                                           (metalRough.component > 3 ? default_rgba_format : default_rgb_format), &samplerInfo));
             material.setRoughMetalTexture(index++);
             material.setMetalRoughTexCoordSet(gltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.texCoord);
         }

@@ -1,6 +1,6 @@
 //
 //  ShaderCompiler.hpp
-//  
+//
 //
 //  Created by Lorenzo Bozza on 15/10/25.
 //
@@ -17,13 +17,13 @@
 class ShaderIncluderInterface : public shaderc::CompileOptions::IncluderInterface {
 public:
     shaderc_include_result* GetInclude(const char* requested_source, shaderc_include_type type, const char* requesting_source, size_t include_depth) override {
-    
+        
         const std::string name = std::string(requested_source);
         std::string source;
         
         std::ifstream file;
         file.open("../../../shaders/" + name, std::ios::ate | std::ios::binary);
-            
+        
         if (file.rdstate() == std::ios::goodbit && file.is_open()) {
             size_t filesize = static_cast<size_t>(file.tellg());
             source.resize(filesize);
@@ -32,24 +32,24 @@ public:
             file.read(source.data(), filesize);
             file.close();
         }
-
+        
         auto container = new std::array<std::string, 2>;
         (*container)[0] = std::move(name);
         (*container)[1] = std::move(source);
-
+        
         auto data = new shaderc_include_result;
-
+        
         data->user_data = container;
-
+        
         data->source_name = (*container)[0].data();
         data->source_name_length = (*container)[0].size();
-
+        
         data->content = (*container)[1].data();
         data->content_length = (*container)[1].size();
-    
+        
         return data;
     }
-
+    
     void ReleaseInclude(shaderc_include_result* data) override {
         delete static_cast<std::array<std::string, 2>*>(data->user_data);
         delete data;
@@ -61,6 +61,9 @@ public:
 
 class ShaderCompiler {
 public:
+    ShaderCompiler(const ShaderCompiler&) = delete;
+    ShaderCompiler& operator=(const ShaderCompiler&) = delete;
+    
     ShaderCompiler() = default;
     ~ShaderCompiler() = default;
     
@@ -86,15 +89,15 @@ public:
             
             return State::Valid;
         }
-
+        
         file.open("../../../shaders/" + fileName, std::ios::ate | std::ios::binary);
         
         if (file.rdstate() == std::ios::goodbit && file.is_open()) {
             size_t filesize = static_cast<size_t>(file.tellg());
-            source.resize(filesize);
+            m_Source.resize(filesize);
             
             file.seekg(0);
-            file.read(source.data(), filesize);
+            file.read(m_Source.data(), filesize);
             file.close();
             
             std::string fformat = fileName.substr(fileName.size() - 4, fileName.size() - 1);
@@ -125,7 +128,7 @@ private:
         shaderc::CompileOptions options;
     };
     
-    std::vector<char> source;
+    std::vector<char> m_Source;
     
     int compileShader(ShaderCompileInfo& info) {
         Log* log = Log::getInstance();
@@ -133,7 +136,7 @@ private:
         shaderc::Compiler compiler;
         
         shaderc::PreprocessedSourceCompilationResult result;
-        result = compiler.PreprocessGlsl(source.data(), source.size(), info.kind, info.fileName.c_str(), info.options);
+        result = compiler.PreprocessGlsl(m_Source.data(), m_Source.size(), info.kind, info.fileName.c_str(), info.options);
         
         if (result.GetCompilationStatus() != shaderc_compilation_status_success) {
             log->error("GLSL Preprocessing: {}", result.GetErrorMessage());
@@ -165,7 +168,7 @@ private:
         log->error("Shader: {} wrong Spir-V magic number", info.fileName);
         return State::Error;
     }
-
+    
 };
 
 #endif /* ShaderCompiler_h */

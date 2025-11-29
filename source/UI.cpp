@@ -6,26 +6,25 @@
 //
 
 #include "UI.hpp"
-#include "ShaderCompiler.hpp"
+#include "Pipeline.hpp"
 #include "ImGuiShaders.h"
 #include "Log.hpp"
 
 #include <SDL2/SDL.h>
-
 #include <imgui_internal.h>
 
 #include <fstream>
 
-UI::UI(const Device& device, Renderer& renderer) : device{device}, m_Renderer{renderer} {
-    vertexBuffers = new std::vector<std::unique_ptr<Buffer>>(SwapChain::MAX_FRAMES_IN_FLIGHT);
-    indexBuffers = new std::vector<std::unique_ptr<Buffer>>(SwapChain::MAX_FRAMES_IN_FLIGHT);
+UI::UI(const Device& device, Renderer& renderer) : m_Device{device}, m_Renderer{renderer} {
+    m_VertexBuffers.resize(SwapChain::MAX_FRAMES_IN_FLIGHT);
+    m_IndexBuffers.resize(SwapChain::MAX_FRAMES_IN_FLIGHT);
     
     for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
-        vertexBuffers->at(i) = std::make_unique<Buffer>(device);
-        indexBuffers->at(i) = std::make_unique<Buffer>(device);
+        m_VertexBuffers.at(i) = std::make_unique<Buffer>(m_Device);
+        m_IndexBuffers.at(i) = std::make_unique<Buffer>(m_Device);
     }
     
-    context = ImGui::CreateContext();
+    m_ImGuiContext = ImGui::CreateContext();
     ImGui::StyleColorsDark();
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
@@ -38,20 +37,13 @@ UI::UI(const Device& device, Renderer& renderer) : device{device}, m_Renderer{re
 UI::~UI() {
     ImGui::DestroyContext();
     
-    vkDestroyPipeline(device.device(), imguiPipeline, nullptr);
-    vkDestroyPipelineLayout(device.device(), imguiPipelineLayout, nullptr);
+    vkDestroyPipeline(m_Device.device(), m_ImguiPipeline, nullptr);
+    vkDestroyPipelineLayout(m_Device.device(), m_ImguiPipelineLayout, nullptr);
     
-    vkDestroySampler(device.device(), fontSampler, nullptr);
-    vkDestroyImageView(device.device(), fontView, nullptr);
-    vkDestroyImage(device.device(), fontImage, nullptr);
-    vkFreeMemory(device.device(), fontMem, nullptr);
-    
-    for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
-        vertexBuffers->at(i).reset();
-        indexBuffers->at(i).reset();
-    }
-    vertexBuffers = nullptr;
-    indexBuffers = nullptr;
+    vkDestroySampler(m_Device.device(), m_FontSampler, nullptr);
+    vkDestroyImageView(m_Device.device(), m_FontView, nullptr);
+    vkDestroyImage(m_Device.device(), m_FontImage, nullptr);
+    vkFreeMemory(m_Device.device(), m_FontMem, nullptr);
 }
 
 void UI::createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath) {
@@ -64,17 +56,17 @@ void UI::createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath) 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = descriptor.layout->getDescriptorSetLayout();
+    pipelineLayoutInfo.pSetLayouts = m_Descriptor.layout->getDescriptorSetLayout();
     pipelineLayoutInfo.pushConstantRangeCount = 1;
     pipelineLayoutInfo.pPushConstantRanges = pushConstantRanges;
-    if (vkCreatePipelineLayout(device.device(), &pipelineLayoutInfo, nullptr, &imguiPipelineLayout) != VK_SUCCESS) {
+    if (vkCreatePipelineLayout(m_Device.device(), &pipelineLayoutInfo, nullptr, &m_ImguiPipelineLayout) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create pipeline layout!");
     }
     
     PipelineConfigInfo pipelineConfig{};
     Pipeline::defaultPipelineConfigInfo(pipelineConfig);
     pipelineConfig.renderPass = renderPass;
-    pipelineConfig.pipelineLayout = imguiPipelineLayout;
+    pipelineConfig.pipelineLayout = m_ImguiPipelineLayout;
     pipelineConfig.rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     
     //    std::vector<uint32_t> vertexShader, fragmentShader;
@@ -90,7 +82,7 @@ void UI::createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath) 
     //    createInfo.pCode = vertexShader.data();
     createInfo.codeSize = imgui_vert_spv_len;
     createInfo.pCode = reinterpret_cast<const uint32_t*>(imgui_vert_spv);
-    if(vkCreateShaderModule(device.device(), &createInfo, nullptr, &vertShaderModule) != VK_SUCCESS) {
+    if(vkCreateShaderModule(m_Device.device(), &createInfo, nullptr, &m_VertShaderModule) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create Shader Module");
     }
     
@@ -102,14 +94,14 @@ void UI::createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath) 
     //    createInfo.pCode = fragmentShader.data();
     createInfo.codeSize = imgui_frag_spv_len;
     createInfo.pCode = reinterpret_cast<const uint32_t*>(imgui_frag_spv);
-    if(vkCreateShaderModule(device.device(), &createInfo, nullptr, &fragShaderModule) != VK_SUCCESS) {
+    if(vkCreateShaderModule(m_Device.device(), &createInfo, nullptr, &m_FragShaderModule) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create Shader Module");
     }
     
     VkPipelineShaderStageCreateInfo shaderStages[2];
     shaderStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     shaderStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-    shaderStages[0].module = vertShaderModule;
+    shaderStages[0].module = m_VertShaderModule;
     shaderStages[0].pName = "main";
     shaderStages[0].flags = 0;
     shaderStages[0].pNext = nullptr;
@@ -117,7 +109,7 @@ void UI::createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath) 
     
     shaderStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     shaderStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    shaderStages[1].module = fragShaderModule;
+    shaderStages[1].module = m_FragShaderModule;
     shaderStages[1].pName = "main";
     shaderStages[1].flags = 0;
     shaderStages[1].pNext = nullptr;
@@ -156,30 +148,30 @@ void UI::createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath) 
     pipelineInfo.basePipelineIndex = -1;
     pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
     
-    if(vkCreateGraphicsPipelines(device.device(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &imguiPipeline) != VK_SUCCESS) {
+    if(vkCreateGraphicsPipelines(m_Device.device(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_ImguiPipeline) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create imgui pipeline");
     }
     
     for (auto shaderStage : shaderStages) {
-        vkDestroyShaderModule(device.device(), shaderStage.module, nullptr);
+        vkDestroyShaderModule(m_Device.device(), shaderStage.module, nullptr);
     }
 }
 
 void UI::createDescriptors(void) {
-    descriptor.layout = DescriptorSetLayout::Builder(device)
+    m_Descriptor.layout = DescriptorSetLayout::Builder(m_Device)
         .addBinding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
         .build_ptr();
     
-    descriptor.pool = DescriptorPool::Builder(device)
+    m_Descriptor.pool = DescriptorPool::Builder(m_Device)
         .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
         .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
         .build_ptr();
     
-    descriptor.v_set.resize(SwapChain::MAX_FRAMES_IN_FLIGHT);
+    m_Descriptor.v_set.resize(SwapChain::MAX_FRAMES_IN_FLIGHT);
     for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
-        DescriptorWriter(*descriptor.layout, *descriptor.pool)
-            .writeImage(0, &fontDescriptorInfo)
-            .build(descriptor.v_set.at(i));
+        DescriptorWriter(*m_Descriptor.layout, *m_Descriptor.pool)
+            .writeImage(0, &m_FontDescriptorInfo)
+            .build(m_Descriptor.v_set.at(i));
     }
 }
 
@@ -231,7 +223,7 @@ void UI::newFrame(void) {
         firstLoop = false;
     }
     
-    for (auto& widget : widgets) {
+    for (auto& widget : m_Widgets) {
         widget->draw();
     }
     
@@ -253,26 +245,26 @@ void UI::updateBuffers(int frameIndex) {
     // Update buffers only if vertex or index count has been changed compared to current buffer size
     
     // Vertex buffer
-    if ((vertexBuffers->at(frameIndex)->getBuffer() == VK_NULL_HANDLE) || (vertexCount[frameIndex] != imDrawData->TotalVtxCount)) {
-        vertexBuffers->at(frameIndex)->unmap();
-        vertexBuffers->at(frameIndex)->destroy();
-        vertexBuffers->at(frameIndex)->createBuffer(vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-        vertexCount[frameIndex] = imDrawData->TotalVtxCount;
-        vertexBuffers->at(frameIndex)->map();
+    if ((m_VertexBuffers.at(frameIndex)->getBuffer() == VK_NULL_HANDLE) || (m_VertexCount[frameIndex] != imDrawData->TotalVtxCount)) {
+        m_VertexBuffers.at(frameIndex)->unmap();
+        m_VertexBuffers.at(frameIndex)->destroy();
+        m_VertexBuffers.at(frameIndex)->createBuffer(vertexBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+        m_VertexCount[frameIndex] = imDrawData->TotalVtxCount;
+        m_VertexBuffers.at(frameIndex)->map();
     }
     
     // Index buffer
-    if ((indexBuffers->at(frameIndex)->getBuffer() == VK_NULL_HANDLE) || (indexCount[frameIndex] < imDrawData->TotalIdxCount)) {
-        indexBuffers->at(frameIndex)->unmap();
-        indexBuffers->at(frameIndex)->destroy();
-        indexBuffers->at(frameIndex)->createBuffer(indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
-        indexCount[frameIndex] = imDrawData->TotalIdxCount;
-        indexBuffers->at(frameIndex)->map();
+    if ((m_IndexBuffers.at(frameIndex)->getBuffer() == VK_NULL_HANDLE) || (m_IndexCount[frameIndex] < imDrawData->TotalIdxCount)) {
+        m_IndexBuffers.at(frameIndex)->unmap();
+        m_IndexBuffers.at(frameIndex)->destroy();
+        m_IndexBuffers.at(frameIndex)->createBuffer(indexBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
+        m_IndexCount[frameIndex] = imDrawData->TotalIdxCount;
+        m_IndexBuffers.at(frameIndex)->map();
     }
     
     // Upload data
-    ImDrawVert* vtxDst = (ImDrawVert*)vertexBuffers->at(frameIndex)->getMappedMemory();
-    ImDrawIdx* idxDst = (ImDrawIdx*)indexBuffers->at(frameIndex)->getMappedMemory();
+    ImDrawVert* vtxDst = (ImDrawVert*)m_VertexBuffers.at(frameIndex)->getMappedMemory();
+    ImDrawIdx* idxDst = (ImDrawIdx*)m_IndexBuffers.at(frameIndex)->getMappedMemory();
     
     for (int n = 0; n < imDrawData->CmdListsCount; n++) {
         const ImDrawList* cmd_list = imDrawData->CmdLists[n];
@@ -283,15 +275,15 @@ void UI::updateBuffers(int frameIndex) {
     }
     
     // Flush to make writes visible to GPU
-    vertexBuffers->at(frameIndex)->flush();
-    indexBuffers->at(frameIndex)->flush();
+    m_VertexBuffers.at(frameIndex)->flush();
+    m_IndexBuffers.at(frameIndex)->flush();
 }
 
 
 void UI::draw(VkCommandBuffer commandBuffer, int frameIndex) {
     ImGuiIO& io = ImGui::GetIO();
     
-    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imguiPipeline);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_ImguiPipeline);
     
     VkViewport viewport {
         0, 0,
@@ -303,9 +295,9 @@ void UI::draw(VkCommandBuffer commandBuffer, int frameIndex) {
     vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
     
     // UI scale and translate via push constants
-    pushConstBlock.scale = glm::vec2(2.0f / io.DisplaySize.x, 2.0f / io.DisplaySize.y);
-    pushConstBlock.translate = glm::vec2(-1.0f);
-    vkCmdPushConstants(commandBuffer, imguiPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(UI::PushConstBlock), &pushConstBlock);
+    m_PushConstBlock.scale = glm::vec2(2.0f / io.DisplaySize.x, 2.0f / io.DisplaySize.y);
+    m_PushConstBlock.translate = glm::vec2(-1.0f);
+    vkCmdPushConstants(commandBuffer, m_ImguiPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(UI::PushConstBlock), &m_PushConstBlock);
     
     // Render commands
     ImDrawData* imDrawData = ImGui::GetDrawData();
@@ -313,10 +305,10 @@ void UI::draw(VkCommandBuffer commandBuffer, int frameIndex) {
     int32_t indexOffset = 0;
     
     if (imDrawData->CmdListsCount > 0) {
-        VkBuffer buffers[] = {vertexBuffers->at(frameIndex)->getBuffer()};
+        VkBuffer buffers[] = {m_VertexBuffers.at(frameIndex)->getBuffer()};
         VkDeviceSize offsets[] = {0};
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, buffers, offsets);
-        vkCmdBindIndexBuffer(commandBuffer, indexBuffers->at(frameIndex)->getBuffer(), 0, VK_INDEX_TYPE_UINT16);
+        vkCmdBindIndexBuffer(commandBuffer, m_IndexBuffers.at(frameIndex)->getBuffer(), 0, VK_INDEX_TYPE_UINT16);
         
         for (int32_t i = 0; i < imDrawData->CmdListsCount; i++) {
             const ImDrawList* cmd_list = imDrawData->CmdLists[i];
@@ -325,12 +317,12 @@ void UI::draw(VkCommandBuffer commandBuffer, int frameIndex) {
                 
                 VkDescriptorSet dSet;
                 if (pcmd->TexRef._TexData) {
-                    dSet = descriptor.v_set.at(frameIndex);
+                    dSet = m_Descriptor.v_set.at(frameIndex);
                 } else {
                     dSet = m_Renderer.getDescriptorSets((RenderPass)pcmd->TexRef._TexID)->at(frameIndex);
                 }
                 
-                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imguiPipelineLayout, 0, 1, &dSet, 0, nullptr);
+                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_ImguiPipelineLayout, 0, 1, &dSet, 0, nullptr);
                 
                 VkRect2D scissorRect;
                 scissorRect.offset.x = std::max((int32_t)(pcmd->ClipRect.x), 0);
@@ -363,7 +355,7 @@ void UI::loadFontTexture(void) {
     
     VkDeviceSize imageSize = texWidth * texHeight * 4 * sizeof(char);
     Buffer stagingBuffer{
-        device,
+        m_Device,
         imageSize,
         1,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
@@ -373,23 +365,21 @@ void UI::loadFontTexture(void) {
     stagingBuffer.map();
     stagingBuffer.writeToBuffer(fontData);
     
-    vulkanImage.createImage(
-        texWidth, texHeight,
-        VK_FORMAT_R8G8B8A8_UNORM,
-        VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        fontImage,
-        fontMem
-    );
+    m_Image.createImage(texWidth, texHeight,
+                        VK_FORMAT_R8G8B8A8_UNORM,
+                        VK_IMAGE_TILING_OPTIMAL,
+                        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                        m_FontImage,
+                        m_FontMem);
     
-    auto commandBuffer = vulkanImage.beginSingleTimeCommands();
-    vulkanImage.transitionImageLayout(commandBuffer, fontImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    vulkanImage.copyBufferToImage(commandBuffer, stagingBuffer.getBuffer(), fontImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-    vulkanImage.transitionImageLayout(commandBuffer, fontImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    vulkanImage.endSingleTimeCommands(commandBuffer);
+    auto commandBuffer = m_Image.beginSingleTimeCommands();
+    m_Image.transitionImageLayout(commandBuffer, m_FontImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    m_Image.copyBufferToImage(commandBuffer, stagingBuffer.getBuffer(), m_FontImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+    m_Image.transitionImageLayout(commandBuffer, m_FontImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    m_Image.endSingleTimeCommands(commandBuffer);
     
-    fontView = vulkanImage.createImageView(fontImage, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM);
+    m_FontView = m_Image.createImageView(m_FontImage, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM);
     
     VkSamplerCreateInfo samplerInfo{};
     samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -401,7 +391,7 @@ void UI::loadFontTexture(void) {
     samplerInfo.addressModeW = samplerInfo.addressModeU;
     
     samplerInfo.anisotropyEnable = VK_FALSE;
-    samplerInfo.maxAnisotropy = device.getPhysicalDeviceProp().limits.maxSamplerAnisotropy;
+    samplerInfo.maxAnisotropy = m_Device.getPhysicalDeviceProp().limits.maxSamplerAnisotropy;
     
     samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
     samplerInfo.unnormalizedCoordinates = VK_FALSE;
@@ -414,13 +404,13 @@ void UI::loadFontTexture(void) {
     samplerInfo.minLod = 0.0f;
     samplerInfo.maxLod = 1.0f;
     
-    if (vkCreateSampler(device.device(), &samplerInfo, nullptr, &fontSampler) != VK_SUCCESS) {
+    if (vkCreateSampler(m_Device.device(), &samplerInfo, nullptr, &m_FontSampler) != VK_SUCCESS) {
         throw std::runtime_error("failed to create brdf sampler!");
     }
     
-    fontDescriptorInfo = VkDescriptorImageInfo {
-        fontSampler,
-        fontView,
+    m_FontDescriptorInfo = VkDescriptorImageInfo {
+        m_FontSampler,
+        m_FontView,
         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
     };
 }

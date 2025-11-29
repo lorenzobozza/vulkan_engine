@@ -45,8 +45,8 @@ CompositingPipeline::Dependencies CompositingPipeline::createLayoutDependencies(
         .setMaxSets(SwapChain::MAX_FRAMES_IN_FLIGHT)
         .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
         .build_ptr();
-
-
+    
+    
     std::vector<VkDescriptorSetLayout> layouts(1);
     layouts[0] = *m_Descriptor.layout->getDescriptorSetLayout();
     
@@ -66,16 +66,14 @@ CompositingPipeline::Dependencies CompositingPipeline::createLayoutDependencies(
 void CompositingPipeline::render(VkCommandBuffer commandBuffer, int frameIndex) {
     m_Pipeline->bind(commandBuffer);
     
-    vkCmdBindDescriptorSets(
-        commandBuffer,
-        VK_PIPELINE_BIND_POINT_GRAPHICS,
-        m_PipelineLayout,
-        0,
-        1,
-        &m_DescriptorSets->at(frameIndex),
-        0,
-        nullptr
-    );
+    vkCmdBindDescriptorSets(commandBuffer,
+                            VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            m_PipelineLayout,
+                            0,
+                            1,
+                            &m_DescriptorSets->at(frameIndex),
+                            0,
+                            nullptr);
     
     PushConstantData push{};
     push.exposure = exposure;
@@ -83,14 +81,12 @@ void CompositingPipeline::render(VkCommandBuffer commandBuffer, int frameIndex) 
     push.gamma = gamma;
     push.debugMode = debugMode;
     
-    vkCmdPushConstants(
-        commandBuffer,
-        m_PipelineLayout,
-        VK_SHADER_STAGE_FRAGMENT_BIT,
-        0,
-        sizeof(PushConstantData),
-        &push
-    );
+    vkCmdPushConstants(commandBuffer,
+                       m_PipelineLayout,
+                       VK_SHADER_STAGE_FRAGMENT_BIT,
+                       0,
+                       sizeof(PushConstantData),
+                       &push);
     
     m_Quad->bind(commandBuffer);
     m_Quad->draw(commandBuffer);
