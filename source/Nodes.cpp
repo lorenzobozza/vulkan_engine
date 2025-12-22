@@ -18,17 +18,21 @@
 
 enki::TaskScheduler g_TS;
 
-static void convertImageData(tinygltf::Image& image);
+static inline void convertImageData(tinygltf::Image& image);
 static bool tinygltf_LoadImageDataCallback(tinygltf::Image *image, const int image_idx, std::string *err,
                                            std::string *warn, int req_width, int req_height,
                                            const unsigned char *bytes, int size, void *user_data);
+                                           
+static inline bool parseMotionAndCollision(const tinygltf::Node& node, bool& isConvex, bool& isStatic, bool& isKinematic, float& mass,
+                             float& gravityFactor, int& phyMaterial, int& implicitShape, glm::vec3& linVel, glm::vec3& angVel);
+
 // MikkTSpace callbacks
-int giveNumFaces(const SMikkTSpaceContext * pContext);
-int giveNumVerticesOfFace(const SMikkTSpaceContext * pContext, const int iFace);
-void givePosition(const SMikkTSpaceContext * pContext, float fvPosOut[], const int iFace, const int iVert);
-void giveNormal(const SMikkTSpaceContext * pContext, float fvNormOut[], const int iFace, const int iVert);
-void giveTexCoord(const SMikkTSpaceContext * pContext, float fvTexcOut[], const int iFace, const int iVert);
-void takeTSpaceBasic(const SMikkTSpaceContext * pContext, const float fvTangent[], const float fSign, const int iFace, const int iVert);
+static int giveNumFaces(const SMikkTSpaceContext * pContext);
+static int giveNumVerticesOfFace(const SMikkTSpaceContext * pContext, const int iFace);
+static void givePosition(const SMikkTSpaceContext * pContext, float fvPosOut[], const int iFace, const int iVert);
+static void giveNormal(const SMikkTSpaceContext * pContext, float fvNormOut[], const int iFace, const int iVert);
+static void giveTexCoord(const SMikkTSpaceContext * pContext, float fvTexcOut[], const int iFace, const int iVert);
+static void takeTSpaceBasic(const SMikkTSpaceContext * pContext, const float fvTangent[], const float fSign, const int iFace, const int iVert);
 
 
 uint32_t Node::Tree::add(const Node& n, uint32_t parent) {
@@ -69,8 +73,9 @@ struct ImageParseTaskSet : enki::ITaskSet {
 };
 
 NodeSet::NodeSet(InitStruct& init, std::string filePath) : m_Device(init.device), m_Image(init.image),
-m_Primitives(init.primitives), m_Assets(init.assets), m_Lights(init.lights), m_FilePath(filePath) {
+m_Primitives(init.primitives), m_Physics(init.physics), m_Assets(init.assets), m_Lights(init.lights), m_FilePath(filePath) {
     parseGLTF();
+    parsePhysicsMaterialsAndShapes();
     
     const unsigned int vCpu = enki::GetNumHardwareThreads();
     g_TS.Initialize(vCpu);
@@ -154,7 +159,7 @@ void NodeSet::loadNodeFromModel(int gltfIndex, uint32_t parentIndex) {
     if (gltfNode.mesh > -1) thisNode.flags |= Node::Flags::MESH;
     if (gltfNode.light > -1) thisNode.flags |= Node::Flags::LIGHT;
     
-    thisNode.matrix *= (glm::translate(glm::mat4(1.0), thisNode.transl) * glm::toMat4(thisNode.quat) * glm::scale(glm::mat4(1.0), thisNode.scale));
+    thisNode.matrix *= (glm::translate(glm::mat4(1.0), thisNode.transl) * glm::toMat4(thisNode.quat));// * glm::scale(glm::mat4(1.0), thisNode.scale));
     }
     
     // Tree propagation
@@ -176,7 +181,7 @@ void NodeSet::loadNodeFromModel(int gltfIndex, uint32_t parentIndex) {
     }
     
     parseLightFromNode(gltfNode, transform);
-    parseMeshFromNode(gltfNode, transform);
+    parseMeshFromNode(gltfNode, transform, thisIndex);
 }
 
 void NodeSet::parseLightFromNode(const tinygltf::Node& node, glm::mat4 transform) {
@@ -201,7 +206,7 @@ void NodeSet::parseLightFromNode(const tinygltf::Node& node, glm::mat4 transform
     }
 }
 
-void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform) {
+void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform, uint32_t thisIndex) {
     if (node.mesh > -1) {
         const tinygltf::Mesh& mesh = m_gltfModel.meshes[node.mesh];
         
@@ -286,7 +291,8 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform)
             
             for (size_t v = 0; v < posAccessor.count; v++) {
                 Mesh::Data::Vertex vertex{};
-                vertex.position = glm::make_vec3(&bufferPos[v * posByteStride]);
+                vertex.position = glm::make_vec3(&bufferPos[v * posByteStride]) * m_NodeTree->nodes[thisIndex].scale;
+                
                 vertex.normal = glm::normalize(glm::vec3(bufferNormals ? glm::make_vec3(&bufferNormals[v * normByteStride]) : glm::vec3(0.0f)));
                 
                 vertex.tangent = glm::vec4(1.f, glm::normalize(glm::vec3(bufferTangents ? glm::make_vec3(&bufferTangents[v * tangByteStride]) : glm::vec3(0.0f))));
@@ -404,13 +410,36 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform)
             // TODO: Make the whole node transform hierarchy always affect the final matrix (needs cache system)
             
             if (materialID > -1) {
-                if (m_gltfModel.materials[materialID].alphaMode != "OPAQUE") continue;
+                if (m_gltfModel.materials[materialID].alphaMode != "OPAQUE") {
+                    continue;
+                }
                 p.material = m_gltfModel.materials[materialID].name + "_" + std::to_string(materialID);
             } else {
                 p.material = "Global_Default_Material";
             }
             
-            m_Primitives.emplace(p.getId(), std::move(p));
+            auto id = p.getId();
+            m_Primitives.emplace(id, std::move(p));
+            m_NodeTree->nodes.at(thisIndex).primitives.emplace_back(id);
+            
+            bool isConvex = false, isStatic = false, isKinematic = false;
+            float mass = 0.f, gravityFactor = 1.f; int phyMaterial = 0, implicitShape = -1;
+            glm::vec3 linVel{0.f}, angVel{0.f};
+            if (parseMotionAndCollision(node, isConvex, isStatic, isKinematic, mass, gravityFactor, phyMaterial, implicitShape, linVel, angVel)) {
+                if (implicitShape > -1) {
+                    m_Physics.addBasicShape(implicitShape, id, transform, mass, phyMaterial);
+                }
+                else if (isConvex) {
+                    m_Physics.addCompoundShape(data, id, transform, mass, phyMaterial);
+                }
+                else {
+                    m_Physics.addTriangleMeshShape(data, id, transform, mass, phyMaterial);
+                }
+                if (isStatic) m_Physics.setStaticRigidBodyFlag(id);
+                if (isKinematic) m_Physics.setKinematicRigidBodyFlag(id);
+                if (gravityFactor != 1.f) m_Physics.setGravityFactor(id, gravityFactor);
+                m_Physics.setVelocity(id, glm::mat3(transform) * linVel, glm::mat3(transform) * angVel);
+            }
         }
         
     }
@@ -553,6 +582,123 @@ void NodeSet::fillSamplerInfo(int textureIndex, VkSamplerCreateInfo *samplerInfo
     }
 }
 
+void NodeSet::parsePhysicsMaterialsAndShapes(void) {
+    float friction = .5f, restitution = 0.f;
+    if (m_gltfModel.extensions.find("KHR_physics_rigid_bodies") != m_gltfModel.extensions.end()) {
+        auto& physics_ext = m_gltfModel.extensions.at("KHR_physics_rigid_bodies");
+        if (physics_ext.Has("physicsMaterials")) {
+            auto& phyMatArr = physics_ext.Get("physicsMaterials");
+            for (int i = 0; i < phyMatArr.ArrayLen(); i++) {
+                auto& phyMatObj = phyMatArr.Get(i);
+                if (phyMatObj.Has("staticFriction")) {
+                    friction = static_cast<float>(phyMatObj.Get("staticFriction").GetNumberAsDouble());
+                }
+                else if (phyMatObj.Has("dynamicFriction")) {
+                    friction = static_cast<float>(phyMatObj.Get("dynamicFriction").GetNumberAsDouble());
+                }
+                if (phyMatObj.Has("restitution")) {
+                    restitution = static_cast<float>(phyMatObj.Get("restitution").GetNumberAsDouble());
+                }
+                m_Physics.appendPhysicsMaterial(friction, restitution);
+            }
+        }
+    }
+    
+    if (m_gltfModel.extensions.find("KHR_implicit_shapes") != m_gltfModel.extensions.end()) {
+        auto& shapes_ext = m_gltfModel.extensions.at("KHR_implicit_shapes");
+        if (shapes_ext.Has("shapes")) {
+            auto& shapeArr = shapes_ext.Get("shapes");
+            for (int i = 0; i < shapeArr.ArrayLen(); i++) {
+                auto& shapeObj = shapeArr.Get(i);
+                if (shapeObj.Has("type")) {
+                    std::string type = shapeObj.Get("type").Get<std::string>();
+                    Physics::ImplicitShape shape;
+                    if (type == "plane") {
+                        shape.type = Physics::ImplicitShape::Plane;
+                        shape.value1 = static_cast<float>(shapeObj.Get("plane").Get("sizeX").GetNumberAsDouble());
+                        shape.value2 = static_cast<float>(shapeObj.Get("plane").Get("sizeZ").GetNumberAsDouble());
+                    }
+                    else if (type == "sphere") {
+                        shape.type = Physics::ImplicitShape::Sphere;
+                        shape.value1 = static_cast<float>(shapeObj.Get("sphere").Get("radius").GetNumberAsDouble());
+                    }
+                    else if (type == "box") {
+                        shape.type = Physics::ImplicitShape::Box;
+                        if (shapeObj.Get("box").Get("size").ArrayLen() == 3) {
+                            shape.value1 = static_cast<float>(shapeObj.Get("box").Get("size").Get(0).GetNumberAsDouble());
+                            shape.value2 = static_cast<float>(shapeObj.Get("box").Get("size").Get(1).GetNumberAsDouble());
+                            shape.value3 = static_cast<float>(shapeObj.Get("box").Get("size").Get(2).GetNumberAsDouble());
+                        }
+                    }
+                    else if (type == "cylinder") {
+                        shape.type = Physics::ImplicitShape::Cylinder;
+                        shape.value1 = static_cast<float>(shapeObj.Get("cylinder").Get("radiusTop").GetNumberAsDouble());
+                        shape.value2 = static_cast<float>(shapeObj.Get("cylinder").Get("height").GetNumberAsDouble());
+                        shape.value3 = static_cast<float>(shapeObj.Get("cylinder").Get("radiusBottom").GetNumberAsDouble());
+                    }
+                    else if (type == "capsule") {
+                        shape.type = Physics::ImplicitShape::Capsule;
+                        shape.value1 = static_cast<float>(shapeObj.Get("capsule").Get("radiusTop").GetNumberAsDouble());
+                        shape.value2 = static_cast<float>(shapeObj.Get("capsule").Get("height").GetNumberAsDouble());
+                        shape.value3 = static_cast<float>(shapeObj.Get("capsule").Get("radiusBottom").GetNumberAsDouble());
+                    }
+                    else {
+                        continue;
+                    }
+                    m_Physics.appendImplicitShape(shape);
+                }
+            }
+        }
+    }
+}
+
+static inline bool parseMotionAndCollision(const tinygltf::Node& node, bool& isConvex, bool& isStatic, bool& isKinematic, float& mass,
+                             float& gravityFactor, int& phyMaterial, int& implicitShape, glm::vec3& linVel, glm::vec3& angVel) {
+
+    if (node.extensions.find("KHR_physics_rigid_bodies") != node.extensions.end()) {
+        auto& gltfPhysics = node.extensions.at("KHR_physics_rigid_bodies");
+        if (gltfPhysics.Has("motion")) {
+            auto& motion = gltfPhysics.Get("motion");
+            if (motion.Has("mass")) {
+                mass = static_cast<float>(motion.Get("mass").GetNumberAsDouble());
+            }
+            if (motion.Has("linearVelocity")) {
+                auto& linearVelocityObj = motion.Get("linearVelocity");
+                for (int i = 0; i < 3 && i < linearVelocityObj.ArrayLen(); i++)
+                    linVel[i] = static_cast<float>(linearVelocityObj.Get(i).GetNumberAsDouble());
+            }
+            if (motion.Has("angularVelocity")) {
+                auto& angleVelocityObj = motion.Get("angularVelocity");
+                for (int i = 0; i < 3 && i < angleVelocityObj.ArrayLen(); i++)
+                    angVel[i] = static_cast<float>(angleVelocityObj.Get(i).GetNumberAsDouble());
+            }
+            if (motion.Has("gravityFactor")) {
+                gravityFactor = static_cast<float>(motion.Get("gravityFactor").GetNumberAsDouble());
+            }
+            if (motion.Has("isKinematic")) {
+                isKinematic = motion.Get("isKinematic").Get<bool>();
+            }
+        } else { isStatic = true; }
+        
+        if (gltfPhysics.Has("collider")) {
+            auto& collider = gltfPhysics.Get("collider");
+            if (collider.Has("geometry")) {
+                auto& geometry = collider.Get("geometry");
+                if (geometry.Has("convexHull")) {
+                    isConvex = geometry.Get("convexHull").Get<bool>();
+                }
+                if (geometry.Has("shape")) {
+                    implicitShape = geometry.Get("shape").GetNumberAsInt();
+                }
+            }
+            if (collider.Has("physicsMaterial")) {
+                phyMaterial = collider.Get("physicsMaterial").GetNumberAsInt();
+            }
+        }
+        return true;
+    }
+    return false;
+}
 
 static bool tinygltf_LoadImageDataCallback(tinygltf::Image *image, const int image_idx, std::string *err,
                                            std::string *warn, int req_width, int req_height,
@@ -566,7 +712,7 @@ static bool tinygltf_LoadImageDataCallback(tinygltf::Image *image, const int ima
  Copy raw unconverted data directly to destination
  it will be converted later using multithreading
  */
-static void convertImageData(tinygltf::Image& image) {
+static inline void convertImageData(tinygltf::Image& image) {
     int w = 0, h = 0, comp = 0, req_comp = 4;
     
     unsigned char *data = nullptr;
@@ -605,15 +751,15 @@ static void convertImageData(tinygltf::Image& image) {
     stbi_image_free(data);
 }
 
-int giveNumFaces(const SMikkTSpaceContext * pContext) {
+static int giveNumFaces(const SMikkTSpaceContext * pContext) {
     Mesh::Data const * data = (Mesh::Data*)pContext->m_pUserData;
     
     return static_cast<int>( std::floor(data->indices.size() / 3) );
 }
 
-int giveNumVerticesOfFace(const SMikkTSpaceContext * pContext, const int iFace) { return 3; }
+static int giveNumVerticesOfFace(const SMikkTSpaceContext * pContext, const int iFace) { return 3; }
 
-void givePosition(const SMikkTSpaceContext * pContext, float fvPosOut[], const int iFace, const int iVert) {
+static void givePosition(const SMikkTSpaceContext * pContext, float fvPosOut[], const int iFace, const int iVert) {
     Mesh::Data * const data = (Mesh::Data*)pContext->m_pUserData;
     
     const int offset = iFace * 3;
@@ -626,7 +772,7 @@ void givePosition(const SMikkTSpaceContext * pContext, float fvPosOut[], const i
     fvPosOut[2] = (float)pos.z;
 }
 
-void giveNormal(const SMikkTSpaceContext * pContext, float fvNormOut[], const int iFace, const int iVert) {
+static void giveNormal(const SMikkTSpaceContext * pContext, float fvNormOut[], const int iFace, const int iVert) {
     Mesh::Data * const data = (Mesh::Data*)pContext->m_pUserData;
     
     const int offset = iFace * 3;
@@ -639,7 +785,7 @@ void giveNormal(const SMikkTSpaceContext * pContext, float fvNormOut[], const in
     fvNormOut[2] = (float)norm.z;
 }
 
-void giveTexCoord(const SMikkTSpaceContext * pContext, float fvTexcOut[], const int iFace, const int iVert) {
+static void giveTexCoord(const SMikkTSpaceContext * pContext, float fvTexcOut[], const int iFace, const int iVert) {
     Mesh::Data * const data = (Mesh::Data*)pContext->m_pUserData;
     
     const int offset = iFace * 3;
@@ -651,7 +797,7 @@ void giveTexCoord(const SMikkTSpaceContext * pContext, float fvTexcOut[], const 
     fvTexcOut[1] = 1.f - (float)uv.y;
 }
 
-void takeTSpaceBasic(const SMikkTSpaceContext * pContext, const float fvTangent[], const float fSign, const int iFace, const int iVert) {
+static void takeTSpaceBasic(const SMikkTSpaceContext * pContext, const float fvTangent[], const float fSign, const int iFace, const int iVert) {
     Mesh::Data * const data = (Mesh::Data*)pContext->m_pUserData;
     
     const int offset = iFace * 3;

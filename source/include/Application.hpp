@@ -15,6 +15,7 @@
 #include "Renderer.hpp"
 #include "Primitive.hpp"
 #include "Camera.hpp"
+#include "Physics.hpp"
 #include "Texture.hpp"
 #include "CubeMap.hpp"
 #include "Material.hpp"
@@ -70,7 +71,8 @@ private:
     
     VkSampleCountFlagBits m_MSAASampleCount = VK_SAMPLE_COUNT_1_BIT;
     Renderer m_Renderer{m_Window, m_Device, m_MSAASampleCount};
-    
+    Physics m_Physics;
+
     struct RenderSystems_s {
         struct {
             std::unique_ptr<PipelineWrapper> ptr;
@@ -95,6 +97,7 @@ private:
     bool m_AssetsLoaded = false;
     bool m_PreviewMode = false;
     bool m_DebugMode = false;
+    bool m_RunSimulation = false;
     
     Primitive::Map m_Primitives;
     

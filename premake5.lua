@@ -1,10 +1,8 @@
-require "export-compile-commands"
-
-workspace "PrototypeEngine"
+workspace "VulkanEngine"
 	configurations { "Debug", "Release" }
 	location "build"
 
-project "Core"
+project "Acinonyx"
 	kind "ConsoleApp"
 	language "C++"
 	cppdialect "C++23"
@@ -13,7 +11,9 @@ project "Core"
 		"source/**.cpp",
 		"external/imgui/*.cpp",
 		"external/mikktspace/*.c",
-		"external/enkits/*.cpp"
+		"external/enkits/*.cpp",
+		"external/bullet/*.cpp",
+		"external/bullet/HACD/*.cpp"
 	}
 
 	includedirs {
@@ -24,7 +24,8 @@ project "Core"
 	externalincludedirs {
 		"external/*",
 		"external/utils/*",
-		"external/**/include"
+		"external/**/include",
+		"external/bullet"
 	}
 
 	links {

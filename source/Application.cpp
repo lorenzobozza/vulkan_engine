@@ -67,15 +67,15 @@ void Application::run() {
     std::thread([this, &widgets]() {
         
         /**** Fallback Material */
-//        Material globalMaterial;
-//        globalMaterial.color = {1.f, 1.f, 1.f, 1.f};
-//        m_MaterialMap.materials.emplace("Global_Default_Material", globalMaterial);
+        Material globalMaterial;
+        globalMaterial.color = {1.f, 1.f, 1.f, 1.f};
+        m_Materials.emplace("Global_Default_Material", globalMaterial);
         
         /**** Load HDRi Texture */
         m_Assets.textures.push_back(std::make_unique<const Texture>(
             this->m_Device,
             m_Image,
-            "../../../assets/textures/mondello_4k.hdr",
+            "../../../assets/textures/puresky_4k.hdr",
             false,
             VK_FORMAT_R32G32B32A32_SFLOAT
         ));
@@ -97,8 +97,8 @@ void Application::run() {
         
         /**** Load Scene from glTF file */
         // TODO: better task-set creation
-        NodeSet::InitStruct initNodeStruct{m_Device, m_Image, m_Primitives, m_Assets, m_Lights};
-        NodeSet _gltf(initNodeStruct, "../../../assets/models/CartoonStyle.glb");
+        NodeSet::InitStruct initNodeStruct{m_Device, m_Image, m_Primitives, m_Physics, m_Assets, m_Lights};
+        NodeSet _gltf(initNodeStruct, "../../../assets/models/Billiard.glb");
         
         /**** Load Point-Light Nodes from scene */
         // TODO: clean this mess
@@ -223,6 +223,21 @@ void Application::run() {
         
         shortcutCallback(m_Window.getShortcut());
         
+        
+        btQuaternion qrot;
+        qrot.setRotation(btVector3(0,1.f,0), .01f);
+        
+        if (m_AssetsLoaded && m_RunSimulation) {
+            m_Physics.getWorldHandle()->stepSimulation(m_Perf.cpuTime + m_Perf.gpuTime, 20, m_Perf.cpuTime + m_Perf.gpuTime);
+            for (auto& bt : m_Physics.getRigidBodyMap()) {
+                btTransform t;
+                bt.second->getMotionState()->getWorldTransform(t);
+                float m[16];
+                t.getOpenGLMatrix(m);
+                m_Primitives.at(bt.first).transform.matrix = glm::make_mat4(m);
+            }
+        }
+        
         m_Perf.cpuEnd();
         
         if (auto commandBuffer = m_Renderer.beginFrame()) {
@@ -296,6 +311,9 @@ void Application::shortcutCallback(Shortcut shortcut) {
     }
     if (shortcut == CTRL_D) {
         m_DebugMode ^= true;
+    }
+    if (shortcut == CTRL_R) {
+        m_RunSimulation ^= true;
     }
 }
 

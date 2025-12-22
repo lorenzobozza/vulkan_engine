@@ -1,6 +1,8 @@
 .vscode
 *.pdb
 *.obj
+*.blend
+*.blend1
 *.ilk
 *.bat
 *.cmake

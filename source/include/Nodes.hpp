@@ -11,12 +11,9 @@
 #include "Device.hpp"
 #include "Texture.hpp"
 #include "Primitive.hpp"
+#include "Physics.hpp"
 #include "Material.hpp"
 #include "Light.hpp"
-
-#include <glm/glm.hpp>
-#include <glm/gtc/type_ptr.hpp>
-#include <glm/gtc/quaternion.hpp>
 
 #define TINYGLTF_NO_STB_IMAGE_WRITE
 #include <tinygltf/tiny_gltf.h>
@@ -35,6 +32,7 @@ struct Node {
     
     int32_t parent = -1;
     std::vector<uint32_t> children;
+    std::vector<Primitive::id_t> primitives;
     
     std::string name;
     glm::mat4 matrix{1.0f};
@@ -59,6 +57,7 @@ public:
         const Device& device;
         const Image& image;
         Primitive::Map& primitives;
+        Physics& physics;
         Assets& assets;
         std::vector<Light>& lights;
     };
@@ -74,10 +73,12 @@ public:
 private:
     void parseGLTF(void);
     void loadNodeFromModel(int gltfIndex, uint32_t parentIndex);
-    void parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform);
+    void parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform, uint32_t thisIndex);
     void parseLightFromNode(const tinygltf::Node& node, glm::mat4 transform);
     void loadMaterialsToVRAM(void);
     void fillSamplerInfo(int textureIndex, VkSamplerCreateInfo *samplerInfo);
+    void parsePhysicsMaterialsAndShapes(void);
+    
     
     std::string m_FilePath;
     tinygltf::Model m_gltfModel;
@@ -88,6 +89,7 @@ private:
     Assets& m_Assets;
     std::vector<Light>& m_Lights;
     std::shared_ptr<Node::Tree> m_NodeTree;
+    Physics& m_Physics;
 };
 
 #endif /* Nodes_hpp */
