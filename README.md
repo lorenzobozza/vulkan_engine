@@ -7,10 +7,8 @@ The project is actively beeing developed on spare time as a side project to stud
 
 Some future improvements will be Forward+ Rendering, Hybrid Rendering, Light Probes, Ray Traced Global Illumination and Ambient Occlusion, Animations and much more. And obviously as the name implies, the main goal is to be stupidly fast and over-optimized.
 
-|||
--|-
 |![preview](assets/preview/sponza_example.png "Sponza") | ![preview](assets/preview/physics_example.gif "Physics")
-
+-|-
 
 ## Build instructions
 > ### Prerequisites
