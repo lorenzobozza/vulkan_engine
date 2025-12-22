@@ -72,9 +72,9 @@ void Device::createInstance(void) {
     VkApplicationInfo appInfo = {};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     appInfo.pApplicationName = "VulkanEngine App";
-    appInfo.applicationVersion = VK_MAKE_VERSION(0, 0, 1);
+    appInfo.applicationVersion = VK_MAKE_VERSION(0, 2, 0);
     appInfo.pEngineName = "Test Engine";
-    appInfo.engineVersion = VK_MAKE_VERSION(0, 0, 1);
+    appInfo.engineVersion = VK_MAKE_VERSION(0, 2, 0);
     appInfo.apiVersion = VK_API_VERSION_1_4;
     
     VkInstanceCreateInfo createInfo = {};
