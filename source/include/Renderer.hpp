@@ -12,66 +12,84 @@
 #include "Device.hpp"
 #include "SwapChain.hpp"
 #include "Descriptors.hpp"
-#include "Pipeline.hpp"
-#include "SolidObject.hpp"
 
-//std
-#include <memory>
 #include <vector>
 #include <cassert>
 
-class Renderer {
-public:
+enum RenderPass : unsigned int{
+    WorldSpace = 0,
+    ScreenSpace,
+    ShadowPass,
+    DepthPass,
     
-    Renderer(SDLWindow &pasWindow, Device &passDevice);
+    TotalCount
+};
+
+class Renderer {
+private:
+    struct MultiFrameBufferAttachment {
+        VkImage image[SwapChain::MAX_FRAMES_IN_FLIGHT];
+        VkDeviceMemory mem[SwapChain::MAX_FRAMES_IN_FLIGHT];
+        VkImageView view[SwapChain::MAX_FRAMES_IN_FLIGHT];
+    };
+    
+    struct OffscreenPassAttachments {
+        VkExtent2D extent{1024, 1024};
+        VkFramebuffer frameBuffer[SwapChain::MAX_FRAMES_IN_FLIGHT];
+        MultiFrameBufferAttachment color, depth, multisampling;
+        VkRenderPass renderPass;
+        VkSampler sampler[SwapChain::MAX_FRAMES_IN_FLIGHT];
+        VkDescriptorImageInfo descriptorImage[SwapChain::MAX_FRAMES_IN_FLIGHT];
+        static constexpr VkFormat colorFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+        VkFormat depthFormat;
+        DescriptorStruct descriptor;
+    } m_Offscreen[RenderPass::TotalCount];
+    
+public:
+    Renderer(const Renderer&) = delete;
+    Renderer& operator=(const Renderer&) = delete;
+    Renderer(Renderer&&) = delete;
+    Renderer& operator=(Renderer&&) = delete;
+    
+    Renderer(SDLWindow& pasWindow, const Device& passDevice, VkSampleCountFlagBits& msaaSampleCount);
     ~Renderer();
     
-    // Prevent Obj copy
-    Renderer(const Renderer &) = delete;
-    Renderer &operator=(const Renderer &) = delete;
+    bool isFrameInProgress(void) const { return m_IsFrameStarted; }
+    VkImage getImage(int index) const { return m_SwapChain->getImage(index); }
+    float getAspectRatio(void) const { return m_SwapChain->extentAspectRatio(); }
+    VkRenderPass getSwapChainRenderPass(void) const { return m_SwapChain->getCompositionRenderPass(); }
+    VkRenderPass getOffscreenRenderPass(RenderPass index) const { return m_Offscreen[index].renderPass; }
+    VkExtent2D getSwapChainExtent(void) const { return m_SwapChain->getSwapChainExtent(); }
+    VkFence *getSwapChainImageFence(int imageIndex) const { return m_SwapChain->getCurrentImageFence(imageIndex); }
+    VkCommandBuffer getCurrentCommandBuffer(void) const;
+    int getFrameIndex(void) const;
     
-    VkRenderPass getOffscreenRenderPass() const { return offscreen.renderPass; }
-    VkRenderPass getSwapChainRenderPass() const { return swapChain->getCompositionRenderPass(); }
-    float getAspectRatio() const { return swapChain->extentAspectRatio(); }
-    bool isFrameInProgress() const { return  isFrameStarted; }
+    void integrateBrdfLut(void);
+    VkDescriptorImageInfo* getBrdfLutInfo(void) { return &m_BrdfImageInfo; }
     
-    VkCommandBuffer getCurrentCommandBuffer() const {
-        assert(isFrameStarted && "Cannot get command buffer when frame not in progress");
-        return commandBuffers[currentFrameIndex];
-    }
-    
-    int getFrameIndex() const {
-        assert(isFrameStarted && "Cannot get frame index when frame not in progress");
-        return currentImageIndex;
-    }
-    
-    VkImage getImage(int index) { return swapChain->getImage(index); }
-    VkExtent2D getSwapChainExtent() { return swapChain->getSwapChainExtent(); }
-    VkFence *getSwapChainImageFence(int imageIndex) { return swapChain->getCurrentImageFence(imageIndex); }
-    
-    void integrateBrdfLut(std::string shaderPath);
-    VkDescriptorImageInfo* getBrdfLutInfo() { return &brdfImageInfo; }
-
-    bool isVSyncEnabled() { return swapChain->isVSyncEnabled(); }
-    void recreateSwapChain();
-    bool recreateOffscreenFlag = false;
-    
-    VkCommandBuffer beginFrame();
-    void endFrame();
     void beginSwapChainRenderPass(VkCommandBuffer commandBuffer);
-    void endSwapChainRenderPass(VkCommandBuffer commandBuffer);
-    void beginOffscreenRenderPass(VkCommandBuffer commandBuffer);
-    void endOffscreenRenderPass(VkCommandBuffer commandBuffer);
+    void beginOffscreenRenderPass(VkCommandBuffer commandBuffer, RenderPass index);
+    void endRenderPass(VkCommandBuffer commandBuffer);
+    void recreateSwapChain(bool forced = false);
+    VkCommandBuffer beginFrame(void);
+    void endFrame(void);
     
-    VkDescriptorSetLayout getPostProcessingDescriptorSetLayout() { return postprocSetLayout->getDescriptorSetLayout(); }
-    std::vector<VkDescriptorSet> *getPostProcessingDescriptorSets() { return postprocDescriptorSets; }
+    const VkDescriptorSetLayout* getDescriptorSetLayout(RenderPass index) const { return m_Offscreen[index].descriptor.layout->getDescriptorSetLayout(); }
+    std::vector<VkDescriptorSet>* getDescriptorSets(RenderPass index) { return &m_Offscreen[index].descriptor.v_set; }
+    VkDescriptorImageInfo* getImageDescriptor(RenderPass index) { return m_Offscreen[index].descriptorImage; }
     
 private:
-    void createCommandBuffers();
-    void freeCommandBuffers();
+    void createCommandBuffers(void);
+    void freeCommandBuffers(void);
+    void createRenderPasses(bool all = false);
+    void destroyRenderPasses(bool all = false);
+    void createOffscreenPass(RenderPass index);
+    void destroyOffscreenPass(RenderPass index);
+    void createDepthPass(RenderPass index);
+    void destroyDepthPass(RenderPass index);
     
-    void createOffscreenPass();
-    void destroyOffscreenPass();
+    void destroyBrdfLut(void);
+    bool wasBrdfRequested = false;
     
     struct FrameBufferAttachment {
         VkImage image;
@@ -79,33 +97,19 @@ private:
         VkImageView view;
     };
     
-    SDLWindow &window;
-    Device &device;
-    std::unique_ptr<SwapChain> swapChain;
-    std::vector<VkCommandBuffer> commandBuffers;
+    SDLWindow &m_Window;
+    const Device& m_Device;
+    std::unique_ptr<SwapChain> m_SwapChain;
+    std::vector<VkCommandBuffer> m_CommandBuffers;
     
-    FrameBufferAttachment brdf;
-    VkSampler brdfSampler;
-    VkDescriptorImageInfo brdfImageInfo;
+    VkSampleCountFlagBits& m_MSAASampleCount;
+    uint32_t m_CurrentImageIndex;
+    int m_CurrentFrameIndex{0};
+    bool m_IsFrameStarted = false;
     
-    struct OffscreenPass {
-		int32_t width, height;
-		VkFramebuffer frameBuffer;
-		FrameBufferAttachment color, depth, multisampling;
-		VkRenderPass renderPass;
-		VkSampler sampler;
-		VkDescriptorImageInfo descriptor;
-        const VkFormat colorFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
-        VkFormat depthFormat;
-	} offscreen;
-    
-    std::unique_ptr<DescriptorPool> postprocPool;
-    std::unique_ptr<DescriptorSetLayout> postprocSetLayout;
-    std::vector<VkDescriptorSet> *postprocDescriptorSets;
-    
-    uint32_t currentImageIndex;
-    int currentFrameIndex{0};
-    bool isFrameStarted = false;
+    FrameBufferAttachment m_Brdf;
+    VkSampler m_BrdfSampler;
+    VkDescriptorImageInfo m_BrdfImageInfo;
 };
 
 #endif /* Renderer_hpp */

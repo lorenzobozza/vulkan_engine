@@ -1,9 +1,11 @@
 .vscode
 *.pdb
 *.obj
+*.blend
+*.blend1
 *.ilk
 *.bat
 *.cmake
-*.png
-*.ttf
 build/
+xcode-build/
+cache/

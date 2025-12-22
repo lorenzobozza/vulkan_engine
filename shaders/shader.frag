@@ -1,164 +1,223 @@
-
 #version 450
+#extension GL_GOOGLE_include_directive : require
+#include "shader_functions.glsl"
 
-//#extension GL_EXT_nonuniform_qualifier : require
+#define COLOR_TEXTURE       0x1
+#define NORMAL_TEXTURE      0x2
+#define OCCLUSION_TEXTURE   0x4
+#define ROUGH_METAL_TEXTURE 0x8
 
-#define PI 3.1415926535897932384626433832795
+#define COLOR_UV            0x10
+#define NORMAL_UV           0x20
+#define OCCLUSION_UV        0x40
+#define ROUGH_METAL_UV      0x80
 
+#define ALPHAMODE_OPAQUE 0
+#define ALPHAMODE_MASK 1
+#define ALPHAMODE_BLEND 2
+
+#define DEBUG_SHOW_ENV_BIT      0x100
+#define DEBUG_IBL_CONTRIB_BIT   0x200
+#define DEBUG_MULTISCATTER_BIT  0x400
+#define MASK_COMPARE(bitmap, mask)  ((bitmap & mask) == mask)
+
+
+layout(location = 0) out vec4 outColor;
 layout(location = 0) in VertexShader {
     vec3 color;
     vec3 worldPos;
-    vec3 tangentPos;
-    vec3 tangentViewPos;
+    vec4 lightSpacePos;
     vec2 texcoord;
+    vec2 texcoord1;
     mat3 TBN;
 } vert;
 
-layout(location = 0) out vec4 outColor;
 
-layout(binding = 0) uniform GlobalUbo {
+layout(set = 0, binding = 0) uniform GlobalUbo {
     mat4 projectionViewMatrix;
-    vec4 ambientLightColor;
-    vec4 lightPosition[2];
-    vec4 lightColor;
     mat4 viewMatrix;
     mat4 invViewMatrix;
+    mat4 lightSpaceMatrix;
+    vec4 lightVector[8];
+    vec4 lightChroma[8];
+    uint lightInfo;
+    uint debugMode;
 } ubo;
+layout(set = 1, binding = 0) uniform sampler2D diffuseMap;
+layout(set = 1, binding = 1) uniform sampler2D normalMap;
+layout(set = 1, binding = 2) uniform sampler2D metalRoughnessMap;
+layout(set = 1, binding = 3) uniform sampler2D occlusionMap;
 
-layout(binding = 1) uniform samplerCube irradianceMap;
-layout(binding = 2) uniform samplerCube prefilteredMap;
-layout(binding = 3) uniform sampler2D brdfLUT;
-layout(binding = 4) uniform sampler2D diffuseMap;
-layout(binding = 5) uniform sampler2D normalMap;
-layout(binding = 6) uniform sampler2D metallicMap;
-layout(binding = 7) uniform sampler2D roughnessMap;
-layout(binding = 8) uniform sampler2D occlusionMap;
 
 layout(push_constant) uniform Push {
     mat4 modelMatrix;
-    int textureIndex;
+    int textureBitmap;
     float metalness;
     float roughness;
-    vec3 color;
+    vec4 color;
+    int alphaMode;
+    float alphaCutoff;
+    int debugMode;
 } push;
 
-vec3 prefilteredReflection(vec3 R, float roughness)
-{
-	const float MAX_REFLECTION_LOD = 9.0;
-	float lod = roughness * MAX_REFLECTION_LOD;
-	float lodf = floor(lod);
-	float lodc = ceil(lod);
-	vec3 a = textureLod(prefilteredMap, R, lodf).rgb;
-	vec3 b = textureLod(prefilteredMap, R, lodc).rgb;
-	return mix(a, b, lod - lodf);
-}
-
-// Normal Distribution function --------------------------------------
-float D_GGX(float dotNH, float roughness)
-{
-	float alpha = roughness * roughness;
-	float alpha2 = alpha * alpha;
-	float denom = dotNH * dotNH * (alpha2 - 1.0) + 1.0;
-	return (alpha2)/(PI * denom*denom);
-}
-
-// Geometric Shadowing function --------------------------------------
-float G_SchlicksmithGGX(float dotNL, float dotNV, float roughness)
-{
-	float r = (roughness + 1.0);
-	float k = (r*r) / 8.0;
-	float GL = dotNL / (dotNL * (1.0 - k) + k);
-	float GV = dotNV / (dotNV * (1.0 - k) + k);
-	return GL * GV;
-}
-
-// Fresnel function ----------------------------------------------------
-vec3 F_Schlick(float cosTheta, vec3 F0)
-{
-	//return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
-    return mix(F0, vec3(1.0), pow(1.01 - cosTheta, 5.0));
-}
-
-// Fresnel Roughness function ----------------------------------------------------
-vec3 F_SchlickR(float cosTheta, vec3 F0, float roughness)
-{
-	return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
-}
 
 void main() {
-    float texScale = 1.0;
-    vec2 uv = (push.textureIndex < 24) ? vec2(vert.texcoord.x, -vert.texcoord.y) * texScale : vert.texcoord * texScale;
-    // PBR Material Stack
-    vec3 albedo = (push.textureIndex < 0) ? push.color : texture(diffuseMap, uv).rgb;
-    vec3 normal = (push.textureIndex < 0) ? vec3(0.0, 0.0, 1.0) : normalize(texture(normalMap, uv).rgb * 2.0 - 1.0);
-    float metalness = (push.textureIndex < 0) ? push.metalness : push.metalness * texture(metallicMap, uv).r;
-    float roughness = (push.textureIndex < 0) ? push.roughness : push.roughness  * (1.0 - texture(roughnessMap, uv).r);
-    float occlusion = (push.textureIndex < 0) ? 1.0 : texture(occlusionMap, uv).r;
+    // Color
+    vec3 baseColor = vec3(1.0);
+    float opacity = 1.0;
+    if ((push.textureBitmap & COLOR_TEXTURE) == COLOR_TEXTURE) {
+        vec4 colorSample = SRGBtoLINEAR(
+            texture(diffuseMap, (push.textureBitmap & COLOR_UV) == 0 ? vert.texcoord : vert.texcoord1)
+        );
+        baseColor = colorSample.rgb;
+        opacity = colorSample.a;
+    }
+    baseColor *= push.color.rgb;
+    opacity *= push.color.a;
     
-    mat3 invTBN = transpose(vert.TBN);
-    vec3 N = invTBN * normal;
-
-    // View coordinates in tangent space
-    vec3 viewPos = ubo.invViewMatrix[3].xyz;
-    vec3 viewDir = normalize(viewPos - vert.worldPos);
-    vec3 tangentViewDir = normalize(vert.tangentViewPos - vert.tangentPos);
-    vec3 R = reflect(-viewDir, N);
+    if ((push.alphaMode == ALPHAMODE_MASK) && (opacity < push.alphaCutoff)) { opacity = 0.0; }
+    if (push.alphaMode == ALPHAMODE_OPAQUE) { opacity = 1.0; }
     
-    float dotNV = max(0.001, dot(normal, tangentViewDir));
-
-//Physically Based Rendering (Metalness-Roughness Workflow)
-    vec3 F0 = vec3(0.04);
-    F0 = mix(F0, albedo, metalness);
-    
-    // Specular Light contribution
-    vec3 Lo = vec3(0.0);
-    
-    for (int i = 0; i < 2; i++) {
-        // Lighting coordinates in tangent space
-        vec3 tangentLightPos = vert.TBN * ubo.lightPosition[i].xyz;
-        vec3 tangentLightDir = normalize(tangentLightPos - vert.tangentPos);
-        vec3 halfDir = normalize(tangentLightDir + tangentViewDir);
-        float lightDist = length(tangentLightPos - vert.tangentPos);
-        float attenuation = ubo.lightColor.w / (lightDist * lightDist);
-        vec3 radiance = ubo.lightColor.xyz * attenuation;
-        
-        float dotNH = max(0.001, dot(normal, halfDir));
-        float dotNL = max(0.001, dot(normal, tangentLightDir));
-        float dotHV = max(0.001, dot(halfDir, tangentViewDir));
-        if (dotNL > 0.0) {
-            // D = Normal distribution (Distribution of the microfacets)
-            float D = D_GGX(dotNH, roughness);
-            // G = Geometric shadowing term (Microfacets shadowing)
-            float G = G_SchlicksmithGGX(dotNL, dotNV, roughness);
-            // F = Fresnel factor (Reflectance depending on angle of incidence)
-            vec3 F = F_Schlick(dotHV, F0);
-            vec3 spec = D * F * G / max(4.0 * dotNL * dotNV, 0.001);
-            vec3 kD = (vec3(1.0) - F) * (1.0 - metalness);
-            Lo += (kD * albedo / PI + spec) * dotNL * radiance;
-        }
+    // Normal
+    vec3 normalTS = vec3(0.0, 0.0, 1.0);
+    if ((push.textureBitmap & NORMAL_TEXTURE) == NORMAL_TEXTURE) {
+        vec4 normalSample = texture(normalMap, (push.textureBitmap & NORMAL_UV) == 0 ? vert.texcoord : vert.texcoord1);
+        normalTS = normalSample.rgb * 2.0 - 1.0;
     }
     
-// IBL Part (Non-Tangent Space)
-    vec3 reflection = prefilteredReflection(R, roughness);
-    vec3 irradiance = texture(irradianceMap, N).rgb;
-    vec2 brdf  = texture(brdfLUT, vec2(max(dot(normal, tangentViewDir), 0.0), roughness)).rg;
+    // Metallic - Roughness - Occlusion
+    float metallic;
+    float perceptualRoughness;
+    if ( (push.textureBitmap & ROUGH_METAL_TEXTURE) == ROUGH_METAL_TEXTURE ) {
+        vec4 mro = texture(metalRoughnessMap, (push.textureBitmap & ROUGH_METAL_UV) == 0 ? vert.texcoord : vert.texcoord1);
+        metallic = clamp(mro.b, 0.0, 1.0);
+        perceptualRoughness = clamp(mro.g, 0.04, 1.0);
+    } else {
+        metallic = clamp(push.metalness, 0.0, 1.0);
+        perceptualRoughness = clamp(push.roughness, 0.04, 1.0);
+    }
+    float occlusion = (push.textureBitmap & OCCLUSION_TEXTURE) == 0 ? 1.0 : texture(occlusionMap, (push.textureBitmap & OCCLUSION_UV) == 0 ? vert.texcoord : vert.texcoord1).r;
     
-    vec3 F = F_SchlickR(max(dot(N, viewDir), 0.0), F0, roughness);
+    float alphaRoughness = perceptualRoughness * perceptualRoughness;
+    vec2 alphaAniso = computeAnisoRoughness(alphaRoughness);
     
-    // Diffuse irradiance
-    vec3 diffuse = irradiance * albedo;
+    vec3 f0 = vec3(0.04);
+    vec3 diffuseColor = baseColor.rgb * (vec3(1.0) - f0) * (1.0 - metallic);
+	vec3 specularColor = mix(f0, baseColor.rgb, metallic);
+
+	// Compute reflectance.
+	float reflectance = max(max(specularColor.r, specularColor.g), specularColor.b);
+
+	// For typical incident reflectance range (between 4% to 100%) set the grazing reflectance to 100% for typical fresnel effect.
+	// For very low reflectance range on highly diffuse objects (below 4%), incrementally reduce grazing reflecance to 0%.
+	float reflectance90 = clamp(reflectance * 25.0, 0.0, 1.0);
+	vec3 specularEnvironmentR0 = specularColor.rgb;
+	vec3 specularEnvironmentR90 = vec3(1.0, 1.0, 1.0) * reflectance90;
+
+	vec3 n = vert.TBN * normalTS;
+	vec3 v = normalize(ubo.invViewMatrix[3].xyz - vert.worldPos);    // Vector from surface point to camera
+    vec3 reflection = normalize(reflect(-v, n));
+ 
+PBRInfo pbrInputs;
+vec3 color = vec3(0);
+const float lightNum = ubo.lightInfo & 0xFF;
+float shadow_avg = 0.0;
+for (int i = 0; i < lightNum; i++) {
+
+    vec3 l, u_LightColor;
+    float shadow = 1.0;
+
+    if (((ubo.lightInfo >> (8 + i)) & 0x1) == 0) {
+        l = normalize(ubo.lightVector[i].xyz - vert.worldPos); // Vector from surface point to light
+        float lightDist = length(ubo.lightVector[i].xyz - vert.worldPos);
+        float attenuation = ubo.lightChroma[i].a / (lightDist * lightDist);
+        u_LightColor = ubo.lightChroma[i].rgb * attenuation;
+    } else {
+        l = -normalize(ubo.lightVector[i].xyz); // Vector from surface with direction of light
+        u_LightColor = ubo.lightChroma[i].rgb * ubo.lightChroma[i].a;
+
+        shadow = filterPCF(vert.lightSpacePos);
+        if(dot(n, l) < 0) shadow = 0.01;
+    }
+
+    shadow_avg += shadow;
+  
+	vec3 h = normalize(l+v); // Half vector between both l and v
+    float NdotL = clamp(dot(n, l), 0.001, 1.0);
+	float NdotV = clamp(abs(dot(n, v)), 0.001, 1.0);
+	float NdotH = clamp(dot(n, h), 0.0, 1.0);
+	float LdotH = clamp(dot(l, h), 0.0, 1.0);
+	float VdotH = clamp(dot(v, h), 0.0, 1.0);
     
-    // Specular reflectance
-    vec3 specular = reflection * (F * brdf.x + brdf.y);
+    pbrInputs = PBRInfo(
+		NdotL,
+		NdotV,
+		NdotH,
+		LdotH,
+		VdotH,
+		perceptualRoughness,
+		metallic,
+		specularEnvironmentR0,
+		specularEnvironmentR90,
+		alphaRoughness,
+		diffuseColor,
+		specularColor
+	);
+
+	// Calculate the shading terms for the microfacet specular shading model
+	vec3 F = specularReflection(pbrInputs);
+	float G = geometricOcclusion(pbrInputs);
+
+	//float D = microfacetDistribution(pbrInputs); // OLD
+    vec3 h_ts = transpose(vert.TBN) * h;
+    float D = DistributionGGX_Covariance(n, h, h_ts, alphaAniso) * shadow;
+
+	// Calculation of analytical lighting contribution
+	vec3 diffuseContrib = (1.0 - F) * diffuse(pbrInputs);
+	vec3 specContrib = F * G * D / (4.0 * NdotL * NdotV);
     
-    // Ambient
-    vec3 kD = 1.0 - F;
-    kD *= 1.0 - metalness;
-    vec3 ambient = kD * diffuse + specular;
-    ambient = mix(ambient, ambient * occlusion, 0.7);
-    
-// Ambient + Light
-    vec3 pbr = 0.5 * ambient + Lo;
-    
-    outColor = vec4(pbr, 1.0);
+	// Obtain final intensity as reflectance (BRDF) scaled by the energy of the light (cosine law)
+	color += NdotL * u_LightColor * (diffuseContrib + specContrib) * shadow;
+
+}
+
+	// Calculate lighting contribution from image based lighting source (IBL)
+    if (MASK_COMPARE(ubo.debugMode, DEBUG_IBL_CONTRIB_BIT)) {
+        shadow_avg = (shadow_avg + 0.3) / (lightNum + 1); //vec2(0.3, shadow_avg)
+        bool multi_scatter = MASK_COMPARE(ubo.debugMode, DEBUG_MULTISCATTER_BIT);
+	    color += computeIBL(n, v, reflection, perceptualRoughness, diffuseColor, specularColor, multi_scatter);
+    }
+
+	const float u_OcclusionStrength = 0.5f;
+	// Apply optional PBR terms for additional (optional) shading
+	if ((push.textureBitmap & OCCLUSION_TEXTURE) == OCCLUSION_TEXTURE) {
+		color = mix(color, color * occlusion, u_OcclusionStrength);
+	}
+	
+    switch (ubo.debugMode & 0xFF) {
+        case 1:
+            color = baseColor;
+            opacity = 1.0;
+            break;
+        
+        case 2:
+            color = (n + 1.0) * 0.5;
+            opacity = 1.0;
+            break;
+
+        case 3:
+            color = vec3(perceptualRoughness);
+            opacity = 1.0;
+            break;
+        
+        case 4:
+            color = vec3(metallic);
+            opacity = 1.0;
+            break;
+
+        default:
+            break;
+    }
+ 
+    outColor = vec4(color, 1.0);
 }

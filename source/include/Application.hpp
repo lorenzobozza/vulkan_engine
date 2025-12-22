@@ -8,40 +8,45 @@
 #ifndef Application_hpp
 #define Application_hpp
 
-#include <iostream>
-
-#ifndef PROD
-#define DEBUG_MESSAGE(...) std::cout << __VA_ARGS__ << std::endl;
-#else
-#define DEBUG_MESSAGE(...)
-#endif
-
 #include "SDLWindow.hpp"
 #include "Device.hpp"
 #include "Descriptors.hpp"
-#include "Model.hpp"
+#include "Mesh.hpp"
 #include "Renderer.hpp"
-#include "SolidObject.hpp"
+#include "Primitive.hpp"
 #include "Camera.hpp"
-#include "Keyboard.hpp"
+#include "Physics.hpp"
 #include "Texture.hpp"
-#include "TextRender.hpp"
-#include "HDRi.hpp"
-#include "CompositionPipeline.hpp"
+#include "CubeMap.hpp"
+#include "Material.hpp"
+#include "Light.hpp"
 
-//std
+#include "ScenePipeline.hpp"
+#include "ShadowPipeline.hpp"
+#include "SkyboxPipeline.hpp"
+#include "CompositingPipeline.hpp"
+#include "DebugPipeline.hpp"
+
 #include <memory>
 #include <vector>
 #include <array>
 #include <string>
+#include <chrono>
+#include <mutex>
+#include <print>
 
-struct GlobalUbo {
-    glm::mat4 projectionView{1.f};
-    glm::vec4 ambientLightColor{1.f, 1.f, 1.f, .1f};
-    glm::vec4 lightPosition[2] = {{.0f,-1.f,.0f,.0f},{.0f,-1.f,.0f,.0f}};
-    glm::vec4 lightColor{1.f, 1.f, 1.f, 10.f};
-    glm::mat4 viewMatrix{1.f};
-    glm::mat4 invViewMatrix{1.f};
+
+struct Perf {
+private:
+    std::chrono::high_resolution_clock::time_point start{};
+    std::chrono::high_resolution_clock::time_point cpuStop{};
+    std::chrono::high_resolution_clock::time_point gpuStop{};
+public:
+    float cpuTime{.001f};
+    float gpuTime{.016f};
+    void startFrame(void) { start = std::chrono::high_resolution_clock::now(); }
+    void cpuEnd(void) { cpuStop = std::chrono::high_resolution_clock::now(); cpuTime = std::chrono::duration<float, std::chrono::seconds::period>(cpuStop - start).count(); }
+    void gpuEnd(void) { gpuStop = std::chrono::high_resolution_clock::now(); gpuTime = std::chrono::duration<float, std::chrono::seconds::period>(gpuStop - cpuStop).count(); }
 };
 
 class Application {
@@ -49,55 +54,58 @@ public:
     static constexpr int WIDTH = 1920;
     static constexpr int HEIGHT = 1080;
     
-    Application(const char* binaryPath);
-    ~Application();
-    
-    // Prevent Obj copy
     Application(const Application &) = delete;
     Application &operator=(const Application &) = delete;
     
-    void run();
-    void simulate();
-    void renderImguiContent();
+    Application() = default;
+    ~Application() = default;
     
-    static int sum(int a) { return a + a; }
+    void run(void);
     
 private:
-    void loadSolidObjects();
+    void shortcutCallback(Shortcut shortcut);
     
-    SDLWindow window{WIDTH, HEIGHT, "Vulkan Engine Development"};
-    Device device{window};
-    Renderer renderer{window, device};
-    Image vulkanImage{device};
-    std::unique_ptr<RenderSystem> renderSystem;
-    std::unique_ptr<RenderSystem> skyboxSystem;
-    std::unique_ptr<CompositionPipeline> postProcessing;
+    SDLWindow m_Window{WIDTH, HEIGHT, "Acinonyx"};
+    Device m_Device{m_Window};
+    Image m_Image{m_Device};
     
-    std::unordered_map<uint32_t, std::unique_ptr<Texture>> textures{};
-    std::vector<VkDescriptorImageInfo> textureInfos{};
-    bool assetsLoaded = false;
+    VkSampleCountFlagBits m_MSAASampleCount = VK_SAMPLE_COUNT_1_BIT;
+    Renderer m_Renderer{m_Window, m_Device, m_MSAASampleCount};
+    Physics m_Physics;
+
+    struct RenderSystems_s {
+        struct {
+            std::unique_ptr<PipelineWrapper> ptr;
+            std::mutex mutex;
+            void render(VkCommandBuffer cb, int idx) { if (ptr) ptr->safe_render(cb, idx, mutex); }
+            template<class T>
+            T* ptr_cast(void) { return reinterpret_cast<T*>(ptr.get()); }
+        } shadow, scene, skybox, composit, debug;
+    } m_Pipes;
     
-    std::unique_ptr<DescriptorPool> globalPool{};
-    SolidObject::Map solidObjects;
-    SolidObject::Map env;
+    struct {
+        std::unique_ptr<CubeMap> instance;
+        VkDescriptorImageInfo* descriptor;
+    } m_Environment, m_Prefiltered, m_Irradiance;
     
-    SDL_Event sdl_event;
-    int frameIndex{0};
-    std::vector<float> frameTimes{0};
-    std::vector<float> framesPerSecond{0};
+    std::vector<std::unique_ptr<Texture>> m_Textures{};
+    std::unordered_map<std::string, Material> m_Materials{};
     
-    uint8_t load_phase{0};
-    std::string binaryDir;
+    Assets m_Assets;
+    std::vector<Light> m_Lights;
     
-    GlobalUbo ubo{};
-    int materialIndex = 0;
+    bool m_AssetsLoaded = false;
+    bool m_PreviewMode = false;
+    bool m_DebugMode = false;
+    bool m_RunSimulation = false;
     
-    std::vector<const char*> aaPresets = {"No AA", "MSAA 2X", "MSAA 4X", "MSAA 8X", "MSAA 16X"};
+    Primitive::Map m_Primitives;
     
-    struct{
-        int width;
-        int height;
-    } surfaceExtent, windowExtent;
+    int m_FrameIndex{0};
+    Perf m_Perf;
+   
+    ScenePipeline::UniformBuffer m_Ubo{};
+    std::unique_ptr<Buffer> m_UboBuffers[SwapChain::MAX_FRAMES_IN_FLIGHT];
 };
 
 #endif /* Application_hpp */
