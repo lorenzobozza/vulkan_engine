@@ -32,7 +32,6 @@ project "Acinonyx"
 		"vulkan.1.4.328",
 		"shaderc_shared.1",
 		"SDL2-2.0.0",
-		"tiff.6",
 		"freetype.6"
 	}
 

@@ -11,8 +11,6 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb-master/stb_image.h>
 
-#include "libtiff/tiffio.h"
-
 // std
 #include <chrono>
 
@@ -22,7 +20,6 @@ Texture::Texture(const Device& dev, const Image& image, std::string filePath, bo
     createDefaultTextureSampler();
     createTextureImage();
     createTextureImageView();
-    TIFFSetWarningHandler(NULL);
 }
 
 Texture::Texture(const Device& dev, const Image& image, void* data, uint32_t texWidth, uint32_t texHeight, uint8_t depth, bool mipMapping, VkFormat format, VkSamplerCreateInfo *samplerInfo)
@@ -135,33 +132,16 @@ void Texture::loadTexture(void) {
         break;
     }
     
-    bool libtiff = false;
     int texWidth, texHeight, texChannels;
     void* pixels;
     
-    auto fileExt = m_TextureFilePath.substr(m_TextureFilePath.size() - 4, m_TextureFilePath.size() - 1);
-    if (fileExt == ".tif" || fileExt == "tiff") {
-        TIFF* tif = TIFFOpen(m_TextureFilePath.c_str(), "r");
-        TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &texWidth);
-        TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &texHeight);
-        
-        pixels = _TIFFmalloc(texWidth * texHeight * sizeof (uint32_t));
-        if (pixels != NULL) {
-            if (TIFFReadRGBAImage(tif, texWidth, texHeight, (uint32_t*)pixels, 0)) {
-                libtiff = true;
-            } else {
-                _TIFFfree(pixels);
-            }
-        }
-        TIFFClose(tif);
+    //    auto fileExt = m_TextureFilePath.substr(m_TextureFilePath.size() - 4, m_TextureFilePath.size() - 1);
+    if(stbi_is_hdr(m_TextureFilePath.c_str())) {
+        float* data = stbi_loadf(m_TextureFilePath.c_str(), &texWidth, &texHeight, &texChannels, depth);
+        pixels = (void*)data;
     } else {
-        if(stbi_is_hdr(m_TextureFilePath.c_str())) {
-            float* data = stbi_loadf(m_TextureFilePath.c_str(), &texWidth, &texHeight, &texChannels, depth);
-            pixels = (void*)data;
-        } else {
-            stbi_uc* data = stbi_load(m_TextureFilePath.c_str(), &texWidth, &texHeight, &texChannels, depth);
-            pixels = (void*)data;
-        }
+        stbi_uc* data = stbi_load(m_TextureFilePath.c_str(), &texWidth, &texHeight, &texChannels, depth);
+        pixels = (void*)data;
     }
     
     VkDeviceSize imageSize = texWidth * texHeight * bitsPerPixel;
@@ -175,11 +155,7 @@ void Texture::loadTexture(void) {
     m_StagingBuffer->map();
     m_StagingBuffer->writeToBuffer(pixels);
     
-    if (libtiff) {
-        _TIFFfree(pixels);
-    } else {
-        stbi_image_free(pixels);
-    }
+    stbi_image_free(pixels);
     
     m_Width = texWidth;
     m_Height = texHeight;
