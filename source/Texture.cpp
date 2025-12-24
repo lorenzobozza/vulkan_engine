@@ -111,7 +111,7 @@ void Texture::loadTexture(void) {
     case VK_FORMAT_R32G32B32A32_SFLOAT:
         depth = STBI_rgb_alpha;
 #ifdef __aarch64__
-        bitsPerPixel = depth * sizeof(float32_t);
+        bitsPerPixel = depth * sizeof(uint32_t);
 #else
         bitsPerPixel = depth * sizeof(float);
 #endif
@@ -120,7 +120,7 @@ void Texture::loadTexture(void) {
     case VK_FORMAT_R16G16B16A16_SFLOAT:
         depth = STBI_rgb_alpha;
 #ifdef __aarch64__
-        bitsPerPixel = depth * sizeof(float16_t);
+        bitsPerPixel = depth * sizeof(uint16_t);
 #else
         bitsPerPixel = depth * (sizeof(float) / 2);
 #endif

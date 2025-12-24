@@ -303,10 +303,12 @@ bool Device::checkValidationLayerSupport(void) {
     return true;
 }
 
+// TODO: Make a nice version
 std::vector<const char *> Device::getRequiredExtensions(void) {
     uint32_t sdlExtensionCount;
-    if (!SDL_Vulkan_GetInstanceExtensions(m_Window.getWindow(), &sdlExtensionCount, nullptr)) {
-        throw std::runtime_error("Failed to get SDL extension count!");
+    const char* const* requred_ext = SDL_Vulkan_GetInstanceExtensions(&sdlExtensionCount);
+    if (requred_ext == NULL) {
+        throw std::runtime_error("Failed to get SDL extensions!");
     }
     
     std::vector<const char*> extensions = {
@@ -318,8 +320,8 @@ std::vector<const char *> Device::getRequiredExtensions(void) {
     size_t addedExtensionCount = extensions.size();
     extensions.resize(addedExtensionCount + sdlExtensionCount);
     
-    if (SDL_Vulkan_GetInstanceExtensions(m_Window.getWindow(), &sdlExtensionCount, extensions.data() + addedExtensionCount) != SDL_TRUE) {
-        throw std::runtime_error("Failed to get SDL extensions!");
+    for (uint32_t i = 0; i < sdlExtensionCount; i++) {
+        extensions.at(addedExtensionCount + i) = requred_ext[i];
     }
     
     return extensions;

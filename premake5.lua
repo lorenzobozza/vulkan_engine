@@ -31,7 +31,7 @@ project "Acinonyx"
 	links {
 		"vulkan.1.4.328",
 		"shaderc_shared.1",
-		"SDL2-2.0.0",
+		"SDL3",
 		"freetype.6"
 	}
 
@@ -41,15 +41,7 @@ project "Acinonyx"
 
 	filter "system:windows"
 		debugdir "$(TargetDir)"
-		files { "external/nfd/nfd_win.cpp" }
 		architecture "x86_64"
-
-	filter "system:macosx"
-		files { "external/nfd/nfd_cocoa.m" }
-		links {
-			"AppKit.framework",
-			"UniformTypeIdentifiers.framework"
-		}
 
 	filter "configurations:Debug"
 		defines { "DEBUG" }

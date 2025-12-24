@@ -11,8 +11,6 @@
 
 #include <imgui.h>
 #include <stb-master/stb_image.h>
-#include <nfd.h>
-#include <nfd_sdl2.h>
 
 #include <stdexcept>
 
@@ -23,14 +21,12 @@ SDLWindow::SDLWindow(int w, int h, std::string name) : m_WindowName{name} {
 }
 
 SDLWindow::~SDLWindow() {
-    NFD_Quit();
-    
     SDL_DestroyWindow(m_Window);
     SDL_Quit();
 }
 
 void SDLWindow::createWindowSurface(VkInstance instance, VkSurfaceKHR *surface) {
-    if(SDL_Vulkan_CreateSurface(m_Window, instance, surface) != SDL_TRUE) {
+    if(!SDL_Vulkan_CreateSurface(m_Window, instance, NULL, surface)) {
         throw std::runtime_error("Failed to create window surface");
     }
 }
@@ -46,60 +42,58 @@ static void mySDL_SetWindowIcon(SDL_Window* window, const char *file) {
     if (!pixels) {
         return;
     }
-    
-    SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormatFrom(pixels, texWidth, texHeight, 8, 1024, SDL_PIXELFORMAT_ABGR8888);
+    SDL_Surface* surface = SDL_CreateSurfaceFrom(texWidth, texHeight, SDL_PIXELFORMAT_ABGR8888, pixels, 1024);
     SDL_SetWindowIcon(window, surface);
-    SDL_FreeSurface(surface);
+    SDL_DestroySurface(surface);
     
     stbi_image_free(pixels);
 }
 
 void SDLWindow::initWindow(void) {
-    SDL_Init(SDL_INIT_EVERYTHING);
+    //SDL_SetHint(SDL_HINT_TRACKPAD_IS_TOUCH_ONLY, "1");
+    SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_HAPTIC | SDL_INIT_GAMEPAD);
     
-    int supportedResCount = SDL_GetNumDisplayModes(0);
-    supportedModes.resize(supportedResCount);
+    int supportedResCount;
+    supportedModes = SDL_GetFullscreenDisplayModes(SDL_GetPrimaryDisplay(), &supportedResCount);
     for (int mode = 0; mode < supportedResCount; mode++) {
-        SDL_GetDisplayMode(0, mode, &supportedModes[mode]);
-        supportedResNames += std::to_string(supportedModes[mode].w) + " x " + std::to_string(supportedModes[mode].h);
-        supportedResNames += " " + std::to_string(supportedModes[mode].refresh_rate) + "Hz";
-        supportedResNames += SDL_PIXELLAYOUT(supportedModes[mode].format) == SDL_PACKEDLAYOUT_8888 ? " 8bit" : " 10bit";
+        supportedResNames += std::format("{} x {}", supportedModes[mode]->w, supportedModes[mode]->h);
+        supportedResNames += std::format(" {:.0f}Hz", supportedModes[mode]->refresh_rate);
+        supportedResNames += SDL_PIXELLAYOUT(supportedModes[mode]->format) == SDL_PACKEDLAYOUT_8888 ? " 8bit" : " 10bit";
         supportedResNames += '\0';
     }
     
-    SDL_GetDesktopDisplayMode(0, &m_DesktopMode);
-    m_windowExtent.width = (int)(m_DesktopMode.w * 0.9f);
-    m_windowExtent.height = (int)(m_DesktopMode.h * 0.9f);
+    const SDL_DisplayMode* displayMode = SDL_GetDesktopDisplayMode(SDL_GetPrimaryDisplay());
+    if (displayMode == NULL) {
+        throw std::runtime_error("Error retriving display modes");
+    }
+    m_DesktopExtent.width = static_cast<uint32_t>(displayMode->w);
+    m_DesktopExtent.height = static_cast<uint32_t>(displayMode->h);
+    m_windowExtent.width = static_cast<uint32_t>(displayMode->w * 0.9f);
+    m_windowExtent.height = static_cast<uint32_t>(displayMode->h * 0.9f);
     
     m_Window = SDL_CreateWindow(m_WindowName.c_str(),
-                                SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                                 m_windowExtent.width, m_windowExtent.height,
-                                SDL_WINDOW_VULKAN | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_RESIZABLE);
+                                SDL_WINDOW_VULKAN | SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_RESIZABLE);
     
-    SDL_Vulkan_GetDrawableSize(m_Window, reinterpret_cast<int*>(&m_surfaceExtent.width), reinterpret_cast<int*>(&m_surfaceExtent.height));
+    SDL_GetWindowSizeInPixels(m_Window, reinterpret_cast<int*>(&m_surfaceExtent.width), reinterpret_cast<int*>(&m_surfaceExtent.height));
     
-    m_DpiScaling = (float)m_surfaceExtent.width / (float)m_windowExtent.width;
+    m_DpiScaling = SDL_GetWindowPixelDensity(m_Window);
     
     mySDL_SetWindowIcon(m_Window, "../../../assets/icon.png");
-    
-    NFD_Init();
 }
 
 void SDLWindow::setWindowFullScreen(uint32_t flags, const SDL_DisplayMode& displayMode) {
     switch (flags) {
     case 0:
         SDL_SetWindowFullscreen(m_Window, 0);
-        SDL_SetWindowSize(m_Window, (int)(m_DesktopMode.w * 0.9f), (int)(m_DesktopMode.h * 0.9f));
+        SDL_SetWindowSize(m_Window, (int)(m_DesktopExtent.width * 0.9f), (int)(m_DesktopExtent.height * 0.9f));
         break;
-    case SDL_WINDOW_FULLSCREEN_DESKTOP:
-        SDL_SetWindowDisplayMode(m_Window, &displayMode);
-        SDL_SetWindowFullscreen(m_Window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+    case SDL_WINDOW_BORDERLESS:
+        SDL_SetWindowFullscreenMode(m_Window, &displayMode);
+        SDL_SetWindowFullscreen(m_Window, SDL_WINDOW_BORDERLESS);
         break;
     case SDL_WINDOW_FULLSCREEN:
-        if (SDL_GetWindowFlags(m_Window) & SDL_WINDOW_FULLSCREEN) {
-            SDL_SetWindowFullscreen(m_Window, 0);
-        }
-        SDL_SetWindowDisplayMode(m_Window, &displayMode);
+        SDL_SetWindowFullscreenMode(m_Window, &displayMode);
         SDL_SetWindowFullscreen(m_Window, SDL_WINDOW_FULLSCREEN);
         break;
     default:
@@ -108,7 +102,7 @@ void SDLWindow::setWindowFullScreen(uint32_t flags, const SDL_DisplayMode& displ
 }
 
 void SDLWindow::updateUiScaling(void) {
-    m_DpiScaling = (float)m_surfaceExtent.width / (float)m_windowExtent.width;
+    m_DpiScaling = SDL_GetWindowPixelDensity(m_Window);
     
     ImGuiIO& io = ImGui::GetIO();
     io.DisplaySize = {(float)m_surfaceExtent.width, (float)m_surfaceExtent.height};
@@ -127,40 +121,41 @@ void SDLWindow::pollWindowEvents(std::function<void()> callback) {
         uint32_t winData2 = static_cast<uint32_t>(sdl_event.window.data2);
         
         switch (sdl_event.type) {
-        case SDL_WINDOWEVENT:
-            if (sdl_event.window.event == SDL_WINDOWEVENT_RESIZED && (m_windowExtent.width != winData1 || m_windowExtent.height != winData2)) {
+        case SDL_EVENT_WINDOW_RESIZED:
+            if (m_windowExtent.width != winData1 || m_windowExtent.height != winData2) {
                 m_windowExtent.width = winData1;
                 m_windowExtent.height = winData2;
-                SDL_Vulkan_GetDrawableSize(m_Window, reinterpret_cast<int32_t*>(&m_surfaceExtent.width), reinterpret_cast<int32_t*>(&m_surfaceExtent.height));
+                SDL_GetWindowSizeInPixels(m_Window, reinterpret_cast<int*>(&m_surfaceExtent.width), reinterpret_cast<int*>(&m_surfaceExtent.height));
                 callback(); // Recreate swapchain
                 updateUiScaling();
             }
             break;
-        case SDL_QUIT:
+        case SDL_EVENT_QUIT:
             closeWindow();
             break;
-        case SDL_KEYDOWN:
-            fetchShortcuts((SDL_Keymod)sdl_event.key.keysym.mod, (SDL_KeyCode)sdl_event.key.keysym.sym);
-            imgui_key = UI::ImGui_SDL2_KeyEventToImGuiKey(sdl_event.key.keysym.sym);
+        case SDL_EVENT_KEY_DOWN:
+            fetchShortcuts((SDL_Keymod)sdl_event.key.mod, (SDL_Keycode)sdl_event.key.key);
+            imgui_key = UI::ImGui_SDL2_KeyEventToImGuiKey(sdl_event.key.key);
             io.AddKeyEvent(imgui_key, true);
             if (io.WantTextInput && UI::ImGuiKey_to_Charecter(imgui_key, ImGui::IsKeyDown(ImGuiKey_LeftShift)) != '?') {
                 io.AddInputCharacter(UI::ImGuiKey_to_Charecter(imgui_key, ImGui::IsKeyDown(ImGuiKey_LeftShift)));
                 
             }
-            switch (sdl_event.key.keysym.sym) {
+            switch (sdl_event.key.key) {
             case SDLK_ESCAPE:
+            case SDLK_Q:
                 closeWindow();
                 break;
-            case SDLK_w:
+            case SDLK_W:
                 m_Movement |= 0x01;
                 break;
-            case SDLK_a:
+            case SDLK_A:
                 m_Movement |= 0x02;
                 break;
-            case SDLK_s:
+            case SDLK_S:
                 m_Movement |= 0x04;
                 break;
-            case SDLK_d:
+            case SDLK_D:
                 m_Movement |= 0x08;
                 break;
             case SDLK_LSHIFT:
@@ -173,20 +168,20 @@ void SDLWindow::pollWindowEvents(std::function<void()> callback) {
                 break;
             }
             break;
-        case SDL_KEYUP:
-            imgui_key = UI::ImGui_SDL2_KeyEventToImGuiKey(sdl_event.key.keysym.sym);
+        case SDL_EVENT_KEY_UP:
+            imgui_key = UI::ImGui_SDL2_KeyEventToImGuiKey(sdl_event.key.key);
             io.AddKeyEvent(imgui_key, false);
-            switch (sdl_event.key.keysym.sym) {
-            case SDLK_w:
+            switch (sdl_event.key.key) {
+            case SDLK_W:
                 m_Movement &= 0xFE;
                 break;
-            case SDLK_a:
+            case SDLK_A:
                 m_Movement &= 0xFD;
                 break;
-            case SDLK_s:
+            case SDLK_S:
                 m_Movement &= 0xFB;
                 break;
-            case SDLK_d:
+            case SDLK_D:
                 m_Movement &= 0xF7;
                 break;
             case SDLK_LSHIFT:
@@ -199,29 +194,30 @@ void SDLWindow::pollWindowEvents(std::function<void()> callback) {
                 break;
             }
             break;
-        case SDL_CONTROLLERDEVICEADDED:
-            SDL_GameControllerOpen(0);
+        case SDL_EVENT_GAMEPAD_ADDED:
+            SDL_OpenGamepad(0);
             break;
-        case SDL_CONTROLLERDEVICEREMOVED:
-            SDL_GameControllerClose(0);
+        case SDL_EVENT_GAMEPAD_REMOVED:
+            SDL_CloseGamepad(0);
             break;
-        case SDL_CONTROLLERBUTTONDOWN:
+        case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
             closeWindow();
             break;
-        case SDL_MOUSEBUTTONDOWN:
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
             if (sdl_event.button.button == 1)
-                io.MouseDown[0] = sdl_event.button.state;
+                io.MouseDown[0] = sdl_event.button.down;
             else
                 mouseRight = true;
             break;
-        case SDL_MOUSEBUTTONUP:
+        case SDL_EVENT_MOUSE_BUTTON_UP:
             if (sdl_event.button.button == 1)
-                io.MouseDown[0] = sdl_event.button.state;
+                io.MouseDown[0] = sdl_event.button.down;
             else
                 mouseRight = false;
             break;
-        case SDL_MOUSEMOTION:
-            int wx, wy, mx, my;
+        case SDL_EVENT_MOUSE_MOTION:
+            int wx, wy;
+            float mx, my;
             SDL_GetWindowPosition(getWindow(), &wx, &wy);
             SDL_GetGlobalMouseState(&mx, &my);
             io.AddMousePosEvent((mx - wx) * m_DpiScaling, (my - wy) * m_DpiScaling);
@@ -230,27 +226,28 @@ void SDLWindow::pollWindowEvents(std::function<void()> callback) {
                 m_Rotate.y = -.05f*sdl_event.motion.xrel;
             }
             break;
-        case SDL_MOUSEWHEEL:
-            io.AddMouseWheelEvent(sdl_event.wheel.preciseX, sdl_event.wheel.preciseY);
-            m_Rotate.x = .5f*sdl_event.wheel.preciseY;
-            m_Rotate.y = .5f*sdl_event.wheel.preciseX;
+        case SDL_EVENT_MOUSE_WHEEL:
+            io.AddMouseWheelEvent(sdl_event.wheel.x, sdl_event.wheel.y);
+            m_Rotate.x = .5f*sdl_event.wheel.y;
+            m_Rotate.y = .5f*sdl_event.wheel.x;
             break;
+            
         }
     }
 }
 
-void SDLWindow::fetchShortcuts(SDL_Keymod modifier, SDL_KeyCode key) {
+void SDLWindow::fetchShortcuts(SDL_Keymod modifier, SDL_Keycode key) {
     switch (key) {
-    case SDLK_f:
-        if ((modifier & (KMOD_CTRL | KMOD_GUI)) > 0) m_LastShortcut = CTRL_F;
+    case SDLK_F:
+        if ((modifier & (SDL_KMOD_CTRL | SDL_KMOD_GUI)) > 0) m_LastShortcut = CTRL_F;
         break;
         
-    case SDLK_d:
-        if ((modifier & (KMOD_CTRL | KMOD_GUI)) > 0) m_LastShortcut = CTRL_D;
+    case SDLK_D:
+        if ((modifier & (SDL_KMOD_CTRL | SDL_KMOD_GUI)) > 0) m_LastShortcut = CTRL_D;
         break;
         
-    case SDLK_r:
-        if ((modifier & (KMOD_CTRL | KMOD_GUI)) > 0) m_LastShortcut = CTRL_R;
+    case SDLK_R:
+        if ((modifier & (SDL_KMOD_CTRL | SDL_KMOD_GUI)) > 0) m_LastShortcut = CTRL_R;
         break;
         
     default:
@@ -265,27 +262,4 @@ Shortcut SDLWindow::getShortcut(void) {
         return temp;
     }
     return UNDEFINED_SHORTCUT;
-}
-
-std::string SDLWindow::openFileDialog(std::string folder) {
-    nfdu8filteritem_t filters[2] = { { "Source code", "c,cpp,cc" }, { "Headers", "h,hpp" } };
-    nfdopendialogu8args_t args = {0};
-    NFD_GetNativeWindowFromSDLWindow(getWindow() , &args.parentWindow);
-    args.filterList = filters;
-    args.filterCount = 2;
-    args.defaultPath = folder.c_str();
-    
-    std::string returnString = "none";
-    nfdu8char_t *outPath;
-    nfdresult_t result = NFD_OpenDialogU8_With(&outPath, &args);
-    if (result == NFD_OKAY) {
-        returnString = outPath;
-        NFD_FreePathU8(outPath);
-    } else if (result == NFD_CANCEL) {
-        //puts("User pressed cancel.");
-    } else {
-        //printf("Error: %s\n", NFD_GetError());
-    }
-    
-    return returnString;
 }

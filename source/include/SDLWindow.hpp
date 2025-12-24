@@ -12,8 +12,8 @@
 #include <glm.hpp>
 
 #define SDL_MAIN_HANDLED
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_vulkan.h>
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_vulkan.h>
 
 #include <vector>
 #include <string>
@@ -40,7 +40,7 @@ public:
     
     VkExtent2D getExtent(void) const { return m_windowExtent; }
     VkExtent2D getSurfaceExtent(void) const { return m_surfaceExtent; }
-    VkExtent2D getDesktopExtent(void) const { return {(uint32_t)m_DesktopMode.w, (uint32_t)m_DesktopMode.h}; }
+    VkExtent2D getDesktopExtent(void) const { return m_DesktopExtent; }
     SDL_Window *getWindow(void) const { return m_Window; }
     uint8_t getMovement(void) const { return m_Movement; }
     bool isWindowOpen(void) const { return m_IsRunning; }
@@ -55,11 +55,11 @@ public:
     std::string openFileDialog(std::string folder);
     
     std::string supportedResNames;
-    std::vector<SDL_DisplayMode> supportedModes;
+    SDL_DisplayMode** supportedModes;
     
 private:
     void initWindow(void);
-    void fetchShortcuts(SDL_Keymod, SDL_KeyCode);
+    void fetchShortcuts(SDL_Keymod, SDL_Keycode);
     
     VkExtent2D m_windowExtent;
     VkExtent2D m_surfaceExtent;
@@ -67,7 +67,7 @@ private:
     
     std::string m_WindowName;
     SDL_Window* m_Window;
-    SDL_DisplayMode m_DesktopMode;
+    VkExtent2D m_DesktopExtent;
     
     float m_DpiScaling{1.f};
     bool m_IsRunning = true;

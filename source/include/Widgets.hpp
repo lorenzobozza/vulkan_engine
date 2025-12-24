@@ -198,13 +198,13 @@ private:
         if (setNewMode) {
             switch (windowMode) {
             case 0:
-                m_window.setWindowFullScreen(0, m_window.supportedModes[res]);
+                m_window.setWindowFullScreen(0, *m_window.supportedModes[res]);
                 break;
             case 1:
-                m_window.setWindowFullScreen(SDL_WINDOW_FULLSCREEN_DESKTOP, m_window.supportedModes[res]);
+                m_window.setWindowFullScreen(SDL_WINDOW_BORDERLESS, *m_window.supportedModes[res]);
                 break;
             case 2:
-                m_window.setWindowFullScreen(SDL_WINDOW_FULLSCREEN, m_window.supportedModes[res]);
+                m_window.setWindowFullScreen(SDL_WINDOW_FULLSCREEN, *m_window.supportedModes[res]);
                 break;
             }
         }
