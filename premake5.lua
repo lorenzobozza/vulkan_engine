@@ -46,7 +46,9 @@ project "Acinonyx"
 	filter "configurations:Debug"
 		defines { "DEBUG" }
 		symbols "On"
+		optimize "Off"
 
 	filter "configurations:Release"
 		defines { "NDEBUG" }
+		symbols "Off"
 		optimize "On"

@@ -67,7 +67,7 @@ void CubeMap::renderFaces(void) {
     m_MipLevels = std::min(maxMip, m_MipLevels);
     
     Camera cubeCam{};
-    cubeCam.setProjection.perspective(1.0f, glm::radians(90.f), .1f, 10.f);
+    cubeCam.setPerspectiveProjection(1.0f, glm::radians(90.f), .1f, 10.f);
     
     // Create Unit Cube
     Mesh::Data data;

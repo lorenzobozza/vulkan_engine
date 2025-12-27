@@ -90,7 +90,7 @@ m_Primitives(init.primitives), m_Physics(init.physics), m_Assets(init.assets), m
     // glTF -> Vulkan, unit quaternion along X to rotate 180° about X
     m_NodeTree = std::make_shared<Node::Tree>(m_gltfModel.nodes.size() + 1);
     Node root("_root");
-    root.matrix = glm::toMat4(glm::quat{0.f, 1.f, 0.f, 0.f});
+    root.matrix = glm::toMat4(glm::quat(0.f, 1.f, 0.f, 0.f));
     m_NodeTree->add(root);
     
     for(int gltfIndex: m_gltfModel.scenes[m_gltfModel.defaultScene].nodes) {
@@ -105,6 +105,7 @@ NodeSet::~NodeSet() {}
 void NodeSet::parseGLTF(void) {
     tinygltf::TinyGLTF loader;
     std::string err, warn;
+    Log* log = Log::getInstance();
     
     loader.SetImageLoader(tinygltf_LoadImageDataCallback, nullptr);
     
@@ -119,15 +120,15 @@ void NodeSet::parseGLTF(void) {
     }
     
     if (!warn.empty()) {
-        std::println("glTF Warning: {}", warn.c_str());
+        log->warn("glTF Warning: {}", warn.c_str());
     }
     
     if (!err.empty()) {
-        std::println("glTF Error: {}", err.c_str());
+        log->error("glTF Error: {}", err.c_str());
     }
     
     if (!ret) {
-        std::println("Failed to parse glTF");
+        log->error("Failed to parse glTF");
     }
 }
 
@@ -180,8 +181,33 @@ void NodeSet::loadNodeFromModel(int gltfIndex, uint32_t parentIndex) {
         parent = m_NodeTree->nodes[parent].parent;
     }
     
+    parseCameraFromNode(gltfNode, transform);
     parseLightFromNode(gltfNode, transform);
     parseMeshFromNode(gltfNode, transform, thisIndex);
+}
+
+void NodeSet::parseCameraFromNode(const tinygltf::Node& node, glm::mat4 transform) {
+    int cameraIdx = node.camera;
+    if (cameraIdx > -1) {
+        auto& cam = m_gltfModel.cameras[cameraIdx];
+        Camera newCamera;
+        /** Rotating coordinate system  R⋅(R⋅T)⁻¹ -> R⋅T⁻¹⋅R⁻¹
+        **/
+        newCamera.setView(glm::toMat4(glm::quat(0.f, 1.f, 0.f, 0.f)) * glm::inverse(transform));
+        newCamera.setInverseView(transform * glm::transpose(glm::toMat4(glm::quat(0.f, 1.f, 0.f, 0.f))));
+        
+        if (cam.type == "perspective") {
+            newCamera.setPerspectiveProjection(cam.perspective.aspectRatio, cam.perspective.yfov, cam.perspective.znear, cam.perspective.zfar);
+            camera = std::make_shared<Camera>(newCamera);
+            Physics::ImplicitShape shape;
+            shape.type = Physics::ImplicitShape::Capsule;
+            shape.value3 = 0.5f; shape.value2 = 1.f; shape.value1 = 0.5f;
+            newCamera.ghostObject = m_Physics.addGhostObjectShape(shape, transform);
+        } else if (cam.type == "orthographic") {
+            newCamera.setOrthographicProjection(-cam.orthographic.xmag, cam.orthographic.xmag, -cam.orthographic.ymag, cam.orthographic.ymag, cam.orthographic.znear, cam.orthographic.zfar);
+            camera = std::make_shared<Camera>(newCamera);
+        }
+    }
 }
 
 void NodeSet::parseLightFromNode(const tinygltf::Node& node, glm::mat4 transform) {
@@ -335,7 +361,7 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform,
                     }
                     break;
                 default:
-                    std::println("Index component type {} not supported!", accessor.componentType);
+                    Log::getInstance()->error("Index component type {} not supported!", accessor.componentType);
                     return;
                 }
                 

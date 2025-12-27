@@ -87,11 +87,13 @@ void DebugPipeline::render(VkCommandBuffer commandBuffer, int frameIndex) {
                            sizeof(PushConstantData),
                            &push);
         
-        primitive.aabb->bind(commandBuffer);
-        primitive.aabb->draw(commandBuffer);
+        if (primitive.showAABB) {
+            primitive.aabb->bind(commandBuffer);
+            primitive.aabb->draw(commandBuffer);
+            primitive.normals->bind(commandBuffer);
+            primitive.normals->draw(commandBuffer);
+        }
         
-        primitive.normals->bind(commandBuffer);
-        primitive.normals->draw(commandBuffer);
     }
     
 }

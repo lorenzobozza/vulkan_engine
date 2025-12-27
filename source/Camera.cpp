@@ -7,6 +7,8 @@
 
 #include "include/Camera.hpp"
 
+#include <glm/gtx/euler_angles.hpp>
+
 #include <cassert>
 #include <limits>
 
@@ -58,16 +60,22 @@ void Camera::setViewTarget(glm::vec3 position, glm::vec3 target, glm::vec3 up) {
     setViewDirection(position, target - position, up);
 }
 
-void Camera::setViewYXZ(glm::vec3 position, glm::vec3 rotation) {
-    const float c3 = glm::cos(rotation.z);
-    const float s3 = glm::sin(rotation.z);
-    const float c2 = glm::cos(rotation.x);
-    const float s2 = glm::sin(rotation.x);
-    const float c1 = glm::cos(rotation.y);
-    const float s1 = glm::sin(rotation.y);
+void Camera::setViewYXZDelta(glm::vec3 deltaP, glm::vec3 deltaR) {
+    glm::extractEulerAngleYXZ(inverseViewMatrix, yaw, pitch, roll);
+    position = glm::vec3(inverseViewMatrix[3]) + deltaP;
+    pitch = glm::clamp(pitch + deltaR.x, -1.5f, 1.5f);
+    yaw = glm::mod(yaw + deltaR.y, glm::two_pi<float>());
+    
+    const float c3 = glm::cos(roll);
+    const float s3 = glm::sin(roll);
+    const float c2 = glm::cos(pitch);
+    const float s2 = glm::sin(pitch);
+    const float c1 = glm::cos(yaw);
+    const float s1 = glm::sin(yaw);
     const glm::vec3 u{(c1 * c3 + s1 * s2 * s3), (c2 * s3), (c1 * s2 * s3 - c3 * s1)};
     const glm::vec3 v{(c3 * s1 * s2 - c1 * s3), (c2 * c3), (c1 * c3 * s2 + s1 * s3)};
     const glm::vec3 w{(c2 * s1), (-s2), (c1 * c2)};
+    
     viewMatrix = glm::mat4{1.f};
     viewMatrix[0][0] = u.x;
     viewMatrix[1][0] = u.y;
@@ -99,6 +107,7 @@ void Camera::setViewYXZ(glm::vec3 position, glm::vec3 rotation) {
 
 void Camera::setPerspectiveProjection(float aspect, float fovy, float near, float far) {
     assert(glm::abs(aspect - std::numeric_limits<float>::epsilon()) > 0.0f);
+     m_AspectRatio = aspect; m_FovY = fovy;
     const float tanHalfFovy = tan(fovy / 2.f);
     projectionMatrix = glm::mat4{0.0f};
     projectionMatrix[0][0] = 1.f / (aspect * tanHalfFovy);
@@ -108,21 +117,10 @@ void Camera::setPerspectiveProjection(float aspect, float fovy, float near, floa
     projectionMatrix[3][2] = -(far * near) / (far - near);
 }
 
-void Camera::SetProjection::setPerspectiveParameters(float param, int index) {
-    switch (index) {
-    case 0:
-        aspect = param;
-        break;
-    case 1:
-        fovy = param;
-        break;
-    case 2:
-        near = param;
-        break;
-    case 3:
-        far = param;
-        break;
-    default:
-        break;
+void Camera::changeAspectRatio(float aspect) {
+    if (m_FovY > 0.f) {
+        assert(glm::abs(aspect - std::numeric_limits<float>::epsilon()) > 0.0f);
+        m_AspectRatio = aspect;
+        projectionMatrix[0][0] = 1.f / (aspect * tan(m_FovY / 2.f));
     }
 }

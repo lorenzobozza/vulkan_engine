@@ -64,6 +64,7 @@ public:
     
 private:
     void shortcutCallback(Shortcut shortcut);
+    void controlCamera(std::shared_ptr<Camera>& camera, uint8_t move, glm::vec3 rotate, float newAspect, float frameTime);
     
     SDLWindow m_Window{WIDTH, HEIGHT, "Acinonyx"};
     Device m_Device{m_Window};
@@ -87,9 +88,6 @@ private:
         std::unique_ptr<CubeMap> instance;
         VkDescriptorImageInfo* descriptor;
     } m_Environment, m_Prefiltered, m_Irradiance;
-    
-    std::vector<std::unique_ptr<Texture>> m_Textures{};
-    std::unordered_map<std::string, Material> m_Materials{};
     
     Assets m_Assets;
     std::vector<Light> m_Lights;

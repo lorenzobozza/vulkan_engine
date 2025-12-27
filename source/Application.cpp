@@ -22,7 +22,6 @@
 
 #include <thread>
 
-static void updateCamera(Camera& camera, Primitive& cameraHandle, uint8_t move, glm::vec3 rotate, float newAspect, float frameTime);
 
 struct WidgetStruct {
     std::shared_ptr<Viewport> view;
@@ -46,7 +45,7 @@ void Application::run() {
         .view = std::make_shared<Viewport>(),
         .log = std::make_shared<LogView>(),
         .assets = std::make_shared<AssetTree>(),
-        .nodes = std::make_shared<NodeTreeViewer>(),
+        .nodes = std::make_shared<NodeTreeViewer>(m_Primitives),
         .material = std::make_shared<MeterialViewer>(m_Assets),
         .settings = std::make_shared<Settings>(m_Device, m_Window, m_Renderer, m_Perf, m_MSAASampleCount)
     };
@@ -58,18 +57,9 @@ void Application::run() {
     
     ui.addWidgets(widgets.view, widgets.log, widgets.assets, widgets.material, widgets.settings, widgets.menu, widgets.nodes);
     
-    Camera camera{};
-    camera.setProjection.perspective(m_Renderer.getAspectRatio(), glm::radians(75.f), .01f, 100.f);
-    Primitive cameraHandle = Primitive::new_primitive();
-    cameraHandle.transform.translation = {-5.f, -2.f, .0f};
-    cameraHandle.transform.rotation.y = glm::half_pi<float>();
+    std::shared_ptr<Camera> camera;
     
-    std::thread([this, &widgets]() {
-        
-        /**** Fallback Material */
-        Material globalMaterial;
-        globalMaterial.color = {1.f, 1.f, 1.f, 1.f};
-        m_Materials.emplace("Global_Default_Material", globalMaterial);
+    std::thread([this, &widgets, &camera]() {
         
         /**** Load HDRi Texture */
         m_Assets.textures.push_back(std::make_unique<const Texture>(
@@ -99,6 +89,7 @@ void Application::run() {
         // TODO: better task-set creation
         NodeSet::InitStruct initNodeStruct{m_Device, m_Image, m_Primitives, m_Physics, m_Assets, m_Lights};
         NodeSet _gltf(initNodeStruct, "../../../assets/models/Billiard.glb");
+        camera = _gltf.camera;
         
         /**** Load Point-Light Nodes from scene */
         // TODO: clean this mess
@@ -212,14 +203,14 @@ void Application::run() {
         m_Perf.startFrame();
         
         // Prepare next GUI Frame
-        ui.newFrame();
+        if (!m_PreviewMode) ui.newFrame();
         
         m_Window.pollWindowEvents([this, widgets]() {
             m_Renderer.recreateSwapChain();
             widgets.view->setExtent((float)m_Renderer.getSwapChainExtent().width, (float)m_Renderer.getSwapChainExtent().height);
         });
         
-        updateCamera(camera, cameraHandle, m_Window.getMovement(), m_Window.getRotation(), m_Renderer.getAspectRatio(), m_Perf.cpuTime + m_Perf.gpuTime);
+        controlCamera(camera, m_Window.getMovement(), m_Window.getRotation(), m_Renderer.getAspectRatio(), m_Perf.cpuTime + m_Perf.gpuTime);
         
         shortcutCallback(m_Window.getShortcut());
         
@@ -244,10 +235,12 @@ void Application::run() {
             m_FrameIndex = m_Renderer.getFrameIndex();
             
             // Update Uniform Buffer Object
-            m_Ubo.projectionView = camera.getProjection();
-            m_Ubo.viewMatrix = camera.getView();
-            m_Ubo.invViewMatrix = camera.getInverseView();
-            m_Ubo.debugMode = widgets.settings->debugMode;
+            if (camera) {
+                m_Ubo.projectionView = camera->getProjection();
+                m_Ubo.viewMatrix = camera->getView();
+                m_Ubo.invViewMatrix = camera->getInverseView();
+                m_Ubo.debugMode = widgets.settings->debugMode;
+            }
             
             if (m_Pipes.composit.ptr) {
                 auto p = m_Pipes.composit.ptr_cast<CompositingPipeline>();
@@ -317,18 +310,22 @@ void Application::shortcutCallback(Shortcut shortcut) {
     }
 }
 
-static void updateCamera(Camera& camera, Primitive& cameraHandle, uint8_t move, glm::vec3 rotate, float newAspect, float frameTime) {
-    static float oldAspect = newAspect;
+void Application::controlCamera(std::shared_ptr<Camera>& camera, uint8_t move, glm::vec3 rotate, float newAspect, float frameTime) {
+    if (!camera) return;
+    
+    static float oldAspect = camera->getAspectRatio();
+    bool changed = false;
+    
+    glm::vec3 position(0.f);
+    glm::vec3 rotation(0.f);
     
     if (glm::dot(rotate, rotate) > glm::epsilon<float>()) {
-        cameraHandle.transform.rotation += rotate * .05f;
-        cameraHandle.transform.rotation.x = glm::clamp(cameraHandle.transform.rotation.x, -1.5f, 1.5f);
-        cameraHandle.transform.rotation.y = glm::mod(cameraHandle.transform.rotation.y, glm::two_pi<float>());
+        rotation = rotate * 0.02f * camera->getFov();
+        changed = true;
     }
     
     if (move) {
-        float yaw = cameraHandle.transform.rotation.y;
-        const glm::vec3 forwardDir{glm::sin(yaw), .0f, glm::cos(yaw)};
+        const glm::vec3 forwardDir{glm::sin(camera->getYaw()), .0f, glm::cos(camera->getYaw())};
         const glm::vec3 rightDir{forwardDir.z, .0f, -forwardDir.x};
         const glm::vec3 upDir{.0f, -1.f, .0f};
         glm::vec3 moveDir{0.f};
@@ -339,17 +336,17 @@ static void updateCamera(Camera& camera, Primitive& cameraHandle, uint8_t move, 
         if (move & 0x10) { moveDir -= upDir; }
         if (move & 0x20) { moveDir += upDir; }
         if (glm::dot(moveDir, moveDir) > glm::epsilon<float>()) {
-            cameraHandle.transform.translation += 8.f * frameTime * glm::normalize(moveDir);
+            position += 8.f * frameTime * glm::normalize(moveDir);
+            if (!camera->noClip) m_Physics.moveGhost((uint32_t)camera->ghostObject, camera->getInverseView(), position);
+            changed = true;
         }
     }
     
-    // Fix camera projection if the viewport's aspect ratio changes
     if (oldAspect != newAspect) {
         oldAspect = newAspect;
-        camera.setProjection.perspective(newAspect);
+        camera->changeAspectRatio(newAspect);
         //camera.setOrthographicProjection(-newAspect, newAspect, -1.f, 1.f, -10.f, 100.f);
     }
     
-    // Polling keystrokes and adjusting the camera position/rotation
-    camera.setViewYXZ(cameraHandle.transform.translation, cameraHandle.transform.rotation);
+    if (changed) camera->setViewYXZDelta(position, rotation);
 }

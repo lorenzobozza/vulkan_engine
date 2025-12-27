@@ -48,6 +48,7 @@ public:
     
     std::shared_ptr<Mesh> model;
     
+    bool showAABB = false;
     std::shared_ptr<Mesh> aabb;
     std::shared_ptr<Mesh> normals;
     

@@ -21,12 +21,13 @@ public:
     
     template <class... _Args>
     void info(std::format_string<_Args...> __fmt, _Args&&... __args) {
-        if (print_terminal) {
-            std::print("[Info] ");
-            std::println(__fmt, std::forward<_Args>(__args)...);
-        }
+        std::string temp(std::format(__fmt, std::forward<_Args>(__args)...).c_str());
+        temp = std::format("[Info] {}\n", temp);
         
-        stream << "[Info] " << std::format(__fmt, std::forward<_Args>(__args)...) << '\n';
+        if (print_terminal) {
+            std::print("[Log]{}", temp);
+        }
+        stream << temp;
     }
     
     void info(const std::string& s) {
@@ -35,12 +36,13 @@ public:
     
     template <class... _Args>
     void warn(std::format_string<_Args...> __fmt, _Args&&... __args) {
-        if (print_terminal) {
-            std::print("[Warning] ");
-            std::println(__fmt, std::forward<_Args>(__args)...);
-        }
+        std::string temp(std::format(__fmt, std::forward<_Args>(__args)...).c_str());
+        temp = std::format("[Warning] {}\n", temp);
         
-        stream << "[Warning] " << std::format(__fmt, std::forward<_Args>(__args)...) << '\n';
+        if (print_terminal) {
+            std::print("[Log]{}", temp);
+        }
+        stream << temp;
     }
     
     void warn(const std::string& s) {
@@ -49,13 +51,15 @@ public:
     
     template <class... _Args>
     void error(std::format_string<_Args...> __fmt, _Args&&... __args) {
+        std::string temp(std::format(__fmt, std::forward<_Args>(__args)...).c_str());
+        temp = std::format("[Error] {}\n", temp);
+        
         if (print_terminal) {
-            std::print("[Error] ");
-            std::println(__fmt, std::forward<_Args>(__args)...);
+            std::print("[Log]{}", temp);
         }
         
         if (error_counter < 100) {
-						stream << "[Error] " << std::format(__fmt, std::forward<_Args>(__args)...) << '\n';
+            stream << temp;
 						error_notification = true;
 						if (++error_counter == 100) stream << "\nCLOSING STREAM, TOO MANY ERRORS\n";
         }
@@ -65,7 +69,7 @@ public:
         error("{}", s);
     }
     
-    const char* getBuffer(void) {
+    const char* viewBuffer(void) {
         return stream.view().data();
     }
     bool notifyErrors(void) {
@@ -81,9 +85,14 @@ private:
     
     bool error_notification = false;
     unsigned long error_counter = 0;
-    bool print_terminal = false;
     std::stringstream stream;
 
+    #ifdef DEBUG
+        bool print_terminal = true;
+    #else
+        bool print_terminal = false;
+    #endif
+    
 public:
     Log(Log&) = delete;
     Log& operator=(Log&) = delete;

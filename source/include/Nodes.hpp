@@ -14,6 +14,7 @@
 #include "Physics.hpp"
 #include "Material.hpp"
 #include "Light.hpp"
+#include "Camera.hpp"
 
 #define TINYGLTF_NO_STB_IMAGE_WRITE
 #include <tinygltf/tiny_gltf.h>
@@ -33,6 +34,7 @@ struct Node {
     int32_t parent = -1;
     std::vector<uint32_t> children;
     std::vector<Primitive::id_t> primitives;
+    bool aabb = false;
     
     std::string name;
     glm::mat4 matrix{1.0f};
@@ -70,11 +72,14 @@ public:
     
     std::shared_ptr<Node::Tree> getNodes(void) const { return m_NodeTree; }
     
+    std::shared_ptr<Camera> camera;
+    
 private:
     void parseGLTF(void);
     void loadNodeFromModel(int gltfIndex, uint32_t parentIndex);
     void parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform, uint32_t thisIndex);
     void parseLightFromNode(const tinygltf::Node& node, glm::mat4 transform);
+    void parseCameraFromNode(const tinygltf::Node& node, glm::mat4 transform);
     void loadMaterialsToVRAM(void);
     void fillSamplerInfo(int textureIndex, VkSamplerCreateInfo *samplerInfo);
     void parsePhysicsMaterialsAndShapes(void);

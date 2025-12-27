@@ -31,12 +31,13 @@ static unsigned ctz(int n) {
 
 class NodeTreeViewer : public Widget {
 public:
-    NodeTreeViewer() = default;
-    NodeTreeViewer(std::shared_ptr<Node::Tree> node_tree) : nodeTree(node_tree) {}
+    NodeTreeViewer(Primitive::Map& primitives) : m_Primitives(primitives) {}
+    //NodeTreeViewer(std::shared_ptr<Node::Tree> node_tree) : nodeTree(node_tree) {}
     
     void setTree(std::shared_ptr<Node::Tree> node_tree) { nodeTree = node_tree; }
     
 private:
+    Primitive::Map& m_Primitives;
     std::shared_ptr<Node::Tree> nodeTree;
     void content(void) override {
         ImGui::Begin("Node Visualizer");
@@ -67,9 +68,24 @@ private:
             bool hasChildren = child.children.size() > 0;
             ImGuiTreeNodeFlags node_flags = hasChildren ? base_flags : base_flags | ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
             bool isOpen = ImGui::TreeNodeEx((child.name.empty() ? "##empty" : child.name.c_str()), node_flags);
+            
+            if (ImGui::IsItemHovered()) {
+                if (!child.primitives.empty()) m_Primitives.at(child.primitives.at(0)).showAABB = true;
+                child.aabb = true;
+            } else if (child.aabb) {
+                if (!child.primitives.empty()) m_Primitives.at(child.primitives.at(0)).showAABB = false;
+                child.aabb = false;
+            }
+            
             ImVec2 size = ImGui::GetItemRectSize();
-            ImGui::SameLine(size.x - 50.f);
-            ImGui::TextUnformatted(printProps(child.flags).c_str());
+            if (ImGui::IsItemHovered()) {
+                ImGui::SameLine(size.x - 250.f);
+                ImGui::TextUnformatted(std::format("{:.2f} | {:.2f}, {:.2f}, {:.2f}", child.quat.w, child.quat.x, child.quat.y, child.quat.z).c_str());
+            } else {
+                ImGui::SameLine(size.x - 50.f);
+                ImGui::TextUnformatted(printProps(child.flags).c_str());
+            }
+            
             if (isOpen && hasChildren) {
                 expandTree(child);
                 ImGui::TreePop();
@@ -144,7 +160,7 @@ class LogView : public Widget {
     }
     void content(void) override {
         ImGui::Begin("Log Console", nullptr, ImGuiWindowFlags_NoCollapse);
-        ImGui::TextWrapped("%s", Log::getInstance()->getBuffer());
+        ImGui::TextWrapped("%s", Log::getInstance()->viewBuffer());
         ImGui::End();
     }
 };
@@ -300,7 +316,7 @@ private:
                 ImGui::TableNextColumn();
                 ImGui::Text("%s", kv.first.c_str());
                 ImGui::TableNextColumn();
-                if ((kv.second.getTextureBitmap() & 0x1) == 0) {ImGui::ColorButton("", ImVec4(kv.second.color.r,kv.second.color.g,kv.second.color.b,kv.second.color.a));}
+                if ((kv.second.getTextureBitmap() & 0x1) == 0) {ImGui::ColorButton(std::format("##{}", kv.first).c_str(), ImVec4(kv.second.color.r,kv.second.color.g,kv.second.color.b,kv.second.color.a));}
                 else { ImGui::Text("%s","Texture"); }
                 ImGui::TableNextColumn();
                 ImGui::Text("%s", (kv.second.getTextureBitmap() & 0x2) == 0 ? "NO" : "Texture");
