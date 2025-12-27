@@ -348,5 +348,11 @@ void Application::controlCamera(std::shared_ptr<Camera>& camera, uint8_t move, g
         //camera.setOrthographicProjection(-newAspect, newAspect, -1.f, 1.f, -10.f, 100.f);
     }
     
-    if (changed) camera->setViewYXZDelta(position, rotation);
+    if (changed) {
+        if (m_PreviewMode) {
+            camera->setViewYXZDelta(position, rotation);
+        } else {
+            camera->pivotAroundOrigin(rotation);
+        }
+    }
 }

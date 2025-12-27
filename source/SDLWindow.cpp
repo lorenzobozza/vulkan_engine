@@ -164,6 +164,10 @@ void SDLWindow::pollWindowEvents(std::function<void()> callback) {
             case SDLK_SPACE:
                 m_Movement |= 0x20;
                 break;
+            case SDLK_LGUI:
+            case SDLK_LCTRL:
+                m_isCtrlPressed = true;
+                break;
             default:
                 break;
             }
@@ -189,6 +193,10 @@ void SDLWindow::pollWindowEvents(std::function<void()> callback) {
                 break;
             case SDLK_SPACE:
                 m_Movement &= 0xDF;
+                break;
+            case SDLK_LGUI:
+            case SDLK_LCTRL:
+                m_isCtrlPressed = false;
                 break;
             default:
                 break;
@@ -228,8 +236,11 @@ void SDLWindow::pollWindowEvents(std::function<void()> callback) {
             break;
         case SDL_EVENT_MOUSE_WHEEL:
             io.AddMouseWheelEvent(sdl_event.wheel.x, sdl_event.wheel.y);
-            m_Rotate.x = .5f*sdl_event.wheel.y;
-            m_Rotate.y = .5f*sdl_event.wheel.x;
+            if (!m_isCtrlPressed) {
+                m_Rotate.y = .5f*sdl_event.wheel.x;
+                m_Rotate.x = .5f*sdl_event.wheel.y;
+            }
+            else m_Rotate.z = -5.f*sdl_event.wheel.y;
             break;
             
         }

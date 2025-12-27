@@ -34,9 +34,10 @@ public:
     const float getFov(void) const { return m_FovY; }
     
     void setViewYXZDelta(glm::vec3 deltaP, glm::vec3 deltaR);
+    void pivotAroundOrigin(glm::vec3 deltaR);
     
     size_t ghostObject;
-    bool noClip = false;
+    bool noClip = true;
     
 private:
     glm::mat4 projectionMatrix{1.f};

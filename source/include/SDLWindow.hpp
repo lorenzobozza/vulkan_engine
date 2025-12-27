@@ -74,6 +74,8 @@ private:
     
     uint8_t m_Movement{0x00};
     glm::vec3 m_Rotate{.0f};
+    
+    bool m_isCtrlPressed = false;
 };
 
 #endif /* SDLWindow_hpp */

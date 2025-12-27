@@ -5,7 +5,7 @@
 //  Created by Lorenzo Bozza on 10/11/21.
 //
 
-#include "include/Camera.hpp"
+#include "Camera.hpp"
 
 #include <glm/gtx/euler_angles.hpp>
 
@@ -123,4 +123,28 @@ void Camera::changeAspectRatio(float aspect) {
         m_AspectRatio = aspect;
         projectionMatrix[0][0] = 1.f / (aspect * tan(m_FovY / 2.f));
     }
+}
+
+void Camera::pivotAroundOrigin(glm::vec3 deltaR) {
+    glm::vec3 pos = glm::vec3(inverseViewMatrix[3]);
+
+    float r = sqrt(pos.x*pos.x + pos.y*pos.y + pos.z*pos.z);
+    float theta = atan2(pos.z, pos.x);
+    float phi = acos(pos.y / r);
+
+    float sensitivity = 2.f;
+    r     += deltaR.z * sensitivity;
+    theta += deltaR.y * sensitivity;
+    phi   += deltaR.x * sensitivity;
+    
+    float eps = 0.001f;
+    r = glm::max(r, 2.f);
+    phi = glm::min(glm::max(phi, eps), (float)(M_PI - eps));
+    
+    glm::vec3 newPos;
+    newPos.x = r * sin(phi) * cos(theta);
+    newPos.y = r * cos(phi);
+    newPos.z = r * sin(phi) * sin(theta);
+
+    setViewTarget(newPos, glm::vec3(0.f,0.f,0.f), glm::vec3(0.f,-1.f,0.f));
 }
