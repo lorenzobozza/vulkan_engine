@@ -72,8 +72,8 @@ struct ImageParseTaskSet : enki::ITaskSet {
     }
 };
 
-NodeSet::NodeSet(InitStruct& init, std::string filePath) : m_Device(init.device), m_Image(init.image),
-m_Primitives(init.primitives), m_Physics(init.physics), m_Assets(init.assets), m_Lights(init.lights), m_FilePath(filePath) {
+NodeSet::NodeSet(InitStruct& init, std::string filePath) : m_Device(init.device), m_Image(init.image), m_Primitives(init.primitives),
+        m_Physics(init.physics), m_Assets(init.assets), m_Cameras(init.cameras), m_Lights(init.lights), m_FilePath(filePath) {
     parseGLTF();
     parsePhysicsMaterialsAndShapes();
     
@@ -196,17 +196,19 @@ void NodeSet::parseCameraFromNode(const tinygltf::Node& node, glm::mat4 transfor
         newCamera.setView(glm::toMat4(glm::quat(0.f, 1.f, 0.f, 0.f)) * glm::inverse(transform));
         newCamera.setInverseView(transform * glm::transpose(glm::toMat4(glm::quat(0.f, 1.f, 0.f, 0.f))));
         
+        m_Cameras.mutex.lock();
         if (cam.type == "perspective") {
             newCamera.setPerspectiveProjection(cam.perspective.aspectRatio, cam.perspective.yfov, cam.perspective.znear, cam.perspective.zfar);
-            camera = std::make_shared<Camera>(newCamera);
+            m_Cameras.list.emplace_back(newCamera);
             Physics::ImplicitShape shape;
             shape.type = Physics::ImplicitShape::Capsule;
             shape.value3 = 0.5f; shape.value2 = 1.f; shape.value1 = 0.5f;
             newCamera.ghostObject = m_Physics.addGhostObjectShape(shape, transform);
         } else if (cam.type == "orthographic") {
             newCamera.setOrthographicProjection(-cam.orthographic.xmag, cam.orthographic.xmag, -cam.orthographic.ymag, cam.orthographic.ymag, cam.orthographic.znear, cam.orthographic.zfar);
-            camera = std::make_shared<Camera>(newCamera);
+            m_Cameras.list.emplace_back(newCamera);
         }
+        m_Cameras.mutex.unlock();
     }
 }
 
@@ -421,9 +423,10 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform,
             size_t i = 0;
             for (auto& v : data.vertices) {
                 normals.vertices[i].color = (v.normal + 1.f) * 0.5f;
-                normals.vertices[i++].position = v.position;
-                normals.vertices[i].color = (v.normal + 1.f) * 0.5f;
-                normals.vertices[i++].position = v.position + (glm::normalize(v.normal) * .2f / p.transform.scale);
+                normals.vertices[i].position = v.position;
+                normals.vertices[i++].color = (v.normal + 1.f) * 0.5f;
+                glm::vec3 n = glm::normalize(v.normal);
+                normals.vertices[i++].position = v.position + n * 0.05f * glm::length(posMax);
             }
             p.normals = std::make_shared<Mesh>(m_Device, normals);
             }

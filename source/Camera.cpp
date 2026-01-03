@@ -22,6 +22,26 @@ void Camera::setOrthographicProjection(float left, float right, float top, float
     projectionMatrix[3][2] = -near / (far - near);
 }
 
+void Camera::setPerspectiveProjection(float aspect, float fovy, float near, float far) {
+    assert(glm::abs(aspect - std::numeric_limits<float>::epsilon()) > 0.0f);
+     m_AspectRatio = aspect; m_FovY = fovy;
+    const float tanHalfFovy = tan(fovy / 2.f);
+    projectionMatrix = glm::mat4{0.0f};
+    projectionMatrix[0][0] = 1.f / (aspect * tanHalfFovy);
+    projectionMatrix[1][1] = 1.f / (tanHalfFovy);
+    projectionMatrix[2][2] = far / (far - near);
+    projectionMatrix[2][3] = 1.f;
+    projectionMatrix[3][2] = -(far * near) / (far - near);
+}
+
+void Camera::changeAspectRatio(float aspect) {
+    if (m_FovY > 0.f) {
+        assert(glm::abs(aspect - std::numeric_limits<float>::epsilon()) > 0.0f);
+        m_AspectRatio = aspect;
+        projectionMatrix[0][0] = 1.f / (aspect * tan(m_FovY / 2.f));
+    }
+}
+
 void Camera::setViewDirection(glm::vec3 position, glm::vec3 direction, glm::vec3 up) {
     const glm::vec3 w{glm::normalize(direction)};
     const glm::vec3 u{glm::normalize(glm::cross(w, up))};
@@ -61,17 +81,17 @@ void Camera::setViewTarget(glm::vec3 position, glm::vec3 target, glm::vec3 up) {
 }
 
 void Camera::setViewYXZDelta(glm::vec3 deltaP, glm::vec3 deltaR) {
-    glm::extractEulerAngleYXZ(inverseViewMatrix, yaw, pitch, roll);
-    position = glm::vec3(inverseViewMatrix[3]) + deltaP;
-    pitch = glm::clamp(pitch + deltaR.x, -1.5f, 1.5f);
-    yaw = glm::mod(yaw + deltaR.y, glm::two_pi<float>());
+    glm::extractEulerAngleYXZ(inverseViewMatrix, m_Fpv.yaw, m_Fpv.pitch, m_Fpv.roll);
+    m_Fpv.position = glm::vec3(inverseViewMatrix[3]) + deltaP;
+    m_Fpv.pitch = glm::clamp(m_Fpv.pitch + deltaR.x, -1.5f, 1.5f);
+    m_Fpv.yaw = glm::mod(m_Fpv.yaw + deltaR.y, glm::two_pi<float>());
     
-    const float c3 = glm::cos(roll);
-    const float s3 = glm::sin(roll);
-    const float c2 = glm::cos(pitch);
-    const float s2 = glm::sin(pitch);
-    const float c1 = glm::cos(yaw);
-    const float s1 = glm::sin(yaw);
+    const float c3 = glm::cos(m_Fpv.roll);
+    const float s3 = glm::sin(m_Fpv.roll);
+    const float c2 = glm::cos(m_Fpv.pitch);
+    const float s2 = glm::sin(m_Fpv.pitch);
+    const float c1 = glm::cos(m_Fpv.yaw);
+    const float s1 = glm::sin(m_Fpv.yaw);
     const glm::vec3 u{(c1 * c3 + s1 * s2 * s3), (c2 * s3), (c1 * s2 * s3 - c3 * s1)};
     const glm::vec3 v{(c3 * s1 * s2 - c1 * s3), (c2 * c3), (c1 * c3 * s2 + s1 * s3)};
     const glm::vec3 w{(c2 * s1), (-s2), (c1 * c2)};
@@ -86,9 +106,9 @@ void Camera::setViewYXZDelta(glm::vec3 deltaP, glm::vec3 deltaR) {
     viewMatrix[0][2] = w.x;
     viewMatrix[1][2] = w.y;
     viewMatrix[2][2] = w.z;
-    viewMatrix[3][0] = -glm::dot(u, position);
-    viewMatrix[3][1] = -glm::dot(v, position);
-    viewMatrix[3][2] = -glm::dot(w, position);
+    viewMatrix[3][0] = -glm::dot(u, m_Fpv.position);
+    viewMatrix[3][1] = -glm::dot(v, m_Fpv.position);
+    viewMatrix[3][2] = -glm::dot(w, m_Fpv.position);
     
     inverseViewMatrix = glm::mat4{1.f};
     inverseViewMatrix[0][0] = u.x;
@@ -100,29 +120,9 @@ void Camera::setViewYXZDelta(glm::vec3 deltaP, glm::vec3 deltaR) {
     inverseViewMatrix[2][0] = w.x;
     inverseViewMatrix[2][1] = w.y;
     inverseViewMatrix[2][2] = w.z;
-    inverseViewMatrix[3][0] = position.x;
-    inverseViewMatrix[3][1] = position.y;
-    inverseViewMatrix[3][2] = position.z;
-}
-
-void Camera::setPerspectiveProjection(float aspect, float fovy, float near, float far) {
-    assert(glm::abs(aspect - std::numeric_limits<float>::epsilon()) > 0.0f);
-     m_AspectRatio = aspect; m_FovY = fovy;
-    const float tanHalfFovy = tan(fovy / 2.f);
-    projectionMatrix = glm::mat4{0.0f};
-    projectionMatrix[0][0] = 1.f / (aspect * tanHalfFovy);
-    projectionMatrix[1][1] = 1.f / (tanHalfFovy);
-    projectionMatrix[2][2] = far / (far - near);
-    projectionMatrix[2][3] = 1.f;
-    projectionMatrix[3][2] = -(far * near) / (far - near);
-}
-
-void Camera::changeAspectRatio(float aspect) {
-    if (m_FovY > 0.f) {
-        assert(glm::abs(aspect - std::numeric_limits<float>::epsilon()) > 0.0f);
-        m_AspectRatio = aspect;
-        projectionMatrix[0][0] = 1.f / (aspect * tan(m_FovY / 2.f));
-    }
+    inverseViewMatrix[3][0] = m_Fpv.position.x;
+    inverseViewMatrix[3][1] = m_Fpv.position.y;
+    inverseViewMatrix[3][2] = m_Fpv.position.z;
 }
 
 void Camera::pivotAroundOrigin(glm::vec3 deltaR) {

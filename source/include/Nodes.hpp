@@ -61,6 +61,7 @@ public:
         Primitive::Map& primitives;
         Physics& physics;
         Assets& assets;
+        Camera::Collection& cameras;
         std::vector<Light>& lights;
     };
     
@@ -71,9 +72,7 @@ public:
     ~NodeSet();
     
     std::shared_ptr<Node::Tree> getNodes(void) const { return m_NodeTree; }
-    
-    std::shared_ptr<Camera> camera;
-    
+        
 private:
     void parseGLTF(void);
     void loadNodeFromModel(int gltfIndex, uint32_t parentIndex);
@@ -92,6 +91,7 @@ private:
     const Image& m_Image;
     Primitive::Map& m_Primitives;
     Assets& m_Assets;
+    Camera::Collection& m_Cameras;
     std::vector<Light>& m_Lights;
     std::shared_ptr<Node::Tree> m_NodeTree;
     Physics& m_Physics;

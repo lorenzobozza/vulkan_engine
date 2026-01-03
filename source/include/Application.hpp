@@ -64,7 +64,7 @@ public:
     
 private:
     void shortcutCallback(Shortcut shortcut);
-    void controlCamera(std::shared_ptr<Camera>& camera, uint8_t move, glm::vec3 rotate, float newAspect, float frameTime);
+    void controlCamera(uint8_t move, glm::vec3 rotate, float newAspect, float frameTime);
     
     SDLWindow m_Window{WIDTH, HEIGHT, "Acinonyx"};
     Device m_Device{m_Window};
@@ -91,6 +91,7 @@ private:
     
     Assets m_Assets;
     std::vector<Light> m_Lights;
+    Camera::Collection m_Cameras;
     
     bool m_AssetsLoaded = false;
     bool m_PreviewMode = false;

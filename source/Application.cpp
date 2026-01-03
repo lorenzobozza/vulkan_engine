@@ -56,10 +56,8 @@ void Application::run() {
     widgets.view->addFlags(ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_AlwaysAutoResize|ImGuiWindowFlags_NoBackground);
     
     ui.addWidgets(widgets.view, widgets.log, widgets.assets, widgets.material, widgets.settings, widgets.menu, widgets.nodes);
-    
-    std::shared_ptr<Camera> camera;
-    
-    std::thread([this, &widgets, &camera]() {
+        
+    std::thread([this, &widgets]() {
         
         /**** Load HDRi Texture */
         m_Assets.textures.push_back(std::make_unique<const Texture>(
@@ -87,9 +85,8 @@ void Application::run() {
         
         /**** Load Scene from glTF file */
         // TODO: better task-set creation
-        NodeSet::InitStruct initNodeStruct{m_Device, m_Image, m_Primitives, m_Physics, m_Assets, m_Lights};
+        NodeSet::InitStruct initNodeStruct{m_Device, m_Image, m_Primitives, m_Physics, m_Assets, m_Cameras, m_Lights};
         NodeSet _gltf(initNodeStruct, "../../../assets/models/Billiard.glb");
-        camera = _gltf.camera;
         
         /**** Load Point-Light Nodes from scene */
         // TODO: clean this mess
@@ -210,13 +207,10 @@ void Application::run() {
             widgets.view->setExtent((float)m_Renderer.getSwapChainExtent().width, (float)m_Renderer.getSwapChainExtent().height);
         });
         
-        controlCamera(camera, m_Window.getMovement(), m_Window.getRotation(), m_Renderer.getAspectRatio(), m_Perf.cpuTime + m_Perf.gpuTime);
+        controlCamera(m_Window.getMovement(), m_Window.getRotation(), m_Renderer.getAspectRatio(), m_Perf.cpuTime + m_Perf.gpuTime);
         
         shortcutCallback(m_Window.getShortcut());
         
-        
-        btQuaternion qrot;
-        qrot.setRotation(btVector3(0,1.f,0), .01f);
         
         if (m_AssetsLoaded && m_RunSimulation) {
             m_Physics.getWorldHandle()->stepSimulation(m_Perf.cpuTime + m_Perf.gpuTime, 20, m_Perf.cpuTime + m_Perf.gpuTime);
@@ -234,13 +228,7 @@ void Application::run() {
         if (auto commandBuffer = m_Renderer.beginFrame()) {
             m_FrameIndex = m_Renderer.getFrameIndex();
             
-            // Update Uniform Buffer Object
-            if (camera) {
-                m_Ubo.projectionView = camera->getProjection();
-                m_Ubo.viewMatrix = camera->getView();
-                m_Ubo.invViewMatrix = camera->getInverseView();
-                m_Ubo.debugMode = widgets.settings->debugMode;
-            }
+            m_Ubo.debugMode = widgets.settings->debugMode;
             
             if (m_Pipes.composit.ptr) {
                 auto p = m_Pipes.composit.ptr_cast<CompositingPipeline>();
@@ -292,12 +280,12 @@ void Application::run() {
 }
 
 void Application::shortcutCallback(Shortcut shortcut) {
-    if (m_AssetsLoaded && shortcut == CTRL_F) {
+    if (m_Pipes.composit.ptr && shortcut == CTRL_F) {
         vkDeviceWaitIdle(m_Device.device());
-        if (m_Pipes.composit.ptr && m_PreviewMode) {
+        if (m_PreviewMode) {
             m_Pipes.composit.ptr->recreatePipeline(m_Renderer.getOffscreenRenderPass(RenderPass::ScreenSpace));
             m_PreviewMode = false;
-        } else if (m_Pipes.composit.ptr) {
+        } else {
             m_Pipes.composit.ptr->recreatePipeline(m_Renderer.getSwapChainRenderPass());
             m_PreviewMode = true;
         }
@@ -308,51 +296,74 @@ void Application::shortcutCallback(Shortcut shortcut) {
     if (shortcut == CTRL_R) {
         m_RunSimulation ^= true;
     }
+    if (shortcut == CTRL_0) {
+        m_Cameras.currentCamera = (m_Cameras.currentCamera + 1) % m_Cameras.list.size();
+    }
 }
 
-void Application::controlCamera(std::shared_ptr<Camera>& camera, uint8_t move, glm::vec3 rotate, float newAspect, float frameTime) {
-    if (!camera) return;
-    
-    static float oldAspect = camera->getAspectRatio();
-    bool changed = false;
-    
-    glm::vec3 position(0.f);
-    glm::vec3 rotation(0.f);
-    
-    if (glm::dot(rotate, rotate) > glm::epsilon<float>()) {
-        rotation = rotate * 0.02f * camera->getFov();
-        changed = true;
-    }
-    
-    if (move) {
-        const glm::vec3 forwardDir{glm::sin(camera->getYaw()), .0f, glm::cos(camera->getYaw())};
-        const glm::vec3 rightDir{forwardDir.z, .0f, -forwardDir.x};
-        const glm::vec3 upDir{.0f, -1.f, .0f};
-        glm::vec3 moveDir{0.f};
-        if (move & 0x01) { moveDir += forwardDir; }
-        if (move & 0x02) { moveDir -= rightDir; }
-        if (move & 0x04) { moveDir -= forwardDir; }
-        if (move & 0x08) { moveDir += rightDir; }
-        if (move & 0x10) { moveDir -= upDir; }
-        if (move & 0x20) { moveDir += upDir; }
-        if (glm::dot(moveDir, moveDir) > glm::epsilon<float>()) {
-            position += 8.f * frameTime * glm::normalize(moveDir);
-            if (!camera->noClip) m_Physics.moveGhost((uint32_t)camera->ghostObject, camera->getInverseView(), position);
+void Application::controlCamera(uint8_t move, glm::vec3 rotate, float newAspect, float frameTime) {
+    try {
+        if (!m_Cameras.mutex.try_lock()) return;
+        Camera& camera = m_Cameras.list.at(m_Cameras.currentCamera);
+
+        static size_t lastCamera = m_Cameras.currentCamera;
+        static float oldAspect = camera.getAspectRatio();
+        bool changed = false;
+        
+        if (lastCamera != m_Cameras.currentCamera) {
+            lastCamera = m_Cameras.currentCamera;
             changed = true;
         }
-    }
-    
-    if (oldAspect != newAspect) {
-        oldAspect = newAspect;
-        camera->changeAspectRatio(newAspect);
-        //camera.setOrthographicProjection(-newAspect, newAspect, -1.f, 1.f, -10.f, 100.f);
-    }
-    
-    if (changed) {
-        if (m_PreviewMode) {
-            camera->setViewYXZDelta(position, rotation);
-        } else {
-            camera->pivotAroundOrigin(rotation);
+        
+        glm::vec3 position(0.f);
+        glm::vec3 rotation(0.f);
+        
+        if (glm::dot(rotate, rotate) > glm::epsilon<float>()) {
+            rotation = rotate * 0.02f * camera.getFov();
+            changed = true;
         }
+        
+        if (move) {
+            const glm::vec3 forwardDir{glm::sin(camera.getYaw()), .0f, glm::cos(camera.getYaw())};
+            const glm::vec3 rightDir{forwardDir.z, .0f, -forwardDir.x};
+            const glm::vec3 upDir{.0f, -1.f, .0f};
+            glm::vec3 moveDir{0.f};
+            if (move & 0x01) { moveDir += forwardDir; }
+            if (move & 0x02) { moveDir -= rightDir; }
+            if (move & 0x04) { moveDir -= forwardDir; }
+            if (move & 0x08) { moveDir += rightDir; }
+            if (move & 0x10) { moveDir -= upDir; }
+            if (move & 0x20) { moveDir += upDir; }
+            if (glm::dot(moveDir, moveDir) > glm::epsilon<float>()) {
+                position += 8.f * frameTime * glm::normalize(moveDir);
+                if (!camera.noClip) m_Physics.moveGhost((uint32_t)camera.ghostObject, camera.getInverseView(), position);
+                changed = true;
+            }
+        }
+        
+        if (oldAspect != newAspect) {
+            oldAspect = newAspect;
+            camera.changeAspectRatio(newAspect);
+            //camera.setOrthographicProjection(-newAspect, newAspect, -1.f, 1.f, -10.f, 100.f);
+        }
+        
+        if (changed) {
+            if (m_PreviewMode) {
+                camera.setViewYXZDelta(position, rotation);
+            } else {
+                camera.pivotAroundOrigin(rotation);
+            }
+        }
+        
+        // Update Uniform Buffer Object
+        m_Ubo.projectionView = camera.getProjection();
+        m_Ubo.viewMatrix = camera.getView();
+        m_Ubo.invViewMatrix = camera.getInverseView();
+        
+        m_Cameras.mutex.unlock();
+
+    } catch(const std::exception &e) {
+        Log::getInstance()->error("Exception from controlCamera: {}", e.what());
+        m_Cameras.mutex.unlock();
     }
 }

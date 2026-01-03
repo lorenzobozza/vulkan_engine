@@ -261,6 +261,10 @@ void SDLWindow::fetchShortcuts(SDL_Keymod modifier, SDL_Keycode key) {
         if ((modifier & (SDL_KMOD_CTRL | SDL_KMOD_GUI)) > 0) m_LastShortcut = CTRL_R;
         break;
         
+    case SDLK_0:
+        if ((modifier & (SDL_KMOD_CTRL | SDL_KMOD_GUI)) > 0) m_LastShortcut = CTRL_0;
+        break;
+        
     default:
         break;
     }

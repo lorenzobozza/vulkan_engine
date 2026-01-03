@@ -23,7 +23,8 @@ enum Shortcut {
     UNDEFINED_SHORTCUT = 0,
     CTRL_F,
     CTRL_D,
-    CTRL_R
+    CTRL_R,
+    CTRL_0
 };
 
 class SDLWindow {

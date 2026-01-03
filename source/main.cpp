@@ -19,7 +19,7 @@ int main(int argc, const char * argv[]) {
     try {
         app.run();
     } catch (const std::exception &e) {
-        std::println("Exception caught: {}", e.what());
+        std::println("[CRITICAL] Unhandled Exception: {}", e.what());
         return EXIT_FAILURE;
     }
 
