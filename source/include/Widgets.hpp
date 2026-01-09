@@ -31,18 +31,15 @@ static unsigned ctz(int n) {
 
 class NodeTreeViewer : public Widget {
 public:
-    NodeTreeViewer(Primitive::Map& primitives) : m_Primitives(primitives) {}
-    //NodeTreeViewer(std::shared_ptr<Node::Tree> node_tree) : nodeTree(node_tree) {}
-    
-    void setTree(std::shared_ptr<Node::Tree> node_tree) { nodeTree = node_tree; }
-    
+    NodeTreeViewer(Primitive::Map& primitives, Node::Tree& nodeTree) : m_Primitives(primitives), m_NodeTree(nodeTree) {}
+        
 private:
     Primitive::Map& m_Primitives;
-    std::shared_ptr<Node::Tree> nodeTree;
+    Node::Tree& m_NodeTree;
     void content(void) override {
         ImGui::Begin("Node Visualizer");
-        if (nodeTree) {
-            expandTree(nodeTree->nodes[0]);
+        if (m_NodeTree.nodes.size() > 1) {
+            expandTree(m_NodeTree.nodes[0]);
         } else {
             ImGui::TextUnformatted("Load a model");
         }
@@ -64,7 +61,7 @@ private:
         ImGuiTreeNodeFlags base_flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_SpanFullWidth | ImGuiTreeNodeFlags_SpanAllColumns;
         if (parentNode.parent == -1) base_flags |= ImGuiTreeNodeFlags_DefaultOpen;
         for (uint32_t childIndex : parentNode.children) {
-            Node& child = nodeTree->nodes[childIndex];
+            Node& child = m_NodeTree.nodes[childIndex];
             bool hasChildren = child.children.size() > 0;
             ImGuiTreeNodeFlags node_flags = hasChildren ? base_flags : base_flags | ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
             bool isOpen = ImGui::TreeNodeEx((child.name.empty() ? "##empty" : child.name.c_str()), node_flags);
@@ -128,9 +125,6 @@ private:
         case 2:
             msg = "Loading Environment...";
             break;
-        case 3:
-            msg = "Loading Models...";
-            break;
         default:
             break;
         }
@@ -138,8 +132,9 @@ private:
         case 1:
         case 2:
         case 3:
-            pos = ImVec2(ImGui::GetWindowPos().x + 20.f, ImGui::GetWindowPos().y + 50.f);
-            ImGui::GetWindowDrawList()->AddText(ImGui::GetFont(), 50.0, pos, 0xFFCC00AA, msg.c_str());
+            pos = ImVec2(ImGui::GetWindowPos().x + (m_extent.x / 2.f) - 200.f,
+                         ImGui::GetWindowPos().y + (m_extent.y / 2.f) + 10.f);
+            ImGui::GetWindowDrawList()->AddText(ImGui::GetFont(), 50.0, pos, 0xFFDDDDDD, msg.c_str());
             break;
         default:
             break;

@@ -109,7 +109,7 @@ void SDLWindow::updateUiScaling(void) {
     io.FontGlobalScale = m_DpiScaling * m_windowExtent.width * 0.0005f;
 }
 
-void SDLWindow::pollWindowEvents(std::function<void()> callback) {
+void SDLWindow::pollWindowEvents(std::function<void(SDL_Event event)> callback) {
     static SDL_Event sdl_event;
     ImGuiIO& io = ImGui::GetIO();
     
@@ -126,7 +126,7 @@ void SDLWindow::pollWindowEvents(std::function<void()> callback) {
                 m_windowExtent.width = winData1;
                 m_windowExtent.height = winData2;
                 SDL_GetWindowSizeInPixels(m_Window, reinterpret_cast<int*>(&m_surfaceExtent.width), reinterpret_cast<int*>(&m_surfaceExtent.height));
-                callback(); // Recreate swapchain
+                callback(sdl_event); // Recreate swapchain
                 updateUiScaling();
             }
             break;
@@ -243,6 +243,11 @@ void SDLWindow::pollWindowEvents(std::function<void()> callback) {
             else m_Rotate.z = -5.f*sdl_event.wheel.y;
             break;
             
+        case SDL_EVENT_DROP_FILE:
+            callback(sdl_event);
+            break;
+            
+        default: break;
         }
     }
 }

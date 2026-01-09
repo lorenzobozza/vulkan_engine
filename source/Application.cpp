@@ -9,7 +9,6 @@
 
 #include "UI.hpp"
 #include "Buffer.hpp"
-#include "Nodes.hpp"
 #include "Widgets.hpp"
 
 #define GLM_FORCE_RADIANS
@@ -45,7 +44,7 @@ void Application::run() {
         .view = std::make_shared<Viewport>(),
         .log = std::make_shared<LogView>(),
         .assets = std::make_shared<AssetTree>(),
-        .nodes = std::make_shared<NodeTreeViewer>(m_Primitives),
+        .nodes = std::make_shared<NodeTreeViewer>(m_Primitives, m_NodeTree),
         .material = std::make_shared<MeterialViewer>(m_Assets),
         .settings = std::make_shared<Settings>(m_Device, m_Window, m_Renderer, m_Perf, m_MSAASampleCount)
     };
@@ -81,27 +80,6 @@ void Application::run() {
             m_UboBuffers[i]->map();
         }
         
-        widgets.view->loading = 3;
-        
-        /**** Load Scene from glTF file */
-        // TODO: better task-set creation
-        NodeSet::InitStruct initNodeStruct{m_Device, m_Image, m_Primitives, m_Physics, m_Assets, m_Cameras, m_Lights};
-        NodeSet _gltf(initNodeStruct, "../../../assets/models/Billiard.glb");
-        
-        /**** Load Point-Light Nodes from scene */
-        // TODO: clean this mess
-        m_Ubo.lightInfo = (uint8_t)m_Lights.size();
-        uint8_t index = 0;
-        for (auto& light : m_Lights) {
-            if (index < 8 && light.m_Type < Light::Type::Spot) {
-                if (light.m_Type == Light::Type::Directional) m_Ubo.lightSpaceMatrix = light.m_Data.lightSpaceMatrix;
-                m_Ubo.lightVector[index] = glm::vec4(light.m_Data.pos, 0.f);
-                m_Ubo.lightChroma[index] = light.m_Data.color;
-                m_Ubo.lightInfo |= (light.m_Type & 0x1) << (index + 8);
-                ++index;
-            }
-        }
-        
         widgets.view->loading = 2;
         
         /**** HDRi, IBL, SkyBox  */
@@ -113,7 +91,6 @@ void Application::run() {
         
         m_Irradiance.instance = std::make_unique<CubeMap>(m_Device, m_Environment.descriptor, VkExtent2D(32, 32), "irradiance");
         m_Irradiance.descriptor = m_Irradiance.instance->getImageDescriptor();
-        
         
         widgets.view->loading = 1;
         
@@ -178,8 +155,6 @@ void Application::run() {
             m_Renderer.getDescriptorSets(RenderPass::WorldSpace)
         );
         
-        widgets.nodes->setTree(_gltf.getNodes());
-        
         widgets.settings->recreatePipelinesCallback([this](void){
             if (m_Pipes.shadow.ptr && m_Pipes.scene.ptr && m_Pipes.skybox.ptr) {
                 m_Pipes.shadow.ptr->recreatePipeline(m_Renderer.getOffscreenRenderPass(RenderPass::ShadowPass));
@@ -202,9 +177,23 @@ void Application::run() {
         // Prepare next GUI Frame
         if (!m_PreviewMode) ui.newFrame();
         
-        m_Window.pollWindowEvents([this, widgets]() {
-            m_Renderer.recreateSwapChain();
-            widgets.view->setExtent((float)m_Renderer.getSwapChainExtent().width, (float)m_Renderer.getSwapChainExtent().height);
+        m_Window.pollWindowEvents([this, widgets](SDL_Event event) {
+            switch (event.type) {
+            case SDL_EVENT_WINDOW_RESIZED:
+                m_Renderer.recreateSwapChain();
+                widgets.view->setExtent((float)m_Renderer.getSwapChainExtent().width, (float)m_Renderer.getSwapChainExtent().height);
+                break;
+            case SDL_EVENT_DROP_FILE:
+                if (!m_Assets.busy.test()) {
+                    m_Assets.busy.test_and_set();
+                    std::string file(event.drop.data);
+                    /**** Load Scene from glTF file on a separate thread */
+                    std::thread([this, file](){ NodeSet(initNodeStruct, file); m_Assets.changed.test_and_set(); }).detach();
+                }
+            break;
+                
+            default: break;
+            }
         });
         
         controlCamera(m_Window.getMovement(), m_Window.getRotation(), m_Renderer.getAspectRatio(), m_Perf.cpuTime + m_Perf.gpuTime);
@@ -224,6 +213,24 @@ void Application::run() {
         }
         
         m_Perf.cpuEnd();
+        
+        if (m_Assets.changed.test()) {
+            vkQueueWaitIdle(m_Device.graphicsQueue());
+            /**** Load Point-Light Nodes from scene */
+            m_Ubo.lightInfo = (uint8_t)m_Lights.size();
+            uint8_t index = 0;
+            for (auto& light : m_Lights) {
+                if (index < 8 && light.m_Type < Light::Type::Spot) {
+                    if (light.m_Type == Light::Type::Directional) m_Ubo.lightSpaceMatrix = light.m_Data.lightSpaceMatrix;
+                    m_Ubo.lightVector[index] = glm::vec4(light.m_Data.pos, 0.f);
+                    m_Ubo.lightChroma[index] = light.m_Data.color;
+                    m_Ubo.lightInfo |= (light.m_Type & 0x1) << (index + 8);
+                    ++index;
+                }
+            }
+            m_Pipes.scene.ptr->recreatePipeline();
+            m_Assets.busy.clear();
+        }
         
         if (auto commandBuffer = m_Renderer.beginFrame()) {
             m_FrameIndex = m_Renderer.getFrameIndex();

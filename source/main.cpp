@@ -13,15 +13,18 @@
 #include <print>
 
 int main(int argc, const char * argv[]) {
+    Application app;
     
-    Application app{};
-    
+    #ifndef DEBUG
     try {
+    #endif
         app.run();
+    #ifndef DEBUG
     } catch (const std::exception &e) {
         std::println("[CRITICAL] Unhandled Exception: {}", e.what());
         return EXIT_FAILURE;
     }
+    #endif
 
     return EXIT_SUCCESS;
 }

@@ -14,7 +14,7 @@ void PipelineWrapper::_inheritedConstructor(void) {
 }
 
 PipelineWrapper::~PipelineWrapper() {
-    vkDestroyPipelineLayout(m_Device.device(), m_PipelineLayout, nullptr);
+    destroyPipelineLayout();
 }
 
 void PipelineWrapper::createPipelineLayout(void) {
@@ -35,6 +35,10 @@ void PipelineWrapper::createPipelineLayout(void) {
         throw std::runtime_error("Failed to create pipeline layout!");
     }
     
+}
+
+void PipelineWrapper::destroyPipelineLayout(void) {
+    vkDestroyPipelineLayout(m_Device.device(), m_PipelineLayout, nullptr);
 }
 
 void PipelineWrapper::createPipeline(void) {
@@ -68,18 +72,16 @@ void PipelineWrapper::recreatePipeline(VkRenderPass renderPass, VkSampleCountFla
     }
     
     destroyPipeline();
+    beforeRecreate();
     createPipeline();
 }
 
-void PipelineWrapper::safe_render(VkCommandBuffer commandBuffer, int frameIndex, std::mutex& mutex) {
+void PipelineWrapper::safe_render(VkCommandBuffer commandBuffer, int frameIndex) {
     if (getPipelineStatus() != Pipeline::Status::OK) {
         return;
     }
     
-    if (mutex.try_lock()) {
-        render(commandBuffer, frameIndex);
-        mutex.unlock();
-    }
+    render(commandBuffer, frameIndex);
 }
 
 

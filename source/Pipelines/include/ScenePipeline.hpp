@@ -44,6 +44,7 @@ public:
 private:
     Dependencies createLayoutDependencies(void) override;
     void customizePipelineConfig(PipelineConfigInfo& config) override;
+    void beforeRecreate(void) override;
     
     FrameData m_FrameData;
     

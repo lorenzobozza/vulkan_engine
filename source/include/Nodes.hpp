@@ -23,7 +23,8 @@
 
 struct Node {
     struct Tree {
-        Tree(size_t reserve) { nodes.reserve(reserve); }
+        // glTF -> Vulkan, PI rotation about X axis
+        Tree() { Node root("_root"); root.matrix = glm::toMat4(glm::quat(0.f, 1.f, 0.f, 0.f)); add(root); }
         uint32_t add(const Node& n, uint32_t parent = UINT32_MAX);
         void pop(uint32_t node);
         std::vector<Node> nodes;
@@ -63,6 +64,7 @@ public:
         Assets& assets;
         Camera::Collection& cameras;
         std::vector<Light>& lights;
+        Node::Tree& nodeTree;
     };
     
     NodeSet(const NodeSet&) = delete;
@@ -70,8 +72,6 @@ public:
     
     NodeSet(InitStruct& init, std::string filePath);
     ~NodeSet();
-    
-    std::shared_ptr<Node::Tree> getNodes(void) const { return m_NodeTree; }
         
 private:
     void parseGLTF(void);
@@ -93,8 +93,8 @@ private:
     Assets& m_Assets;
     Camera::Collection& m_Cameras;
     std::vector<Light>& m_Lights;
-    std::shared_ptr<Node::Tree> m_NodeTree;
     Physics& m_Physics;
+    Node::Tree& m_NodeTree;
 };
 
 #endif /* Nodes_hpp */

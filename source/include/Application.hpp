@@ -20,6 +20,7 @@
 #include "CubeMap.hpp"
 #include "Material.hpp"
 #include "Light.hpp"
+#include "Nodes.hpp"
 
 #include "ScenePipeline.hpp"
 #include "ShadowPipeline.hpp"
@@ -78,7 +79,7 @@ private:
         struct {
             std::unique_ptr<PipelineWrapper> ptr;
             std::mutex mutex;
-            void render(VkCommandBuffer cb, int idx) { if (ptr) ptr->safe_render(cb, idx, mutex); }
+            void render(VkCommandBuffer cb, int idx) { if (ptr && mutex.try_lock()) { ptr->safe_render(cb, idx); mutex.unlock(); } }
             template<class T>
             T* ptr_cast(void) { return reinterpret_cast<T*>(ptr.get()); }
         } shadow, scene, skybox, composit, debug;
@@ -92,6 +93,7 @@ private:
     Assets m_Assets;
     std::vector<Light> m_Lights;
     Camera::Collection m_Cameras;
+    Node::Tree m_NodeTree;
     
     bool m_AssetsLoaded = false;
     bool m_PreviewMode = false;
@@ -100,6 +102,8 @@ private:
     
     Primitive::Map m_Primitives;
     
+    NodeSet::InitStruct initNodeStruct{m_Device, m_Image, m_Primitives, m_Physics, m_Assets, m_Cameras, m_Lights, m_NodeTree};
+
     int m_FrameIndex{0};
     Perf m_Perf;
    

@@ -29,7 +29,7 @@ public:
     PipelineWrapper& operator=(PipelineWrapper&&) = delete;
     
     virtual void render(VkCommandBuffer commandBuffer, int frameIndex) = 0;
-    virtual void safe_render(VkCommandBuffer commandBuffer, int frameIndex, std::mutex& mutex) final;
+    virtual void safe_render(VkCommandBuffer commandBuffer, int frameIndex) final;
     virtual void recreatePipeline(VkRenderPass renderPass = VK_NULL_HANDLE, VkSampleCountFlagBits samples = VK_SAMPLE_COUNT_FLAG_BITS_MAX_ENUM) final;
     
     virtual void setMultiSampling(VkSampleCountFlagBits samples) final { m_SampleCount = samples; }
@@ -49,7 +49,9 @@ protected:
         const std::vector<VkPushConstantRange> pushConstantRanges;
     };
     virtual void createPipelineLayout(void) final;
+    virtual void destroyPipelineLayout(void) final;
     virtual Dependencies createLayoutDependencies(void) = 0;
+    virtual void beforeRecreate(void) {}
     
     const Device& m_Device;
     

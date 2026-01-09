@@ -73,7 +73,8 @@ struct ImageParseTaskSet : enki::ITaskSet {
 };
 
 NodeSet::NodeSet(InitStruct& init, std::string filePath) : m_Device(init.device), m_Image(init.image), m_Primitives(init.primitives),
-        m_Physics(init.physics), m_Assets(init.assets), m_Cameras(init.cameras), m_Lights(init.lights), m_FilePath(filePath) {
+                                                            m_Physics(init.physics), m_Assets(init.assets), m_Cameras(init.cameras),
+                                                            m_Lights(init.lights), m_NodeTree(init.nodeTree), m_FilePath(filePath) {
     parseGLTF();
     parsePhysicsMaterialsAndShapes();
     
@@ -87,12 +88,7 @@ NodeSet::NodeSet(InitStruct& init, std::string filePath) : m_Device(init.device)
     
     g_TS.ShutdownNow();
     
-    // glTF -> Vulkan, unit quaternion along X to rotate 180° about X
-    m_NodeTree = std::make_shared<Node::Tree>(m_gltfModel.nodes.size() + 1);
-    Node root("_root");
-    root.matrix = glm::toMat4(glm::quat(0.f, 1.f, 0.f, 0.f));
-    m_NodeTree->add(root);
-    
+    m_NodeTree.nodes.reserve(m_NodeTree.nodes.size() + m_gltfModel.nodes.size());
     for(int gltfIndex: m_gltfModel.scenes[m_gltfModel.defaultScene].nodes) {
         loadNodeFromModel(gltfIndex, 0);
     }
@@ -135,10 +131,10 @@ void NodeSet::parseGLTF(void) {
 void NodeSet::loadNodeFromModel(int gltfIndex, uint32_t parentIndex) {
     const tinygltf::Node& gltfNode = m_gltfModel.nodes[gltfIndex];
     
-    uint32_t thisIndex = m_NodeTree->add(Node(gltfNode.name), parentIndex);
+    uint32_t thisIndex = m_NodeTree.add(Node(gltfNode.name), parentIndex);
     
     {
-    Node& thisNode = m_NodeTree->nodes.back();
+    Node& thisNode = m_NodeTree.nodes.back();
     
     if (gltfNode.scale.size() == 3) {
         thisNode.flags |= Node::Flags::SCALE;
@@ -171,14 +167,14 @@ void NodeSet::loadNodeFromModel(int gltfIndex, uint32_t parentIndex) {
     }
     
     // MAYBE we can determine if the transformation is needed to save time
-    glm::mat4 transform = m_NodeTree->nodes[thisIndex].matrix;
+    glm::mat4 transform = m_NodeTree.nodes[thisIndex].matrix;
     
     // Move backwards to build the correct transformation matrix
-    int32_t parent = m_NodeTree->nodes[thisIndex].parent;
+    int32_t parent = m_NodeTree.nodes[thisIndex].parent;
     
     while (parent > -1) {
-        transform = m_NodeTree->nodes[parent].matrix * transform;
-        parent = m_NodeTree->nodes[parent].parent;
+        transform = m_NodeTree.nodes[parent].matrix * transform;
+        parent = m_NodeTree.nodes[parent].parent;
     }
     
     parseCameraFromNode(gltfNode, transform);
@@ -319,7 +315,7 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform,
             
             for (size_t v = 0; v < posAccessor.count; v++) {
                 Mesh::Data::Vertex vertex{};
-                vertex.position = glm::make_vec3(&bufferPos[v * posByteStride]) * m_NodeTree->nodes[thisIndex].scale;
+                vertex.position = glm::make_vec3(&bufferPos[v * posByteStride]) * m_NodeTree.nodes[thisIndex].scale;
                 
                 vertex.normal = glm::normalize(glm::vec3(bufferNormals ? glm::make_vec3(&bufferNormals[v * normByteStride]) : glm::vec3(0.0f)));
                 
@@ -442,14 +438,14 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform,
                 if (m_gltfModel.materials[materialID].alphaMode != "OPAQUE") {
                     continue;
                 }
-                p.material = m_gltfModel.materials[materialID].name + "_" + std::to_string(materialID);
+                p.material = m_gltfModel.materials[materialID].name + "_" + std::to_string(materialID + m_Assets.materials.size());
             } else {
                 p.material = "Global_Default_Material";
             }
             
             auto id = p.getId();
             m_Primitives.emplace(id, std::move(p));
-            m_NodeTree->nodes.at(thisIndex).primitives.emplace_back(id);
+            m_NodeTree.nodes.at(thisIndex).primitives.emplace_back(id);
             
             bool isConvex = false, isStatic = false, isKinematic = false;
             float mass = 0.f, gravityFactor = 1.f; int phyMaterial = 0, implicitShape = -1;
@@ -477,7 +473,7 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform,
 
 void NodeSet::loadMaterialsToVRAM(void) {
     size_t index = m_Assets.textures.size();
-    size_t materialID{0};
+    size_t materialID = m_Assets.materials.size();
     bool mipMapping = true;
     
     const VkFormat default_rgb_format = VK_FORMAT_R8G8B8_UNORM;

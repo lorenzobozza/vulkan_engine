@@ -8,8 +8,11 @@
 #ifndef Material_hpp
 #define Material_hpp
 
-#include <glm/glm.hpp>
 #include "Texture.hpp"
+
+#include <glm/glm.hpp>
+
+#include <atomic>
 
 #define COLOR_TEXTURE       0x1
 #define NORMAL_TEXTURE      0x2
@@ -66,6 +69,7 @@ struct Assets {
     Assets() { materials.emplace("Global_Default_Material", Material()); }
     std::vector<std::unique_ptr<const Texture>> textures;
     std::unordered_map<std::string, Material> materials;
+    std::atomic_flag changed{false}, busy{false};
 };
 
 #endif

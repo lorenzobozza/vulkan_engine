@@ -49,7 +49,7 @@ public:
     Shortcut getShortcut(void);
     
     void updateUiScaling(void);
-    void pollWindowEvents(std::function<void()> callback);
+    void pollWindowEvents(std::function<void(SDL_Event event)> callback);
     void closeWindow(void) { m_IsRunning = false; }
     void setWindowExtent(int Width, int Height) { m_windowExtent.width = Width; m_windowExtent.height = Height; }
     void setWindowFullScreen(uint32_t flags, const SDL_DisplayMode& displayMode);
