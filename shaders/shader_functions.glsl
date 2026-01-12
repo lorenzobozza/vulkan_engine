@@ -81,6 +81,11 @@ vec4 SRGBtoLINEAR(vec4 srgbIn)
 	#endif //MANUAL_SRGB
 }
 
+float F_Schlick(float f0, float f90, float VoH) {
+    // Schlick 1994, "An Inexpensive BRDF Model for Physically-Based Rendering"
+    return f0 + (f90 - f0) * pow(clamp(1.0 - VoH, 0.0, 1.0), 5.0);
+}
+
 //#define tonemap
 
 // Calculation of the lighting contribution from an optional Image Based Light source.
@@ -113,27 +118,35 @@ vec3 computeIBL(vec3 n, vec3 v, vec3 reflection, float roughness, vec3 diffuse_c
     float lodLevel = roughness * numEnvLevels;
     
     float NoV = clamp(dot(n, v), 0.001, 1.0);
+
+	reflection = mix(reflection, n, roughness * roughness * roughness * roughness);
     
     // Load env textures
-    vec2 f_ab = texture(brdfLUT, vec2(NoV, roughness)).xy;
+    vec2 DFG = texture(brdfLUT, vec2(NoV, roughness)).xy;
     vec3 radiance = textureLod(prefilteredMap, reflection, lodLevel).xyz;
     vec3 irradiance = texture(irradianceMap, n).xyz;
     
-    vec3 Fr = max(vec3(1.0 - roughness), specular_color) - specular_color;
-    vec3 k_S = specular_color + Fr * pow(1.0 - NoV, 5.0);
-    
-    vec3 FssEss = k_S * f_ab.x + f_ab.y;
-    
+	vec3 FssEss = mix(DFG.xxx, DFG.yyy, specular_color);
+
     if (!multi_scatter) {
         return FssEss * radiance + diffuse_color * irradiance;
     }
 
+	FssEss *= radiance;
+	diffuse_color *= irradiance;
+
+	float Fc = F_Schlick(0.04, 1.0, NoV) * 0.0;
+	diffuse_color  *= (1.0 - Fc);
+	FssEss *= (1.0 - Fc);
+	FssEss += radiance * Fc;
+	return FssEss + diffuse_color;
+
     // Multiple scattering, from Fdez-Aguera
-    float Ems = (1.0 - (f_ab.x + f_ab.y));
-    vec3 F_avg = specular_color + (1.0 - specular_color) / 21.0;
-    vec3 FmsEms = Ems * FssEss * F_avg / (1.0 - F_avg * Ems);
-    vec3 k_D = diffuse_color * (1.0 - FssEss - FmsEms);
-    return FssEss * radiance + (FmsEms + k_D) * irradiance;
+    // float Ems = (1.0 - (DFG.x + DFG.y));
+    // vec3 F_avg = specular_color + (1.0 - specular_color) / 21.0;
+    // vec3 FmsEms = Ems * FssEss * F_avg / (1.0 - F_avg * Ems);
+    // vec3 k_D = diffuse_color * (1.0 - FssEss - FmsEms);
+    // return FssEss * radiance + (FmsEms + k_D) * irradiance;
 }
 
 

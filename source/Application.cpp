@@ -62,7 +62,7 @@ void Application::run() {
         m_Assets.textures.push_back(std::make_unique<const Texture>(
             this->m_Device,
             m_Image,
-            "../../../assets/textures/stripes_4k.exr",
+            "../../../assets/textures/factory_4k.exr",
             false,
             VK_FORMAT_R32G32B32A32_SFLOAT
         ));
@@ -114,6 +114,7 @@ void Application::run() {
             "shader",
             ScenePipeline::FrameData {
             .primitives = m_Primitives,
+            .primitivesAlpha = m_PrimitivesAlpha,
             .assets = m_Assets,
             .uboDescriptors = {m_UboBuffers[0]->descriptorInfo(), m_UboBuffers[1]->descriptorInfo(), m_UboBuffers[2]->descriptorInfo()},
                 .imageDescriptors = {

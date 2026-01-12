@@ -99,9 +99,10 @@ void main() {
     float alphaRoughness = perceptualRoughness * perceptualRoughness;
     vec2 alphaAniso = computeAnisoRoughness(alphaRoughness);
     
+    // Specular reflectance == 0.5 (0.5 * 0.5 * 0.16 = 0.04)
     vec3 f0 = vec3(0.04);
-    vec3 diffuseColor = baseColor.rgb * (vec3(1.0) - f0) * (1.0 - metallic);
-    vec3 specularColor = mix(f0, baseColor.rgb, metallic);
+    vec3 diffuseColor = baseColor.rgb * (1.0 - metallic);
+    vec3 specularColor = mix(f0, baseColor.rgb, metallic); // specularColor = f0 * (1.0 - metallic) + baseColor.rgb * metallic;
     
     // Compute reflectance.
     float reflectance = max(max(specularColor.r, specularColor.g), specularColor.b);

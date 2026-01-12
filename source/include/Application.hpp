@@ -101,8 +101,10 @@ private:
     bool m_RunSimulation = false;
     
     Primitive::Map m_Primitives;
+    Primitive::Map m_PrimitivesAlpha;
     
-    NodeSet::InitStruct initNodeStruct{m_Device, m_Image, m_Primitives, m_Physics, m_Assets, m_Cameras, m_Lights, m_NodeTree};
+    NodeSet::InitStruct initNodeStruct{m_Device, m_Image, m_Primitives, m_PrimitivesAlpha,
+                                       m_Physics, m_Assets, m_Cameras, m_Lights, m_NodeTree};
 
     int m_FrameIndex{0};
     Perf m_Perf;

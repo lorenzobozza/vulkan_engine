@@ -29,6 +29,7 @@ public:
     };
     struct FrameData {
         Primitive::Map& primitives;
+        Primitive::Map& primitivesAlpha;
         Assets& assets;
         std::array<VkDescriptorBufferInfo, SwapChain::MAX_FRAMES_IN_FLIGHT> uboDescriptors;
         struct {
@@ -46,6 +47,10 @@ private:
     void customizePipelineConfig(PipelineConfigInfo& config) override;
     void beforeRecreate(void) override;
     
+    void createPipeline(void) override;
+    void destroyPipeline(void) override;
+    
+    std::unique_ptr<Pipeline> m_PipelineAlpha;
     FrameData m_FrameData;
     
     struct {

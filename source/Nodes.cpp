@@ -73,8 +73,9 @@ struct ImageParseTaskSet : enki::ITaskSet {
 };
 
 NodeSet::NodeSet(InitStruct& init, std::string filePath) : m_Device(init.device), m_Image(init.image), m_Primitives(init.primitives),
-                                                            m_Physics(init.physics), m_Assets(init.assets), m_Cameras(init.cameras),
-                                                            m_Lights(init.lights), m_NodeTree(init.nodeTree), m_FilePath(filePath) {
+                                                            m_PrimitivesAlpha(init.primitivesAlpha), m_Physics(init.physics),
+                                                            m_Assets(init.assets), m_Cameras(init.cameras), m_Lights(init.lights),
+                                                            m_NodeTree(init.nodeTree), m_FilePath(filePath) {
     parseGLTF();
     parsePhysicsMaterialsAndShapes();
     
@@ -434,9 +435,10 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform,
             
             // TODO: Make the whole node transform hierarchy always affect the final matrix (needs cache system)
             
+            bool alpha = false;
             if (materialID > -1) {
                 if (m_gltfModel.materials[materialID].alphaMode != "OPAQUE") {
-                    continue;
+                    alpha = true;
                 }
                 p.material = m_gltfModel.materials[materialID].name + "_" + std::to_string(materialID + m_Assets.materials.size());
             } else {
@@ -444,7 +446,11 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform,
             }
             
             auto id = p.getId();
-            m_Primitives.emplace(id, std::move(p));
+            if (alpha) {
+                m_PrimitivesAlpha.emplace(id, std::move(p));
+            } else {
+                m_Primitives.emplace(id, std::move(p));
+            }
             m_NodeTree.nodes.at(thisIndex).primitives.emplace_back(id);
             
             bool isConvex = false, isStatic = false, isKinematic = false;

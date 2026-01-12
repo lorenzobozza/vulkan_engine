@@ -60,6 +60,7 @@ public:
         const Device& device;
         const Image& image;
         Primitive::Map& primitives;
+        Primitive::Map& primitivesAlpha;
         Physics& physics;
         Assets& assets;
         Camera::Collection& cameras;
@@ -90,6 +91,7 @@ private:
     const Device& m_Device;
     const Image& m_Image;
     Primitive::Map& m_Primitives;
+    Primitive::Map& m_PrimitivesAlpha;
     Assets& m_Assets;
     Camera::Collection& m_Cameras;
     std::vector<Light>& m_Lights;

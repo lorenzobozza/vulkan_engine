@@ -31,6 +31,24 @@ void ScenePipeline::customizePipelineConfig(PipelineConfigInfo& config) {
     config.rasterizationInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 }
 
+void ScenePipeline::createPipeline(void) {
+    assert(m_PipelineLayout != VK_NULL_HANDLE && "Cannot create pipeline before pipeline layout");
+    
+    PipelineConfigInfo pipelineConfig{};
+    Pipeline::defaultPipelineConfigInfo(pipelineConfig);
+    customizePipelineConfig(pipelineConfig);
+    
+    if (str_frag == "NULL") str_frag = str_vert;
+    m_Pipeline = std::make_unique<Pipeline>(m_Device, str_vert + ".vert", str_frag + ".frag", pipelineConfig);
+    pipelineConfig.rasterizationInfo.cullMode = VK_CULL_MODE_NONE;
+    m_PipelineAlpha = std::make_unique<Pipeline>(m_Device, str_vert + ".vert", str_frag + "_alpha.frag", pipelineConfig);
+}
+
+void ScenePipeline::destroyPipeline(void) {
+    m_Pipeline.reset();
+    m_PipelineAlpha.reset();
+}
+
 ScenePipeline::Dependencies ScenePipeline::createLayoutDependencies(void) {
     
     m_MainDescriptor.layout = DescriptorSetLayout::Builder(m_Device)
@@ -137,6 +155,48 @@ void ScenePipeline::render(VkCommandBuffer commandBuffer, int frameIndex) {
                             nullptr);
     
     for (auto &kv : m_FrameData.primitives) {
+        auto &primitive = kv.second;
+        
+        try {
+            std::string material(primitive.material);
+            if (!m_MaterialDescriptorSets[frameIndex].contains(material)) material = "Global_Default_Material";
+            
+            vkCmdBindDescriptorSets(commandBuffer,
+                                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                    m_PipelineLayout,
+                                    1,
+                                    1,
+                                    &m_MaterialDescriptorSets[frameIndex].at(material),
+                                    0,
+                                    nullptr);
+            
+            PushConstantData push{};
+            push.modelMatrix = primitive.transform.mat4();
+            push.textureIndex = m_FrameData.assets.materials.at(material).getTextureBitmap();
+            push.metalness =    m_FrameData.assets.materials.at(material).metalness;
+            push.roughness =    m_FrameData.assets.materials.at(material).roughness;
+            push.color =        m_FrameData.assets.materials.at(material).color;
+            push.alphaMode =    m_FrameData.assets.materials.at(material).alphaMode;
+            push.alphaCutoff =  m_FrameData.assets.materials.at(material).alphaCutoff;
+            
+            vkCmdPushConstants(commandBuffer,
+                               m_PipelineLayout,
+                               VK_SHADER_STAGE_ALL_GRAPHICS,
+                               0,
+                               sizeof(PushConstantData),
+                               &push);
+            
+            primitive.model->bind(commandBuffer);
+            primitive.model->draw(commandBuffer);
+            
+        } catch (const std::exception& e) {
+            Log::getInstance()->error("Trying to fetch material \"{}\" that does not exist [{}]", primitive.material, e.what());
+        }
+    }
+    
+    m_PipelineAlpha->bind(commandBuffer);
+    
+    for (auto &kv : m_FrameData.primitivesAlpha) {
         auto &primitive = kv.second;
         
         try {
