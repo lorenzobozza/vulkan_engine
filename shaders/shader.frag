@@ -66,9 +66,7 @@ void main() {
     vec3 baseColor = vec3(1.0);
     float opacity = 1.0;
     if ((push.textureBitmap & COLOR_TEXTURE) == COLOR_TEXTURE) {
-        vec4 colorSample = SRGBtoLINEAR(
-            texture(diffuseMap, (push.textureBitmap & COLOR_UV) == 0 ? vert.texcoord : vert.texcoord1)
-        );
+        vec4 colorSample = SRGBtoLINEAR(texture(diffuseMap, (push.textureBitmap & COLOR_UV) == 0 ? vert.texcoord : vert.texcoord1));
         baseColor = colorSample.rgb;
         opacity = colorSample.a;
     }
@@ -103,121 +101,121 @@ void main() {
     
     vec3 f0 = vec3(0.04);
     vec3 diffuseColor = baseColor.rgb * (vec3(1.0) - f0) * (1.0 - metallic);
-	vec3 specularColor = mix(f0, baseColor.rgb, metallic);
-
-	// Compute reflectance.
-	float reflectance = max(max(specularColor.r, specularColor.g), specularColor.b);
-
-	// For typical incident reflectance range (between 4% to 100%) set the grazing reflectance to 100% for typical fresnel effect.
-	// For very low reflectance range on highly diffuse objects (below 4%), incrementally reduce grazing reflecance to 0%.
-	float reflectance90 = clamp(reflectance * 25.0, 0.0, 1.0);
-	vec3 specularEnvironmentR0 = specularColor.rgb;
-	vec3 specularEnvironmentR90 = vec3(1.0, 1.0, 1.0) * reflectance90;
-
-	vec3 n = vert.TBN * normalTS;
-	vec3 v = normalize(ubo.invViewMatrix[3].xyz - vert.worldPos);    // Vector from surface point to camera
+    vec3 specularColor = mix(f0, baseColor.rgb, metallic);
+    
+    // Compute reflectance.
+    float reflectance = max(max(specularColor.r, specularColor.g), specularColor.b);
+    
+    // For typical incident reflectance range (between 4% to 100%) set the grazing reflectance to 100% for typical fresnel effect.
+    // For very low reflectance range on highly diffuse objects (below 4%), incrementally reduce grazing reflecance to 0%.
+    float reflectance90 = clamp(reflectance * 25.0, 0.0, 1.0);
+    vec3 specularEnvironmentR0 = specularColor.rgb;
+    vec3 specularEnvironmentR90 = vec3(1.0, 1.0, 1.0) * reflectance90;
+    
+    vec3 n = vert.TBN * normalTS;
+    vec3 v = normalize(ubo.invViewMatrix[3].xyz - vert.worldPos);    // Vector from surface point to camera
     vec3 reflection = normalize(reflect(-v, n));
- 
-PBRInfo pbrInputs;
-vec3 color = vec3(0);
-const float lightNum = ubo.lightInfo & 0xFF;
-float shadow_avg = 0.0;
-for (int i = 0; i < lightNum; i++) {
-
-    vec3 l, u_LightColor;
-    float shadow = 1.0;
-
-    if (((ubo.lightInfo >> (8 + i)) & 0x1) == 0) {
-        l = normalize(ubo.lightVector[i].xyz - vert.worldPos); // Vector from surface point to light
-        float lightDist = length(ubo.lightVector[i].xyz - vert.worldPos);
-        float attenuation = ubo.lightChroma[i].a / (lightDist * lightDist);
-        u_LightColor = ubo.lightChroma[i].rgb * attenuation;
-    } else {
-        l = -normalize(ubo.lightVector[i].xyz); // Vector from surface with direction of light
-        u_LightColor = ubo.lightChroma[i].rgb * ubo.lightChroma[i].a;
-
-        shadow = filterPCF(vert.lightSpacePos);
-        if(dot(n, l) < 0) shadow = 0.01;
+    
+    PBRInfo pbrInputs;
+    vec3 color = vec3(0);
+    const float lightNum = ubo.lightInfo & 0xFF;
+    float shadow_avg = 0.0;
+    for (int i = 0; i < lightNum; i++) {
+        
+        vec3 l, u_LightColor;
+        float shadow = 1.0;
+        
+        if (((ubo.lightInfo >> (8 + i)) & 0x1) == 0) {
+            l = normalize(ubo.lightVector[i].xyz - vert.worldPos); // Vector from surface point to light
+            float lightDist = length(ubo.lightVector[i].xyz - vert.worldPos);
+            float attenuation = ubo.lightChroma[i].a / (lightDist * lightDist);
+            u_LightColor = ubo.lightChroma[i].rgb * attenuation;
+        } else {
+            l = -normalize(ubo.lightVector[i].xyz); // Vector from surface with direction of light
+            u_LightColor = ubo.lightChroma[i].rgb * ubo.lightChroma[i].a;
+            
+            shadow = filterPCF(vert.lightSpacePos);
+            if(dot(n, l) < 0) shadow = 0.01;
+        }
+        
+        shadow_avg += shadow;
+        
+        vec3 h = normalize(l+v); // Half vector between both l and v
+        float NdotL = clamp(dot(n, l), 0.001, 1.0);
+        float NdotV = clamp(abs(dot(n, v)), 0.001, 1.0);
+        float NdotH = clamp(dot(n, h), 0.0, 1.0);
+        float LdotH = clamp(dot(l, h), 0.0, 1.0);
+        float VdotH = clamp(dot(v, h), 0.0, 1.0);
+        
+        pbrInputs = PBRInfo(
+                            NdotL,
+                            NdotV,
+                            NdotH,
+                            LdotH,
+                            VdotH,
+                            perceptualRoughness,
+                            metallic,
+                            specularEnvironmentR0,
+                            specularEnvironmentR90,
+                            alphaRoughness,
+                            diffuseColor,
+                            specularColor
+                            );
+        
+        // Calculate the shading terms for the microfacet specular shading model
+        vec3 F = specularReflection(pbrInputs);
+        float G = geometricOcclusion(pbrInputs);
+        
+        //float D = microfacetDistribution(pbrInputs); // OLD
+        vec3 h_ts = transpose(vert.TBN) * h;
+        float D = DistributionGGX_Covariance(n, h, h_ts, alphaAniso) * shadow;
+        
+        // Calculation of analytical lighting contribution
+        vec3 diffuseContrib = (1.0 - F) * diffuse(pbrInputs);
+        vec3 specContrib = F * G * D / (4.0 * NdotL * NdotV);
+        
+        // Obtain final intensity as reflectance (BRDF) scaled by the energy of the light (cosine law)
+        color += NdotL * u_LightColor * (diffuseContrib + specContrib) * shadow;
+        
     }
-
-    shadow_avg += shadow;
-  
-	vec3 h = normalize(l+v); // Half vector between both l and v
-    float NdotL = clamp(dot(n, l), 0.001, 1.0);
-	float NdotV = clamp(abs(dot(n, v)), 0.001, 1.0);
-	float NdotH = clamp(dot(n, h), 0.0, 1.0);
-	float LdotH = clamp(dot(l, h), 0.0, 1.0);
-	float VdotH = clamp(dot(v, h), 0.0, 1.0);
     
-    pbrInputs = PBRInfo(
-		NdotL,
-		NdotV,
-		NdotH,
-		LdotH,
-		VdotH,
-		perceptualRoughness,
-		metallic,
-		specularEnvironmentR0,
-		specularEnvironmentR90,
-		alphaRoughness,
-		diffuseColor,
-		specularColor
-	);
-
-	// Calculate the shading terms for the microfacet specular shading model
-	vec3 F = specularReflection(pbrInputs);
-	float G = geometricOcclusion(pbrInputs);
-
-	//float D = microfacetDistribution(pbrInputs); // OLD
-    vec3 h_ts = transpose(vert.TBN) * h;
-    float D = DistributionGGX_Covariance(n, h, h_ts, alphaAniso) * shadow;
-
-	// Calculation of analytical lighting contribution
-	vec3 diffuseContrib = (1.0 - F) * diffuse(pbrInputs);
-	vec3 specContrib = F * G * D / (4.0 * NdotL * NdotV);
-    
-	// Obtain final intensity as reflectance (BRDF) scaled by the energy of the light (cosine law)
-	color += NdotL * u_LightColor * (diffuseContrib + specContrib) * shadow;
-
-}
-
-	// Calculate lighting contribution from image based lighting source (IBL)
+    // Calculate lighting contribution from image based lighting source (IBL)
     if (MASK_COMPARE(ubo.debugMode, DEBUG_IBL_CONTRIB_BIT)) {
         shadow_avg = (shadow_avg + 0.3) / (lightNum + 1); //vec2(0.3, shadow_avg)
         bool multi_scatter = MASK_COMPARE(ubo.debugMode, DEBUG_MULTISCATTER_BIT);
-	    color += computeIBL(n, v, reflection, perceptualRoughness, diffuseColor, specularColor, multi_scatter);
+        color += computeIBL(n, v, reflection, perceptualRoughness, diffuseColor, specularColor, multi_scatter);
     }
-
-	const float u_OcclusionStrength = 0.5f;
-	// Apply optional PBR terms for additional (optional) shading
-	if ((push.textureBitmap & OCCLUSION_TEXTURE) == OCCLUSION_TEXTURE) {
-		color = mix(color, color * occlusion, u_OcclusionStrength);
-	}
-	
+    
+    const float u_OcclusionStrength = 0.5f;
+    // Apply optional PBR terms for additional (optional) shading
+    if ((push.textureBitmap & OCCLUSION_TEXTURE) == OCCLUSION_TEXTURE) {
+        color = mix(color, color * occlusion, u_OcclusionStrength);
+    }
+    
     switch (ubo.debugMode & 0xFF) {
-        case 1:
-            color = baseColor;
-            opacity = 1.0;
-            break;
+    case 1:
+        color = baseColor;
+        opacity = 1.0;
+        break;
         
-        case 2:
-            color = (n + 1.0) * 0.5;
-            opacity = 1.0;
-            break;
-
-        case 3:
-            color = vec3(perceptualRoughness);
-            opacity = 1.0;
-            break;
+    case 2:
+        color = (n + 1.0) * 0.5;
+        opacity = 1.0;
+        break;
         
-        case 4:
-            color = vec3(metallic);
-            opacity = 1.0;
-            break;
-
-        default:
-            break;
+    case 3:
+        color = vec3(perceptualRoughness);
+        opacity = 1.0;
+        break;
+        
+    case 4:
+        color = vec3(metallic);
+        opacity = 1.0;
+        break;
+        
+    default:
+        break;
     }
- 
+    
     outColor = vec4(color, 1.0);
 }

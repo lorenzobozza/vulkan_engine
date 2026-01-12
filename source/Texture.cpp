@@ -11,6 +11,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb-master/stb_image.h>
 
+#define TINYEXR_IMPLEMENTATION
+#include <tinyexr/tinyexr.h>
+
 // std
 #include <chrono>
 
@@ -135,13 +138,20 @@ void Texture::loadTexture(void) {
     int texWidth, texHeight, texChannels;
     void* pixels;
     
-    //    auto fileExt = m_TextureFilePath.substr(m_TextureFilePath.size() - 4, m_TextureFilePath.size() - 1);
-    if(stbi_is_hdr(m_TextureFilePath.c_str())) {
-        float* data = stbi_loadf(m_TextureFilePath.c_str(), &texWidth, &texHeight, &texChannels, depth);
+    auto fileExt = m_TextureFilePath.substr(m_TextureFilePath.size() - 4, m_TextureFilePath.size() - 1);
+    
+    if (fileExt == ".exr") {
+        float* data;
+        int ret = LoadEXR(&data, &texWidth, &texHeight, m_TextureFilePath.c_str(), nullptr);
         pixels = (void*)data;
     } else {
-        stbi_uc* data = stbi_load(m_TextureFilePath.c_str(), &texWidth, &texHeight, &texChannels, depth);
-        pixels = (void*)data;
+        if(stbi_is_hdr(m_TextureFilePath.c_str())) {
+            float* data = stbi_loadf(m_TextureFilePath.c_str(), &texWidth, &texHeight, &texChannels, depth);
+            pixels = (void*)data;
+        } else {
+            stbi_uc* data = stbi_load(m_TextureFilePath.c_str(), &texWidth, &texHeight, &texChannels, depth);
+            pixels = (void*)data;
+        }
     }
     
     VkDeviceSize imageSize = texWidth * texHeight * bitsPerPixel;
@@ -155,7 +165,7 @@ void Texture::loadTexture(void) {
     m_StagingBuffer->map();
     m_StagingBuffer->writeToBuffer(pixels);
     
-    stbi_image_free(pixels);
+    free(pixels);
     
     m_Width = texWidth;
     m_Height = texHeight;

@@ -13,7 +13,8 @@ project "Acinonyx"
 		"external/mikktspace/*.c",
 		"external/enkits/*.cpp",
 		"external/bullet/*.cpp",
-		"external/bullet/HACD/*.cpp"
+		"external/bullet/HACD/*.cpp",
+		"external/miniz/*.c"
 	}
 
 	includedirs {
@@ -25,7 +26,8 @@ project "Acinonyx"
 		"external/*",
 		"external/utils/*",
 		"external/**/include",
-		"external/bullet"
+		"external/bullet",
+		"external/miniz"
 	}
 
 	links {
@@ -36,7 +38,8 @@ project "Acinonyx"
 	}
 
 	libdirs {
-		"external/**/lib"
+		"external/**/lib",
+		"$(VULKAN_SDK)"
 	}
 
 	filter "system:windows"

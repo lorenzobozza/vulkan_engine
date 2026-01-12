@@ -17,7 +17,7 @@ layout(binding = 1) uniform samplerCube environmentMap;
 
 vec3 prefilterEnvMap(vec3 R, float roughness);
 
-const uint SAMPLE_COUNT = 64;
+const uint SAMPLE_COUNT = 512;
 
 void main() {
     vec3 N = normalize(fragPos);

@@ -109,25 +109,24 @@ vec3 getIBLContribution(vec3 n, vec3 v, vec3 reflection, float roughness, vec3 d
 }
 
 vec3 computeIBL(vec3 n, vec3 v, vec3 reflection, float roughness, vec3 diffuse_color, vec3 specular_color, bool multi_scatter) {
-	const int numEnvLevels = 8;
+    float numEnvLevels = float(textureQueryLevels(prefilteredMap) - 1);
     float lodLevel = roughness * numEnvLevels;
-
-	float NoV = clamp(dot(n, v), 0.001, 1.0);
-
-	// Load env textures
+    
+    float NoV = clamp(dot(n, v), 0.001, 1.0);
+    
+    // Load env textures
     vec2 f_ab = texture(brdfLUT, vec2(NoV, roughness)).xy;
     vec3 radiance = textureLod(prefilteredMap, reflection, lodLevel).xyz;
     vec3 irradiance = texture(irradianceMap, n).xyz;
-
-	if (!multi_scatter) {
-		vec3 FssEss = specular_color * f_ab.x + f_ab.y;
-		return FssEss * radiance + diffuse_color * irradiance;
-	}
-
-	vec3 Fr = max(vec3(1.0 - roughness), specular_color) - specular_color;
+    
+    vec3 Fr = max(vec3(1.0 - roughness), specular_color) - specular_color;
     vec3 k_S = specular_color + Fr * pow(1.0 - NoV, 5.0);
-
+    
     vec3 FssEss = k_S * f_ab.x + f_ab.y;
+    
+    if (!multi_scatter) {
+        return FssEss * radiance + diffuse_color * irradiance;
+    }
 
     // Multiple scattering, from Fdez-Aguera
     float Ems = (1.0 - (f_ab.x + f_ab.y));

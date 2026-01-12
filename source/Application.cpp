@@ -62,7 +62,7 @@ void Application::run() {
         m_Assets.textures.push_back(std::make_unique<const Texture>(
             this->m_Device,
             m_Image,
-            "../../../assets/textures/puresky_4k.hdr",
+            "../../../assets/textures/stripes_4k.exr",
             false,
             VK_FORMAT_R32G32B32A32_SFLOAT
         ));

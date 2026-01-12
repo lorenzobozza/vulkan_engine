@@ -69,7 +69,7 @@ struct Assets {
     Assets() { materials.emplace("Global_Default_Material", Material()); }
     std::vector<std::unique_ptr<const Texture>> textures;
     std::unordered_map<std::string, Material> materials;
-    std::atomic_flag changed{false}, busy{false};
+    std::atomic_flag changed, busy;
 };
 
 #endif
