@@ -245,3 +245,55 @@ float DistributionGGX_Covariance(vec3 N, vec3 H, vec3 h_ts, vec2 alpha_roughness
 
     return clamp(D, 0.0, 1.0);
 }
+
+float V_SmithGGXCorrelated(float roughness, float NoV, float NoL) {
+    // Heitz 2014, "Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs"
+    float a2 = roughness * roughness;
+    // TODO: lambdaV can be pre-computed for all the lights, it should be moved out of this function
+    float lambdaV = NoL * sqrt((NoV - a2 * NoV) * NoV + a2);
+    float lambdaL = NoV * sqrt((NoL - a2 * NoL) * NoL + a2);
+    // 0.0000077 = nextafter(0.5 / MEDIUMP_FLT_MAX, 1.0) in fp16, so we don't overflow
+    float v = 0.5 / (lambdaV + lambdaL);
+    // a2=0 => v = 1 / 4*NoL*NoV   => min=1/4, max=+inf
+    // a2=1 => v = 1 / 2*(NoL+NoV) => min=1/4, max=+inf
+    return v;
+}
+
+vec3 F_Schlick(const vec3 f0, float f90, float VoH) {
+    // Schlick 1994, "An Inexpensive BRDF Model for Physically-Based Rendering"
+    return f0 + (f90 - f0) * pow(clamp(1.0 - VoH, 0.0, 1.0), 5.0);
+}
+
+float Fd_Burley(float roughness, float NoV, float NoL, float LoH) {
+    // Burley 2012, "Physically-Based Shading at Disney"
+    float f90 = 0.5 + 2.0 * roughness * LoH * LoH;
+    float lightScatter = F_Schlick(1.0, f90, NoL);
+    float viewScatter  = F_Schlick(1.0, f90, NoV);
+    return lightScatter * viewScatter * (1.0 / M_PI);
+}
+
+float D_GGX_Anisotropic(float NoH, const vec3 h, const vec3 t, const vec3 b, vec2 alphaAniso) {
+	float at = alphaAniso.x;
+	float ab = alphaAniso.y;
+    float ToH = dot(t, h);
+    float BoH = dot(b, h);
+    float a2 = at * ab;
+    vec3 v = vec3(ab * ToH, at * BoH, a2 * NoH);
+    float v2 = dot(v, v);
+    float w2 = a2 / v2;
+    return a2 * w2 * w2 * (1.0 / M_PI);
+}
+
+float V_SmithGGXCorrelated_Anisotropic(const vec3 v, const vec3 l, const vec3 t, const vec3 b, float NoV, float NoL, vec2 alphaAniso) {
+	float ToV = dot(t, v);
+    float BoV = dot(b, v);
+	float ToL = dot(t, l);
+    float BoL = dot(b, l);
+    // Heitz 2014, "Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs"
+    // TODO: lambdaV can be pre-computed for all the lights, it should be moved out of this function
+	float at = alphaAniso.x;
+	float ab = alphaAniso.y;
+    float lambdaV = NoL * length(vec3(at * ToV, ab * BoV, NoV));
+    float lambdaL = NoV * length(vec3(at * ToL, ab * BoL, NoL));
+    return 0.5 / (lambdaV + lambdaL);
+}

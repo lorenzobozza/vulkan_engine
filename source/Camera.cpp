@@ -139,7 +139,7 @@ void Camera::pivotAroundOrigin(glm::vec3 deltaR) {
     
     float eps = 0.001f;
     r = glm::max(r, 2.f);
-    phi = glm::min(glm::max(phi, eps), (float)(M_PI - eps));
+    phi = glm::min(glm::max(phi, eps), (float)(3.14159f - eps));
     
     glm::vec3 newPos;
     newPos.x = r * sin(phi) * cos(theta);

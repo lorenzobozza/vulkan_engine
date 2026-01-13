@@ -128,15 +128,18 @@ void main() {
         
         if (((ubo.lightInfo >> (8 + i)) & 0x1) == 0) {
             l = normalize(ubo.lightVector[i].xyz - vert.worldPos); // Vector from surface point to light
-            float lightDist = length(ubo.lightVector[i].xyz - vert.worldPos);
-            float attenuation = ubo.lightChroma[i].a / (lightDist * lightDist);
-            u_LightColor = ubo.lightChroma[i].rgb * attenuation;
+
+            vec3 posToLight = ubo.lightVector[i].xyz - vert.worldPos;
+            float distanceSquare = dot(posToLight, posToLight);
+            float atten = 1.0 / max(distanceSquare * M_PI, 1e-4);
+            u_LightColor = ubo.lightChroma[i].rgb * ubo.lightChroma[i].a * atten;
+
         } else {
             l = -normalize(ubo.lightVector[i].xyz); // Vector from surface with direction of light
             u_LightColor = ubo.lightChroma[i].rgb * ubo.lightChroma[i].a;
             
             shadow = filterPCF(vert.lightSpacePos);
-            if(dot(n, l) < 0) shadow = 0.01;
+            if(dot(n, l) < 0.0) shadow = 0.01;
         }
         
         shadow_avg += shadow;
@@ -163,21 +166,39 @@ void main() {
                             specularColor
                             );
         
-        // Calculate the shading terms for the microfacet specular shading model
-        vec3 F = specularReflection(pbrInputs);
-        float G = geometricOcclusion(pbrInputs);
-        
-        //float D = microfacetDistribution(pbrInputs); // OLD
-        vec3 h_ts = transpose(vert.TBN) * h;
-        float D = DistributionGGX_Covariance(n, h, h_ts, alphaAniso) * shadow;
-        
-        // Calculation of analytical lighting contribution
-        vec3 diffuseContrib = (1.0 - F) * diffuse(pbrInputs);
-        vec3 specContrib = F * G * D / (4.0 * NdotL * NdotV);
-        
-        // Obtain final intensity as reflectance (BRDF) scaled by the energy of the light (cosine law)
-        color += NdotL * u_LightColor * (diffuseContrib + specContrib) * shadow;
-        
+        if (!MASK_COMPARE(ubo.debugMode, DEBUG_MULTISCATTER_BIT)) {
+            // Calculate the shading terms for the microfacet specular shading model
+            vec3 F = specularReflection(pbrInputs);
+            float G = geometricOcclusion(pbrInputs);
+            
+            //float D = microfacetDistribution(pbrInputs); // OLD
+            vec3 h_ts = transpose(vert.TBN) * h;
+            float D = DistributionGGX_Covariance(n, h, h_ts, alphaAniso) * shadow;
+            
+            // Calculation of analytical lighting contribution
+            vec3 diffuseContrib = (1.0 - F) * diffuse(pbrInputs);
+            vec3 specContrib = F * G * D / (4.0 * NdotL * NdotV);
+            
+            // Obtain final intensity as reflectance (BRDF) scaled by the energy of the light (cosine law)
+            color += NdotL * u_LightColor * (diffuseContrib + specContrib) * shadow;
+        } else {
+            vec3 T = normalize(vec3(n.y, -n.x, 0.0));
+            vec3 B = normalize(cross(n, T));
+
+            float D = D_GGX_Anisotropic(NdotH, h, T, B, alphaAniso);
+            float V = V_SmithGGXCorrelated_Anisotropic(v, l, T, B, NdotV, NdotL, alphaAniso);
+            
+            float f90 = clamp(dot(specularColor, vec3(50.0 * 0.33)), 0.0, 1.0);
+            vec3 F = F_Schlick(specularColor, f90, LdotH);
+            
+            // Calculation of analytical lighting contribution
+            //vec3 diffuseContrib = diffuse(pbrInputs);
+            vec3 diffuseContrib = diffuseColor * Fd_Burley(alphaRoughness, NdotV, NdotL, LdotH);
+            vec3 specContrib = (D * V) * F;
+            
+            // Obtain final intensity as reflectance (BRDF) scaled by the energy of the light (cosine law)
+            color += NdotL * u_LightColor * (specContrib + diffuseContrib) * shadow;
+        }   
     }
     
     // Calculate lighting contribution from image based lighting source (IBL)

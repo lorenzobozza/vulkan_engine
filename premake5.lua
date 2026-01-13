@@ -39,7 +39,7 @@ project "Acinonyx"
 
 	libdirs {
 		"external/**/lib",
-		"$(VULKAN_SDK)"
+		"$(VULKAN_SDK)/Lib"
 	}
 
 	filter "system:windows"

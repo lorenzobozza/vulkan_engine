@@ -216,11 +216,11 @@ void NodeSet::parseLightFromNode(const tinygltf::Node& node, glm::mat4 transform
         
         if (light.type == Light::gltfTypes[Light::Type::Point]) {
             m_Lights.emplace_back(Light::makePoint(glm::vec3(transform[3].x, transform[3].y, transform[3].z),
-                                                   glm::vec4(glm::make_vec3(light.color.data()), light.intensity * 0.0184f)));
+                                                   glm::vec4(glm::make_vec3(light.color.data()), light.intensity * 0.0092f)));
             
         } else if (light.type == Light::gltfTypes[Light::Type::Directional]) {
             m_Lights.emplace_back(Light::makeDirectional(glm::vec3(-transform[2].x, -transform[2].y, -transform[2].z),
-                                                         glm::vec4(glm::make_vec3(light.color.data()), light.intensity * 0.00146f)));
+                                                         glm::vec4(glm::make_vec3(light.color.data()), light.intensity * 0.00073f)));
             m_Lights.back().m_Data.lightSpaceMatrix =
             glm::orthoLH_ZO(-20.0f, 20.0f, -25.0f, 20.0f, -20.f, 10.f)
             * glm::lookAt(m_Lights.back().m_Data.dir, glm::vec3(0.f), glm::vec3(0.f, 1.f, 0.f));

@@ -167,21 +167,21 @@ void Renderer::createOffscreenPass(RenderPass index) {
     colorAttachmentResolveRef.attachment = 2;
     colorAttachmentResolveRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
     
-    std::array<VkSubpassDescription, 2> subpasses{};
+    std::array<VkSubpassDescription, 1> subpasses{};
     subpasses[0].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpasses[0].colorAttachmentCount = 1;
     subpasses[0].pColorAttachments = &colorAttachmentRef;
     subpasses[0].pDepthStencilAttachment = &depthAttachmentRef;
     if (sampleCount != VK_SAMPLE_COUNT_1_BIT) { subpasses[0].pResolveAttachments = &colorAttachmentResolveRef; }
     
-    VkAttachmentReference inputReference = { 1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
-    subpasses[1].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpasses[1].colorAttachmentCount = 1;
-    subpasses[1].pColorAttachments = &colorAttachmentRef;
-    subpasses[1].pDepthStencilAttachment = &depthAttachmentRef;
-    if (sampleCount != VK_SAMPLE_COUNT_1_BIT) { subpasses[1].pResolveAttachments = &colorAttachmentResolveRef; }
-    subpasses[1].inputAttachmentCount = 1;
-		subpasses[1].pInputAttachments = &inputReference;
+//    VkAttachmentReference inputReference = { 1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+//    subpasses[1].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+//    subpasses[1].colorAttachmentCount = 1;
+//    subpasses[1].pColorAttachments = &colorAttachmentRef;
+//    subpasses[1].pDepthStencilAttachment = &depthAttachmentRef;
+//    if (sampleCount != VK_SAMPLE_COUNT_1_BIT) { subpasses[1].pResolveAttachments = &colorAttachmentResolveRef; }
+//    subpasses[1].inputAttachmentCount = 1;
+//		subpasses[1].pInputAttachments = &inputReference;
     
     std::array<VkSubpassDependency, 3> dependencies;
     
