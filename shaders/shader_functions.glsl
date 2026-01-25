@@ -1,12 +1,67 @@
 #extension GL_GOOGLE_include_directive : require
 #include "filters/NDF_filters.glsl"
 
-#define M_PI 3.1415926535897932384626433832795
+#define M_PI (3.1415926535897932384626433832795)
 
+#define COLOR_TEXTURE       0x1
+#define NORMAL_TEXTURE      0x2
+#define OCCLUSION_TEXTURE   0x4
+#define ROUGH_METAL_TEXTURE 0x8
+
+#define COLOR_UV            0x10
+#define NORMAL_UV           0x20
+#define OCCLUSION_UV        0x40
+#define ROUGH_METAL_UV      0x80
+
+#define ALPHAMODE_OPAQUE 0
+#define ALPHAMODE_MASK 1
+#define ALPHAMODE_BLEND 2
+
+#define DEBUG_SHOW_ENV_BIT      0x100
+#define DEBUG_IBL_CONTRIB_BIT   0x200
+#define DEBUG_MULTISCATTER_BIT  0x400
+#define MASK_COMPARE(bitmap, mask)  ((bitmap & mask) == mask)
+
+
+layout(location = 0) in VertexShader {
+    vec3 color;
+    vec3 worldPos;
+    vec4 lightSpacePos;
+    vec2 texcoord;
+    vec2 texcoord1;
+    mat3 TBN;
+} vert;
+
+layout(set = 0, binding = 0) uniform GlobalUbo {
+    mat4 projectionViewMatrix;
+    mat4 viewMatrix;
+    mat4 invViewMatrix;
+    mat4 lightSpaceMatrix;
+    vec4 lightVector[8];
+    vec4 lightChroma[8];
+    uint lightInfo;
+    uint debugMode;
+} ubo;
 layout(set = 0, binding = 1) uniform samplerCube irradianceMap;
 layout(set = 0, binding = 2) uniform samplerCube prefilteredMap;
 layout(set = 0, binding = 3) uniform sampler2D brdfLUT;
 layout(set = 0, binding = 4) uniform sampler2D shadowMap;
+
+layout(set = 1, binding = 1) uniform sampler2D normalMap;
+layout(set = 1, binding = 2) uniform sampler2D metalRoughnessMap;
+layout(set = 1, binding = 3) uniform sampler2D occlusionMap;
+
+layout(push_constant) uniform Push {
+    mat4 modelMatrix;
+    int textureBitmap;
+    float metalness;
+    float roughness;
+    vec4 color;
+    int alphaMode;
+    float alphaCutoff;
+    int debugMode;
+} push;
+
 
 float textureProj(vec4 shadowCoord, vec2 off)
 {
@@ -47,21 +102,15 @@ float filterPCF(vec4 sc)
 	return shadowFactor / count;
 }
 
-struct PBRInfo
-{
-	float NdotL;                  // cos angle between normal and light direction
-	float NdotV;                  // cos angle between normal and view direction
-	float NdotH;                  // cos angle between normal and half vector
-	float LdotH;                  // cos angle between light direction and half vector
-	float VdotH;                  // cos angle between view direction and half vector
-	float perceptualRoughness;    // roughness value, as authored by the model creator (input to shader)
-	float metalness;              // metallic value at the surface
-	vec3 reflectance0;            // full reflectance color (normal incidence angle)
-	vec3 reflectance90;           // reflectance color at grazing angle
-	float alphaRoughness;         // roughness mapped to a more linear change in the roughness (proposed by [2])
-	vec3 diffuseColor;            // color contribution from diffuse lighting
-	vec3 specularColor;           // color contribution from specular lighting
-};
+vec3 F_Schlick(const vec3 f0, float f90, float cosTheta) {
+    // Schlick 1994, "An Inexpensive BRDF Model for Physically-Based Rendering"
+    return f0 + (f90 - f0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
+}
+
+float F_Schlick(float f0, float f90, float cosTheta) {
+    // Schlick 1994, "An Inexpensive BRDF Model for Physically-Based Rendering"
+    return f0 + (f90 - f0) * pow(max(1.0 - cosTheta, 0.0), 5.0);
+}
 
 vec4 SRGBtoLINEAR(vec4 srgbIn)
 {
@@ -79,11 +128,6 @@ vec4 SRGBtoLINEAR(vec4 srgbIn)
 	#else //MANUAL_SRGB
 	return srgbIn;
 	#endif //MANUAL_SRGB
-}
-
-float F_Schlick(float f0, float f90, float VoH) {
-    // Schlick 1994, "An Inexpensive BRDF Model for Physically-Based Rendering"
-    return f0 + (f90 - f0) * pow(clamp(1.0 - VoH, 0.0, 1.0), 5.0);
 }
 
 //#define tonemap
@@ -120,6 +164,14 @@ vec3 computeIBL(vec3 n, vec3 v, vec3 reflection, float roughness, vec3 diffuse_c
     float NoV = clamp(dot(n, v), 0.001, 1.0);
 
 	reflection = mix(reflection, n, roughness * roughness * roughness * roughness);
+
+	// mat3 Mr = mat3(cos(3.14), 0, sin(3.14),
+    //                0,				  1,0,
+    //                -sin(3.14), 0, cos(3.14));
+    // if (!multi_scatter) {
+	// 	n = Mr * n;
+	// 	reflection = Mr * reflection;
+	// }
     
     // Load env textures
     vec2 DFG = texture(brdfLUT, vec2(NoV, roughness)).xy;
@@ -149,58 +201,7 @@ vec3 computeIBL(vec3 n, vec3 v, vec3 reflection, float roughness, vec3 diffuse_c
     // return FssEss * radiance + (FmsEms + k_D) * irradiance;
 }
 
-
-// Basic Lambertian diffuse
-// Implementation from Lambert's Photometria https://archive.org/details/lambertsphotome00lambgoog
-// See also [1], Equation 1
-vec3 diffuse(PBRInfo pbrInputs)
-{
-	return pbrInputs.diffuseColor / M_PI;
-}
-
-// The following equation models the Fresnel reflectance term of the spec equation (aka F())
-// Implementation of fresnel from [4], Equation 15
-vec3 specularReflection(PBRInfo pbrInputs)
-{
-	return pbrInputs.reflectance0 + (pbrInputs.reflectance90 - pbrInputs.reflectance0) * pow(clamp(1.0 - pbrInputs.VdotH, 0.0, 1.0), 5.0);
-}
-
-// This calculates the specular geometric attenuation (aka G()),
-// where rougher material will reflect less light back to the viewer.
-// This implementation is based on [1] Equation 4, and we adopt their modifications to
-// alphaRoughness as input as originally proposed in [2].
-float geometricOcclusion(PBRInfo pbrInputs)
-{
-	float NdotL = pbrInputs.NdotL;
-	float NdotV = pbrInputs.NdotV;
-	float r = pbrInputs.alphaRoughness;
-
-	float attenuationL = 2.0 * NdotL / (NdotL + sqrt(r * r + (1.0 - r * r) * (NdotL * NdotL)));
-	float attenuationV = 2.0 * NdotV / (NdotV + sqrt(r * r + (1.0 - r * r) * (NdotV * NdotV)));
-	return attenuationL * attenuationV;
-}
-
-// The following equation(s) model the distribution of microfacet normals across the area being drawn (aka D())
-// Implementation from "Average Irregularity Representation of a Roughened Surface for Ray Reflection" by T. S. Trowbridge, and K. P. Reitz
-// Follows the distribution function recommended in the SIGGRAPH 2013 course notes from EPIC Games [1], Equation 3.
-float microfacetDistribution(PBRInfo pbrInputs)
-{
-	float roughnessSq = pbrInputs.alphaRoughness * pbrInputs.alphaRoughness;
-	float f = (pbrInputs.NdotH * roughnessSq - pbrInputs.NdotH) * pbrInputs.NdotH + 1.0;
-	return roughnessSq / (M_PI * f * f);
-}
-
-/*
-New Microfacet NDF Approach
-				|
-				|
-				|
-				|
-				V
-*/
-
-vec2 computeAnisoRoughness(float alpha)
-{
+vec2 computeAnisoRoughness(float alpha) {
     float anisotropy = clamp(0.0, -1.0, 1.0);
 
     float alphaX = clamp(alpha * (1.0 + anisotropy), 0.001, 1.0);
@@ -209,31 +210,22 @@ vec2 computeAnisoRoughness(float alpha)
     return vec2(alphaX, alphaY);
 }
 
-float DistributionGGX_Covariance(vec3 N, vec3 H, vec3 h_ts, vec2 alpha_roughness)
-{
-    // Compute normal-mapped World-Space Tangent and Bitangent
-    vec3 T = normalize(vec3(N.y, -N.x, 0.0));
-    vec3 B = normalize(cross(N, T));
+mat2 standardCovarianceMatrix(vec2 alpha, float phi) {
+    float c = cos(phi), s = sin(phi);
+    mat2 R = mat2(c, -s, s, c);
+    mat2 S2 = mat2(alpha.x * alpha.x, 0.0, 0.0, alpha.y * alpha.y);
+    return R * S2 * transpose(R);
+}
 
-    float NdotH = max(dot(N, H), 0.0);
-    if (NdotH <= 0.0) return 0.0;
+float D_NDF_GGX_Covariance(mat2 C, float ToH, float BoH, float NoH) {
+    // Project H into slope space: s = (ToH/NoH, BoH/NoH)
+    vec2  s  = vec2(ToH, BoH) / NoH;
 
-    // Project H into slope space: s = (Hx/Hn, Hy/Hn)
-    float Hx = dot(H, T);
-    float Hy = dot(H, B);
-    vec2  s  = vec2(Hx, Hy) / NdotH;
-
-
-    // Precompute inverse and determinant (cov2 must be positive definite)
-    mat2 cov2 = mat2(alpha_roughness.x, 0.0, 0.0, alpha_roughness.y);
-	//mat2 cov2 = AxisAlignedNDFFiltering(h_ts, alpha_roughness);
-	//mat2 cov2 = NonAxisAlignedNDFFiltering(h_ts, alpha_roughness);
-    //mat2 cov2 = FullNonAxisAlignedNDFFiltering(h_ts , alpha_roughness);
-    float detC = cov2[0][0] * cov2[1][1] - cov2[0][1] * cov2[1][0];
+    float detC = C[0][0] * C[1][1] - C[0][1] * C[1][0];
     if (detC <= 0.0) return 0.0;
 
-    mat2 invC = mat2( cov2[1][1], -cov2[0][1],
-                     -cov2[1][0],  cov2[0][0]) / detC;
+    mat2 invC = mat2( C[1][1], -C[0][1],
+                     -C[1][0],  C[0][0]) / detC;
 
     // Quadratic form s^T invC s
     float q = dot(s, invC * s);
@@ -241,27 +233,17 @@ float DistributionGGX_Covariance(vec3 N, vec3 H, vec3 h_ts, vec2 alpha_roughness
     // Anisotropic GGX in slope space
     // D = 1 / (pi * det(C) * (1 + q)^2)
     const float PI = 3.14159265358979323846;
-    float D = 1.0 / (PI * detC * (1.0 + q) * (1.0 + q));
+    //float D = 1.0 / (PI * detC * (1.0 + q) * (1.0 + q));
+	float D = 1.0 / (PI * sqrt(detC) * pow(1.0 + q, 2.0) * pow(NoH, 4));
 
     return clamp(D, 0.0, 1.0);
 }
 
-float V_SmithGGXCorrelated(float roughness, float NoV, float NoL) {
-    // Heitz 2014, "Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs"
-    float a2 = roughness * roughness;
-    // TODO: lambdaV can be pre-computed for all the lights, it should be moved out of this function
-    float lambdaV = NoL * sqrt((NoV - a2 * NoV) * NoV + a2);
-    float lambdaL = NoV * sqrt((NoL - a2 * NoL) * NoL + a2);
-    // 0.0000077 = nextafter(0.5 / MEDIUMP_FLT_MAX, 1.0) in fp16, so we don't overflow
-    float v = 0.5 / (lambdaV + lambdaL);
-    // a2=0 => v = 1 / 4*NoL*NoV   => min=1/4, max=+inf
-    // a2=1 => v = 1 / 2*(NoL+NoV) => min=1/4, max=+inf
-    return v;
-}
-
-vec3 F_Schlick(const vec3 f0, float f90, float VoH) {
-    // Schlick 1994, "An Inexpensive BRDF Model for Physically-Based Rendering"
-    return f0 + (f90 - f0) * pow(clamp(1.0 - VoH, 0.0, 1.0), 5.0);
+float G_SmithGGX(float NoV, float NoL, float alpha) {
+	float k = (alpha * alpha) * 0.5;
+	float attenuationL = NoL / (NoL * (1.0 - k) + k);
+	float attenuationV = NoV / (NoV * (1.0 - k) + k);
+	return attenuationL * attenuationV;
 }
 
 float Fd_Burley(float roughness, float NoV, float NoL, float LoH) {
@@ -272,11 +254,7 @@ float Fd_Burley(float roughness, float NoV, float NoL, float LoH) {
     return lightScatter * viewScatter * (1.0 / M_PI);
 }
 
-float D_GGX_Anisotropic(float NoH, const vec3 h, const vec3 t, const vec3 b, vec2 alphaAniso) {
-	float at = alphaAniso.x;
-	float ab = alphaAniso.y;
-    float ToH = dot(t, h);
-    float BoH = dot(b, h);
+float D_GGX_Anisotropic(float at, float ab, float ToH, float BoH, float NoH) {
     float a2 = at * ab;
     vec3 v = vec3(ab * ToH, at * BoH, a2 * NoH);
     float v2 = dot(v, v);
@@ -284,16 +262,193 @@ float D_GGX_Anisotropic(float NoH, const vec3 h, const vec3 t, const vec3 b, vec
     return a2 * w2 * w2 * (1.0 / M_PI);
 }
 
-float V_SmithGGXCorrelated_Anisotropic(const vec3 v, const vec3 l, const vec3 t, const vec3 b, float NoV, float NoL, vec2 alphaAniso) {
-	float ToV = dot(t, v);
-    float BoV = dot(b, v);
-	float ToL = dot(t, l);
-    float BoL = dot(b, l);
-    // Heitz 2014, "Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs"
-    // TODO: lambdaV can be pre-computed for all the lights, it should be moved out of this function
-	float at = alphaAniso.x;
-	float ab = alphaAniso.y;
+float V_SmithGGXCorrelated_Anisotropic(float at, float ab, 
+									   float ToV, float BoV, float NoV,
+									   float ToL, float BoL, float NoL) {
+    // // Heitz 2014, "Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs"
+    // // TODO: lambdaV can be pre-computed for all the lights, it should be moved out of this function
     float lambdaV = NoL * length(vec3(at * ToV, ab * BoV, NoV));
     float lambdaL = NoV * length(vec3(at * ToL, ab * BoL, NoL));
-    return 0.5 / (lambdaV + lambdaL);
+    return clamp(0.5 / (lambdaV + lambdaL), 0.0, 1.0);
+}
+
+// Clearcoat
+float D_GTR1(float NdH, float alpha)
+{
+    float a2 = alpha * alpha;
+    float denom = 3.14159265 * log(a2) * (1.0 + (a2 - 1.0) * NdH * NdH);
+    return (a2 - 1.0) / denom;
+}
+
+float disneyClearcoat(float NoV, float NoL, float NoH, float LoH, float clearcoat)
+{
+    if (clearcoat <= 0.0) return 0.0;
+
+    float alpha = 0.0025; // fixed clearcoat roughness (0.05)
+
+    float D = D_GTR1(NoH, alpha);
+	float G = G_SmithGGX(NoV, NoL, alpha);
+    float F = 0.04 + (1.0 - 0.04) * pow(1.0 - LoH, 5.0);
+
+    return clearcoat * (D * G * F) / (4.0 * NoL * NoV);
+}
+
+// Sheen
+vec3 disneySheen(float LoH, vec3 sheenColor, float sheen)
+{
+    if (sheen <= 0.0) return vec3(0.0);
+
+    float FH = pow(1.0 - LoH, 5.0);
+
+    return sheen * FH * sheenColor;
+}
+
+
+vec3 BRDF(vec3 baseColor) {
+    // Normal Map
+    vec3 normalTS = vec3(0.0, 0.0, 1.0);
+    if (MASK_COMPARE(push.textureBitmap, NORMAL_TEXTURE)) {
+        vec4 normalSample = texture(normalMap, (push.textureBitmap & NORMAL_UV) == 0 ? vert.texcoord : vert.texcoord1);
+        normalTS = normalSample.rgb * 2.0 - 1.0;
+    }
+    
+    // Metallic - Roughness - Occlusion
+    float metallic, perceptualRoughness;
+    float occlusion = (push.textureBitmap & OCCLUSION_TEXTURE) == 0 ? 1.0 : texture(occlusionMap, (push.textureBitmap & OCCLUSION_UV) == 0 ? vert.texcoord : vert.texcoord1).r;
+    if (MASK_COMPARE(push.textureBitmap, ROUGH_METAL_TEXTURE)) {
+        vec4 mro = texture(metalRoughnessMap, (push.textureBitmap & ROUGH_METAL_UV) == 0 ? vert.texcoord : vert.texcoord1);
+        metallic = clamp(mro.b, 0.0, 1.0);
+        perceptualRoughness = clamp(mro.g, 0.04, 1.0);
+    } else {
+        metallic = clamp(push.metalness, 0.0, 1.0);
+        perceptualRoughness = clamp(push.roughness, 0.04, 1.0);
+    }
+    
+    float alphaRoughness = perceptualRoughness * perceptualRoughness;
+    vec2 alphaAniso = computeAnisoRoughness(alphaRoughness);
+    
+	float reflectance = 0.5;
+    vec3 f0 = vec3(reflectance * reflectance * 0.16);
+    vec3 diffuseColor = baseColor.rgb * (1.0 - metallic);
+    vec3 specularColor = mix(f0, baseColor.rgb, metallic);
+    
+    
+    vec3 n = vert.TBN * normalTS;
+    vec3 v = normalize(ubo.invViewMatrix[3].xyz - vert.worldPos);
+    vec3 reflection = normalize(reflect(-v, n));
+
+    vec3 T = vert.TBN[0];
+    vec3 B = vert.TBN[1];
+
+    float ToV = max(dot(T, v), 0.0);
+    float BoV = max(dot(B, v), 0.0);
+    
+    vec3 color = vec3(0);
+    const float lightNum = ubo.lightInfo & 0xFF;
+    for (int i = 0; i < lightNum; i++) {
+        
+        // Light intensity and shadow filtering
+        vec3 l, u_LightColor;
+        float shadow = 1.0;
+        if (((ubo.lightInfo >> (8 + i)) & 0x1) == 0) {
+            l = normalize(ubo.lightVector[i].xyz - vert.worldPos); // Vector from surface point to light
+
+            vec3 posToLight = ubo.lightVector[i].xyz - vert.worldPos;
+			posToLight *= 2.5; // Makes falloff more similar to blender's evee
+            float distanceSquare = dot(posToLight, posToLight);
+            float atten = 1.0 / max(distanceSquare, 1e-4);
+            u_LightColor = ubo.lightChroma[i].rgb * ubo.lightChroma[i].a * atten;
+
+        } else {
+            l = -normalize(ubo.lightVector[i].xyz); // Vector from surface with direction of light
+            u_LightColor = ubo.lightChroma[i].rgb * ubo.lightChroma[i].a;
+            
+            shadow = filterPCF(vert.lightSpacePos);
+            if(dot(n, l) < 0.0) shadow = 0.01;
+        }
+        
+        vec3 h = normalize(l+v); // Half vector between l and v
+        float NoV = max(abs(dot(n, v)), 0.001);
+        float NoL = max(dot(n, l), 0.001);
+
+        float NoH = max(dot(n, h), 0.0);
+        float LoH = max(dot(l, h), 0.0);
+        float VoH = max(dot(v, h), 0.0);
+        float ToH = dot(T, h);
+        float BoH = dot(B, h);
+
+        
+        if (!MASK_COMPARE(ubo.debugMode, DEBUG_MULTISCATTER_BIT)) {
+            // Calculate the shading terms for the microfacet specular shading model
+            
+            //vec3 h_ts = transpose(vert.TBN) * h;
+            //mat2 cov2 = AxisAlignedNDFFiltering(h_ts, alphaAniso * alphaAniso);
+        	//mat2 cov2 = NonAxisAlignedNDFFiltering(h_ts, alphaAniso * alphaAniso);
+            //mat2 cov2 = FullNonAxisAlignedNDFFiltering(h_ts , alphaAniso * alphaAniso);
+            mat2 cov2 = standardCovarianceMatrix(alphaAniso, 0.0);
+            
+            float D = D_NDF_GGX_Covariance(cov2, ToH, BoH, NoH);
+            float G = G_SmithGGX(NoV, NoL, alphaRoughness);
+            vec3 F = F_Schlick(specularColor, 1.0, LoH);
+            vec3 specContrib = (D * G * F) / (4.0 * NoL * NoV);
+            
+            // Calculation of analytical lighting contribution
+            vec3 diffuseContrib = diffuseColor * Fd_Burley(alphaRoughness, NoV, NoL, LoH);
+
+			vec3 clearCoat = vec3(disneyClearcoat(NoV, NoL, NoH, LoH, 0.0));
+			vec3 sheenContrib = disneySheen(LoH, vec3(1.0,0.0,0.0), 0.0);
+            
+            // Obtain final intensity as reflectance (BRDF) scaled by the energy of the light (cosine law)
+            color += NoL * u_LightColor * (diffuseContrib + specContrib + clearCoat + sheenContrib) * shadow;
+        } else {
+			float ToL = max(dot(T, l), 0.0);
+			float BoL = max(dot(B, l), 0.0);
+
+            float D = D_GGX_Anisotropic(alphaAniso.x, alphaAniso.y, ToH, BoH, NoH);
+            float V = V_SmithGGXCorrelated_Anisotropic(alphaAniso.x, alphaAniso.y, ToV, BoV, NoV, ToL, BoL, NoL);
+            vec3 F = F_Schlick(specularColor, 1.0, VoH);
+            
+            // Calculation of analytical lighting contribution
+            vec3 diffuseContrib = diffuseColor * Fd_Burley(alphaRoughness, NoV, NoL, LoH);
+            vec3 specContrib = D * V * F;
+            
+            // Obtain final intensity as reflectance (BRDF) scaled by the energy of the light (cosine law)
+            color += NoL * u_LightColor * (specContrib + diffuseContrib) * shadow;
+        }   
+    }
+    
+    // Calculate lighting contribution from image based lighting source (IBL)
+    if (MASK_COMPARE(ubo.debugMode, DEBUG_IBL_CONTRIB_BIT)) {
+        bool multi_scatter = MASK_COMPARE(ubo.debugMode, DEBUG_MULTISCATTER_BIT);
+        color += computeIBL(n, v, reflection, perceptualRoughness, diffuseColor, specularColor, multi_scatter);
+    }
+    
+    // Apply optional PBR terms for additional (optional) shading
+    const float u_OcclusionStrength = 0.5f;
+    if ((push.textureBitmap & OCCLUSION_TEXTURE) == OCCLUSION_TEXTURE) {
+        color = mix(color, color * occlusion, u_OcclusionStrength);
+    }
+    
+    switch (ubo.debugMode & 0xFF) {
+    case 1:
+        color = diffuseColor;
+        break;
+        
+    case 2:
+        color = (n + 1.0) * 0.5;
+        break;
+        
+    case 3:
+        color = vec3(perceptualRoughness);
+        break;
+        
+    case 4:
+        color = vec3(metallic);
+        break;
+        
+    default:
+        break;
+    }
+    
+    return color;
 }

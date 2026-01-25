@@ -450,8 +450,8 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform,
                 m_PrimitivesAlpha.emplace(id, std::move(p));
             } else {
                 m_Primitives.emplace(id, std::move(p));
+                m_NodeTree.nodes.at(thisIndex).primitives.emplace_back(id);
             }
-            m_NodeTree.nodes.at(thisIndex).primitives.emplace_back(id);
             
             bool isConvex = false, isStatic = false, isKinematic = false;
             float mass = 0.f, gravityFactor = 1.f; int phyMaterial = 0, implicitShape = -1;
