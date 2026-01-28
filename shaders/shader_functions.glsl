@@ -30,6 +30,10 @@ layout(location = 0) in VertexShader {
     vec2 texcoord;
     vec2 texcoord1;
     mat3 TBN;
+
+    vec3 N;
+    vec3 T;
+    float sign;
 } vert;
 
 layout(set = 0, binding = 0) uniform GlobalUbo {
@@ -59,7 +63,8 @@ layout(push_constant) uniform Push {
     vec4 color;
     int alphaMode;
     float alphaCutoff;
-    int debugMode;
+    float coatWeight;
+    float coatRoughness;
 } push;
 
 
@@ -238,13 +243,44 @@ float D_NDF_GGX_Covariance(mat2 C, float ToH, float BoH, float NoH) {
 
     return clamp(D, 0.0, 1.0);
 }
-
 float G_SmithGGX(float NoV, float NoL, float alpha) {
 	float k = (alpha * alpha) * 0.5;
 	float attenuationL = NoL / (NoL * (1.0 - k) + k);
 	float attenuationV = NoV / (NoV * (1.0 - k) + k);
 	return attenuationL * attenuationV;
 }
+
+
+float D_GGX_Covariance(vec3 h, mat2 Sigma) {
+    float hz = h.z;
+    if (hz <= 0.0) return 0.0;
+
+    vec2 m = h.xy / hz;
+    float detS = determinant(Sigma);
+    mat2 invS = inverse(Sigma);
+    float q = dot(m, invS * m);  // m^T Σ^{-1} m
+    return 1.0 / (M_PI * sqrt(detS) * pow(1.0 + q, 2.0) * pow(hz, 4.0));
+}
+
+float Lambda_dir(vec3 w, mat2 Sigma)
+{
+    if (w.z <= 0.0) return 1e9;  // fully masked
+
+    vec2 t = w.xy;
+    float q = dot(t, Sigma * t) / (w.z * w.z);
+    float s = sqrt(1.0 + q);
+    return 0.5 * (s - 1.0);
+}
+
+float G_Smith_Covariance(vec3 l, vec3 v, mat2 Sigma)
+{
+    float lambdaL = Lambda_dir(l, Sigma);
+    float lambdaV = Lambda_dir(v, Sigma);
+    return 1.0 / (1.0 + lambdaL + lambdaV);
+}
+
+
+
 
 float Fd_Burley(float roughness, float NoV, float NoL, float LoH) {
     // Burley 2012, "Physically-Based Shading at Disney"
@@ -254,12 +290,38 @@ float Fd_Burley(float roughness, float NoV, float NoL, float LoH) {
     return lightScatter * viewScatter * (1.0 / M_PI);
 }
 
+float D_GGX(float NoH, float a) {
+    float a2 = a * a;
+    float f = (NoH * a2 - NoH) * NoH + 1.0;
+    return a2 / (M_PI * f * f);
+}
+
+vec3 disneySheen(float LoH, vec3 sheenColor, float sheen)
+{
+    if (sheen <= 0.0) return vec3(0.0);
+
+    float FH = pow(1.0 - LoH, 5.0);
+
+    return sheen * FH * sheenColor;
+}
+
+// float D_GGX_Anisotropic(float at, float ab, float ToH, float BoH, float NoH) {
+//     float a2 = at * ab;
+//     vec3 v = vec3(ab * ToH, at * BoH, a2 * NoH);
+//     float v2 = dot(v, v);
+//     float w2 = a2 / v2;
+//     return a2 * w2 * w2 * (1.0 / M_PI);
+// }
+
 float D_GGX_Anisotropic(float at, float ab, float ToH, float BoH, float NoH) {
-    float a2 = at * ab;
-    vec3 v = vec3(ab * ToH, at * BoH, a2 * NoH);
-    float v2 = dot(v, v);
-    float w2 = a2 / v2;
-    return a2 * w2 * w2 * (1.0 / M_PI);
+    float at2 = at * at;
+    float ab2 = ab * ab;
+
+    float d = (ToH * ToH) / at2 +
+              (BoH * BoH) / ab2 +
+              NoH * NoH;
+
+    return 1.0 / (M_PI * at * ab * d * d);
 }
 
 float V_SmithGGXCorrelated_Anisotropic(float at, float ab, 
@@ -272,36 +334,6 @@ float V_SmithGGXCorrelated_Anisotropic(float at, float ab,
     return clamp(0.5 / (lambdaV + lambdaL), 0.0, 1.0);
 }
 
-// Clearcoat
-float D_GTR1(float NdH, float alpha)
-{
-    float a2 = alpha * alpha;
-    float denom = 3.14159265 * log(a2) * (1.0 + (a2 - 1.0) * NdH * NdH);
-    return (a2 - 1.0) / denom;
-}
-
-float disneyClearcoat(float NoV, float NoL, float NoH, float LoH, float clearcoat)
-{
-    if (clearcoat <= 0.0) return 0.0;
-
-    float alpha = 0.0025; // fixed clearcoat roughness (0.05)
-
-    float D = D_GTR1(NoH, alpha);
-	float G = G_SmithGGX(NoV, NoL, alpha);
-    float F = 0.04 + (1.0 - 0.04) * pow(1.0 - LoH, 5.0);
-
-    return clearcoat * (D * G * F) / (4.0 * NoL * NoV);
-}
-
-// Sheen
-vec3 disneySheen(float LoH, vec3 sheenColor, float sheen)
-{
-    if (sheen <= 0.0) return vec3(0.0);
-
-    float FH = pow(1.0 - LoH, 5.0);
-
-    return sheen * FH * sheenColor;
-}
 
 
 vec3 BRDF(vec3 baseColor) {
@@ -331,14 +363,22 @@ vec3 BRDF(vec3 baseColor) {
     vec3 f0 = vec3(reflectance * reflectance * 0.16);
     vec3 diffuseColor = baseColor.rgb * (1.0 - metallic);
     vec3 specularColor = mix(f0, baseColor.rgb, metallic);
-    
-    
-    vec3 n = vert.TBN * normalTS;
+
+    vec3 N = normalize(vert.N);
+    vec3 T = normalize(vert.T - dot(vert.T, N) * N);
+    vec3 B = cross(N, T) * vert.sign;
+
+    mat3 TBN = mat3(T,B,N);
+    mat3 invTBN = transpose(TBN);
+
+    vec3 n = normalize(TBN * normalTS);
     vec3 v = normalize(ubo.invViewMatrix[3].xyz - vert.worldPos);
     vec3 reflection = normalize(reflect(-v, n));
 
-    vec3 T = vert.TBN[0];
-    vec3 B = vert.TBN[1];
+    // TBN = vert.TBN;
+    // T = TBN[0];
+    // B = TBN[1];
+    // N = TBN[2];
 
     float ToV = max(dot(T, v), 0.0);
     float BoV = max(dot(B, v), 0.0);
@@ -353,8 +393,7 @@ vec3 BRDF(vec3 baseColor) {
         if (((ubo.lightInfo >> (8 + i)) & 0x1) == 0) {
             l = normalize(ubo.lightVector[i].xyz - vert.worldPos); // Vector from surface point to light
 
-            vec3 posToLight = ubo.lightVector[i].xyz - vert.worldPos;
-			posToLight *= 2.5; // Makes falloff more similar to blender's evee
+            vec3 posToLight = (ubo.lightVector[i].xyz - vert.worldPos) * 2.5;
             float distanceSquare = dot(posToLight, posToLight);
             float atten = 1.0 / max(distanceSquare, 1e-4);
             u_LightColor = ubo.lightChroma[i].rgb * ubo.lightChroma[i].a * atten;
@@ -374,35 +413,45 @@ vec3 BRDF(vec3 baseColor) {
         float NoH = max(dot(n, h), 0.0);
         float LoH = max(dot(l, h), 0.0);
         float VoH = max(dot(v, h), 0.0);
-        float ToH = dot(T, h);
-        float BoH = dot(B, h);
-
         
         if (!MASK_COMPARE(ubo.debugMode, DEBUG_MULTISCATTER_BIT)) {
             // Calculate the shading terms for the microfacet specular shading model
             
-            //vec3 h_ts = transpose(vert.TBN) * h;
+            vec3 h_ts = invTBN * h;
+            vec3 l_ts = invTBN * l;
+            vec3 v_ts = invTBN * v;
+
             //mat2 cov2 = AxisAlignedNDFFiltering(h_ts, alphaAniso * alphaAniso);
         	//mat2 cov2 = NonAxisAlignedNDFFiltering(h_ts, alphaAniso * alphaAniso);
             //mat2 cov2 = FullNonAxisAlignedNDFFiltering(h_ts , alphaAniso * alphaAniso);
             mat2 cov2 = standardCovarianceMatrix(alphaAniso, 0.0);
-            
-            float D = D_NDF_GGX_Covariance(cov2, ToH, BoH, NoH);
-            float G = G_SmithGGX(NoV, NoL, alphaRoughness);
+
+            //float D = D_NDF_GGX_Covariance(cov2, ToH, BoH, NoH);
+            float D = D_GGX_Covariance(h_ts, cov2);
+            float G = G_Smith_Covariance(l_ts, v_ts, cov2);
             vec3 F = F_Schlick(specularColor, 1.0, LoH);
-            vec3 specContrib = (D * G * F) / (4.0 * NoL * NoV);
+            vec3 specContrib = shadow * (D * G * F) / (4.0 * NoL * NoV);
             
             // Calculation of analytical lighting contribution
             vec3 diffuseContrib = diffuseColor * Fd_Burley(alphaRoughness, NoV, NoL, LoH);
 
-			vec3 clearCoat = vec3(disneyClearcoat(NoV, NoL, NoH, LoH, 0.0));
+			//vec3 clearCoat = vec3(disneyClearcoat(NoV, NoL, NoH, LoH, push.coatWeight, push.coatRoughness));
+            float weight = push.coatWeight;
+            float Dcc = D_GGX(dot(TBN[2], h), pow(push.coatRoughness, 2.0));
+	        float Gcc = G_SmithGGX(NoV, NoL, pow(push.coatRoughness, 2.0));
+            float Fcc = F_Schlick(0.04 * weight, 1.0, LoH) * weight;
+            float DGFcc = shadow * shadow * (Dcc * Gcc * Fcc) / (4.0 * NoL * NoV);
+
 			vec3 sheenContrib = disneySheen(LoH, vec3(1.0,0.0,0.0), 0.0);
             
             // Obtain final intensity as reflectance (BRDF) scaled by the energy of the light (cosine law)
-            color += NoL * u_LightColor * (diffuseContrib + specContrib + clearCoat + sheenContrib) * shadow;
+            //color += NoL * u_LightColor * (diffuseContrib + specContrib + DGFcc) * shadow;
+            color += NoL * u_LightColor * ((diffuseContrib + specContrib * (1.0 - Fcc)) * (1.0 - Fcc) + DGFcc) * shadow;
         } else {
-			float ToL = max(dot(T, l), 0.0);
-			float BoL = max(dot(B, l), 0.0);
+            float ToH = dot(T, h);
+            float BoH = dot(B, h);
+            float ToL = max(dot(T, l), 0.0);
+            float BoL = max(dot(B, l), 0.0);
 
             float D = D_GGX_Anisotropic(alphaAniso.x, alphaAniso.y, ToH, BoH, NoH);
             float V = V_SmithGGXCorrelated_Anisotropic(alphaAniso.x, alphaAniso.y, ToV, BoV, NoV, ToL, BoL, NoL);
@@ -413,7 +462,7 @@ vec3 BRDF(vec3 baseColor) {
             vec3 specContrib = D * V * F;
             
             // Obtain final intensity as reflectance (BRDF) scaled by the energy of the light (cosine law)
-            color += NoL * u_LightColor * (specContrib + diffuseContrib) * shadow;
+            color += NoL * u_LightColor * (shadow * specContrib + diffuseContrib) * shadow;
         }   
     }
     

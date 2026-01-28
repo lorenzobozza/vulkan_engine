@@ -15,6 +15,11 @@ layout(location = 0) out VertexShader {
     vec2 texcoord0;
     vec2 texcoord1;
     mat3 TBN;
+
+    vec3 N;
+    vec3 T;
+    float sign;
+    
 } frag;
 
 layout(binding = 0) uniform GlobalUbo {
@@ -26,13 +31,6 @@ layout(binding = 0) uniform GlobalUbo {
 
 layout(push_constant) uniform Push {
     mat4 modelMatrix;
-    int textureIndex;
-    float metalness;
-    float roughness;
-    vec3 color;
-    int alphaMode;
-    float alphaCutoff;
-    int debugMode;
 } push;
 
 const mat4 zoMatrix = mat4( 
@@ -55,6 +53,8 @@ void main() {
     frag.texcoord0 = uv;
     frag.texcoord1 = uv1;
     frag.TBN = mat3(T, B, N);
+    frag.T = T;frag.N = N;
+    frag.sign = tangent.w;
 
     gl_Position = ubo.projectionViewMatrix * ubo.viewMatrix * positionWorld;
 }

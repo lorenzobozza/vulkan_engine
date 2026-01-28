@@ -16,7 +16,8 @@ struct PushConstantData {
     alignas(16) glm::vec4 color{};
     int alphaMode{};
     float alphaCutoff{};
-    int backFace{-1};
+    float coatWeight;
+    float coatRoughness;
 };
 
 void ScenePipeline::customizePipelineConfig(PipelineConfigInfo& config) {
@@ -178,6 +179,8 @@ void ScenePipeline::render(VkCommandBuffer commandBuffer, int frameIndex) {
             push.color =        m_FrameData.assets.materials.at(material).color;
             push.alphaMode =    m_FrameData.assets.materials.at(material).alphaMode;
             push.alphaCutoff =  m_FrameData.assets.materials.at(material).alphaCutoff;
+            push.coatWeight =     m_FrameData.assets.materials.at(material).coatWeight;
+            push.coatRoughness =  m_FrameData.assets.materials.at(material).coatRoughness;
             
             vkCmdPushConstants(commandBuffer,
                                m_PipelineLayout,
@@ -220,6 +223,8 @@ void ScenePipeline::render(VkCommandBuffer commandBuffer, int frameIndex) {
             push.color =        m_FrameData.assets.materials.at(material).color;
             push.alphaMode =    m_FrameData.assets.materials.at(material).alphaMode;
             push.alphaCutoff =  m_FrameData.assets.materials.at(material).alphaCutoff;
+            push.coatWeight =     m_FrameData.assets.materials.at(material).coatWeight;
+            push.coatRoughness =  m_FrameData.assets.materials.at(material).coatRoughness;
             
             vkCmdPushConstants(commandBuffer,
                                m_PipelineLayout,

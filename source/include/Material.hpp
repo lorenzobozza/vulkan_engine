@@ -38,6 +38,9 @@ public:
     AlphaMode alphaMode = ALPHAMODE_OPAQUE;
     float alphaCutoff{0.5};
     
+    float coatWeight{0.f};
+    float coatRoughness{.04f};
+    
     void setColorTexture(size_t id) { m_TextureBitmap |= COLOR_TEXTURE; m_ColorTextureId = id; }
     void setNormalTexture(size_t id) { m_TextureBitmap |= NORMAL_TEXTURE; m_NormalTextureId = id; }
     void setOcclusionTexture(size_t id) { m_TextureBitmap |= OCCLUSION_TEXTURE; m_OcclusionTextureId = id; }

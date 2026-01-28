@@ -23,6 +23,7 @@ static bool tinygltf_LoadImageDataCallback(tinygltf::Image *image, const int ima
                                            std::string *warn, int req_width, int req_height,
                                            const unsigned char *bytes, int size, void *user_data);
                                            
+static inline bool parseMaterialExtensions(const tinygltf::Material& material, float& coatWeight, float& coatRoughness);
 static inline bool parseMotionAndCollision(const tinygltf::Node& node, bool& isConvex, bool& isStatic, bool& isKinematic, float& mass,
                              float& gravityFactor, int& phyMaterial, int& implicitShape, glm::vec3& linVel, glm::vec3& angVel);
 
@@ -505,6 +506,8 @@ void NodeSet::loadMaterialsToVRAM(void) {
             material.alphaCutoff = (float)gltfMaterial.alphaCutoff;
         }
         
+        parseMaterialExtensions(gltfMaterial, material.coatWeight, material.coatRoughness);
+        
         material.color = glm::make_vec4(gltfMaterial.pbrMetallicRoughness.baseColorFactor.data());
         if (colorTextureIndex > -1) {
             const tinygltf::Image& color = m_gltfModel.images[m_gltfModel.textures[colorTextureIndex].source];
@@ -611,6 +614,23 @@ void NodeSet::fillSamplerInfo(int textureIndex, VkSamplerCreateInfo *samplerInfo
         samplerInfo->addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         samplerInfo->addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     }
+}
+
+static inline bool parseMaterialExtensions(const tinygltf::Material& material, float& coatWeight, float& coatRoughness) {
+    if (material.extensions.find("KHR_materials_clearcoat") != material.extensions.end()) {
+        auto& clearCoat = material.extensions.at("KHR_materials_clearcoat");
+        if (clearCoat.Has("clearcoatFactor")) {
+            auto& clearCoatWeight = clearCoat.Get("clearcoatFactor");
+            coatWeight = clearCoatWeight.GetNumberAsDouble();
+        }
+        if (clearCoat.Has("clearcoatRoughnessFactor")) {
+            auto& clearCoatRoughness = clearCoat.Get("clearcoatRoughnessFactor");
+            if (clearCoatRoughness.GetNumberAsDouble() > .04f)
+                coatRoughness = clearCoatRoughness.GetNumberAsDouble();
+        }
+    }
+
+    return true;
 }
 
 void NodeSet::parsePhysicsMaterialsAndShapes(void) {
