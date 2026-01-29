@@ -243,6 +243,13 @@ float D_NDF_GGX_Covariance(mat2 C, float ToH, float BoH, float NoH) {
 
     return clamp(D, 0.0, 1.0);
 }
+
+float D_GGX(float NoH, float a) {
+    float a2 = a * a;
+    float f = (NoH * a2 - NoH) * NoH + 1.0;
+    return a2 / (M_PI * f * f);
+}
+
 float G_SmithGGX(float NoV, float NoL, float alpha) {
 	float k = (alpha * alpha) * 0.5;
 	float attenuationL = NoL / (NoL * (1.0 - k) + k);
@@ -280,8 +287,6 @@ float G_Smith_Covariance(vec3 l, vec3 v, mat2 Sigma)
 }
 
 
-
-
 float Fd_Burley(float roughness, float NoV, float NoL, float LoH) {
     // Burley 2012, "Physically-Based Shading at Disney"
     float f90 = 0.5 + 2.0 * roughness * LoH * LoH;
@@ -290,11 +295,6 @@ float Fd_Burley(float roughness, float NoV, float NoL, float LoH) {
     return lightScatter * viewScatter * (1.0 / M_PI);
 }
 
-float D_GGX(float NoH, float a) {
-    float a2 = a * a;
-    float f = (NoH * a2 - NoH) * NoH + 1.0;
-    return a2 / (M_PI * f * f);
-}
 
 vec3 disneySheen(float LoH, vec3 sheenColor, float sheen)
 {
@@ -305,43 +305,14 @@ vec3 disneySheen(float LoH, vec3 sheenColor, float sheen)
     return sheen * FH * sheenColor;
 }
 
-// float D_GGX_Anisotropic(float at, float ab, float ToH, float BoH, float NoH) {
-//     float a2 = at * ab;
-//     vec3 v = vec3(ab * ToH, at * BoH, a2 * NoH);
-//     float v2 = dot(v, v);
-//     float w2 = a2 / v2;
-//     return a2 * w2 * w2 * (1.0 / M_PI);
-// }
-
-float D_GGX_Anisotropic(float at, float ab, float ToH, float BoH, float NoH) {
-    float at2 = at * at;
-    float ab2 = ab * ab;
-
-    float d = (ToH * ToH) / at2 +
-              (BoH * BoH) / ab2 +
-              NoH * NoH;
-
-    return 1.0 / (M_PI * at * ab * d * d);
-}
-
-float V_SmithGGXCorrelated_Anisotropic(float at, float ab, 
-									   float ToV, float BoV, float NoV,
-									   float ToL, float BoL, float NoL) {
-    // // Heitz 2014, "Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs"
-    // // TODO: lambdaV can be pre-computed for all the lights, it should be moved out of this function
-    float lambdaV = NoL * length(vec3(at * ToV, ab * BoV, NoV));
-    float lambdaL = NoV * length(vec3(at * ToL, ab * BoL, NoL));
-    return clamp(0.5 / (lambdaV + lambdaL), 0.0, 1.0);
-}
-
 
 
 vec3 BRDF(vec3 baseColor) {
     // Normal Map
-    vec3 normalTS = vec3(0.0, 0.0, 1.0);
+    vec3 n_ts = vec3(0.0, 0.0, 1.0);
     if (MASK_COMPARE(push.textureBitmap, NORMAL_TEXTURE)) {
         vec4 normalSample = texture(normalMap, (push.textureBitmap & NORMAL_UV) == 0 ? vert.texcoord : vert.texcoord1);
-        normalTS = normalSample.rgb * 2.0 - 1.0;
+        n_ts = normalSample.rgb * 2.0 - 1.0;
     }
     
     // Metallic - Roughness - Occlusion
@@ -371,17 +342,9 @@ vec3 BRDF(vec3 baseColor) {
     mat3 TBN = mat3(T,B,N);
     mat3 invTBN = transpose(TBN);
 
-    vec3 n = normalize(TBN * normalTS);
+    vec3 n = normalize(TBN * n_ts);
     vec3 v = normalize(ubo.invViewMatrix[3].xyz - vert.worldPos);
     vec3 reflection = normalize(reflect(-v, n));
-
-    // TBN = vert.TBN;
-    // T = TBN[0];
-    // B = TBN[1];
-    // N = TBN[2];
-
-    float ToV = max(dot(T, v), 0.0);
-    float BoV = max(dot(B, v), 0.0);
     
     vec3 color = vec3(0);
     const float lightNum = ubo.lightInfo & 0xFF;
@@ -406,64 +369,41 @@ vec3 BRDF(vec3 baseColor) {
             if(dot(n, l) < 0.0) shadow = 0.01;
         }
         
-        vec3 h = normalize(l+v); // Half vector between l and v
+        vec3 h = normalize(l + v);
+        vec3 l_ts = normalize(invTBN * l);
+        vec3 v_ts = normalize(invTBN * v);
+        vec3 h_ts = normalize(l_ts + v_ts);
+        
         float NoV = max(abs(dot(n, v)), 0.001);
         float NoL = max(dot(n, l), 0.001);
-
-        float NoH = max(dot(n, h), 0.0);
         float LoH = max(dot(l, h), 0.0);
-        float VoH = max(dot(v, h), 0.0);
+        float NoVg = max(dot(N, v), 0.0);
         
-        if (!MASK_COMPARE(ubo.debugMode, DEBUG_MULTISCATTER_BIT)) {
-            // Calculate the shading terms for the microfacet specular shading model
-            
-            vec3 h_ts = invTBN * h;
-            vec3 l_ts = invTBN * l;
-            vec3 v_ts = invTBN * v;
+        float energyComp = (NoVg > 0.0) ? (NoV / NoVg) : 1.0;
 
-            //mat2 cov2 = AxisAlignedNDFFiltering(h_ts, alphaAniso * alphaAniso);
-        	//mat2 cov2 = NonAxisAlignedNDFFiltering(h_ts, alphaAniso * alphaAniso);
-            //mat2 cov2 = FullNonAxisAlignedNDFFiltering(h_ts , alphaAniso * alphaAniso);
-            mat2 cov2 = standardCovarianceMatrix(alphaAniso, 0.0);
+        // Cook-Torrance BRDF using Covariance matrix in slope space
+        
+        //mat2 cov2 = AxisAlignedNDFFiltering(h_ts, alphaAniso * alphaAniso);
+        //mat2 cov2 = NonAxisAlignedNDFFiltering(h_ts, alphaAniso * alphaAniso);
+        //mat2 cov2 = FullNonAxisAlignedNDFFiltering(h_ts , alphaAniso * alphaAniso);
+        mat2 cov2 = standardCovarianceMatrix(alphaAniso, 0.0);
 
-            //float D = D_NDF_GGX_Covariance(cov2, ToH, BoH, NoH);
-            float D = D_GGX_Covariance(h_ts, cov2);
-            float G = G_Smith_Covariance(l_ts, v_ts, cov2);
-            vec3 F = F_Schlick(specularColor, 1.0, LoH);
-            vec3 specContrib = shadow * (D * G * F) / (4.0 * NoL * NoV);
-            
-            // Calculation of analytical lighting contribution
-            vec3 diffuseContrib = diffuseColor * Fd_Burley(alphaRoughness, NoV, NoL, LoH);
+        float D = D_GGX_Covariance(h_ts, cov2);
+        float G = G_Smith_Covariance(l_ts, v_ts, cov2);
+        vec3 F = F_Schlick(specularColor, 1.0, LoH);
+        vec3 specContrib = energyComp * shadow * (D * G * F) / (4.0 * NoL * NoV);
+        
+        vec3 diffuseContrib = diffuseColor * Fd_Burley(alphaRoughness, NoV, NoL, LoH);
 
-			//vec3 clearCoat = vec3(disneyClearcoat(NoV, NoL, NoH, LoH, push.coatWeight, push.coatRoughness));
-            float weight = push.coatWeight;
-            float Dcc = D_GGX(dot(TBN[2], h), pow(push.coatRoughness, 2.0));
-	        float Gcc = G_SmithGGX(NoV, NoL, pow(push.coatRoughness, 2.0));
-            float Fcc = F_Schlick(0.04 * weight, 1.0, LoH) * weight;
-            float DGFcc = shadow * shadow * (Dcc * Gcc * Fcc) / (4.0 * NoL * NoV);
+        float weight = push.coatWeight;
+        float Dcc = D_GGX(dot(N, h), pow(push.coatRoughness, 2.0));
+        float Gcc = G_SmithGGX(NoV, NoL, pow(push.coatRoughness, 2.0));
+        float Fcc = F_Schlick(0.04 * weight, 1.0, LoH) * weight;
+        float DGFcc = shadow * shadow * (Dcc * Gcc * Fcc) / (4.0 * NoL * NoV);
 
-			vec3 sheenContrib = disneySheen(LoH, vec3(1.0,0.0,0.0), 0.0);
-            
-            // Obtain final intensity as reflectance (BRDF) scaled by the energy of the light (cosine law)
-            //color += NoL * u_LightColor * (diffuseContrib + specContrib + DGFcc) * shadow;
-            color += NoL * u_LightColor * ((diffuseContrib + specContrib * (1.0 - Fcc)) * (1.0 - Fcc) + DGFcc) * shadow;
-        } else {
-            float ToH = dot(T, h);
-            float BoH = dot(B, h);
-            float ToL = max(dot(T, l), 0.0);
-            float BoL = max(dot(B, l), 0.0);
-
-            float D = D_GGX_Anisotropic(alphaAniso.x, alphaAniso.y, ToH, BoH, NoH);
-            float V = V_SmithGGXCorrelated_Anisotropic(alphaAniso.x, alphaAniso.y, ToV, BoV, NoV, ToL, BoL, NoL);
-            vec3 F = F_Schlick(specularColor, 1.0, VoH);
-            
-            // Calculation of analytical lighting contribution
-            vec3 diffuseContrib = diffuseColor * Fd_Burley(alphaRoughness, NoV, NoL, LoH);
-            vec3 specContrib = D * V * F;
-            
-            // Obtain final intensity as reflectance (BRDF) scaled by the energy of the light (cosine law)
-            color += NoL * u_LightColor * (shadow * specContrib + diffuseContrib) * shadow;
-        }   
+        vec3 sheenContrib = disneySheen(LoH, vec3(1.0,0.0,0.0), 0.0);
+        
+        color += NoL * u_LightColor * ((diffuseContrib + specContrib * (1.0 - Fcc)) * (1.0 - Fcc) + DGFcc) * shadow;
     }
     
     // Calculate lighting contribution from image based lighting source (IBL)
