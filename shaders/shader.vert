@@ -14,12 +14,9 @@ layout(location = 0) out VertexShader {
     vec4 lightSpacePos;
     vec2 texcoord0;
     vec2 texcoord1;
-    mat3 TBN;
-
     vec3 N;
     vec3 T;
     float sign;
-    
 } frag;
 
 layout(binding = 0) uniform GlobalUbo {
@@ -44,7 +41,6 @@ void main() {
     
     vec3 T = normalize( vec3(push.modelMatrix * vec4(tangent.xyz, 0.0)) );
     vec3 N = normalize( vec3(push.modelMatrix * vec4(normal, 0.0)) );
-    vec3 B = cross(N, T) * tangent.w;
 
     frag.color = color;
     frag.worldPos = positionWorld.xyz;
@@ -52,8 +48,8 @@ void main() {
     frag.lightSpacePos.xy = (zoMatrix * ubo.lightSpaceMatrix * (positionWorld + vec4(N * 0.1, 0.0))).xy;
     frag.texcoord0 = uv;
     frag.texcoord1 = uv1;
-    frag.TBN = mat3(T, B, N);
-    frag.T = T;frag.N = N;
+    frag.N = N;
+    frag.T = T;
     frag.sign = tangent.w;
 
     gl_Position = ubo.projectionViewMatrix * ubo.viewMatrix * positionWorld;

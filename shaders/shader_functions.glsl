@@ -29,8 +29,6 @@ layout(location = 0) in VertexShader {
     vec4 lightSpacePos;
     vec2 texcoord;
     vec2 texcoord1;
-    mat3 TBN;
-
     vec3 N;
     vec3 T;
     float sign;
@@ -308,6 +306,15 @@ vec3 disneySheen(float LoH, vec3 sheenColor, float sheen)
 
 
 vec3 BRDF(vec3 baseColor) {
+    vec3 N = normalize(vert.N);
+    vec3 T = normalize(vert.T - dot(vert.T, N) * N);
+    vec3 B = cross(N, T) * vert.sign;
+
+    mat3 TBN_ws = mat3(T,B,N);
+    mat3 TBN_ts = transpose(TBN_ws);
+
+    vec3 color = vec3(0);
+
     // Normal Map
     vec3 n_ts = vec3(0.0, 0.0, 1.0);
     if (MASK_COMPARE(push.textureBitmap, NORMAL_TEXTURE)) {
@@ -327,32 +334,26 @@ vec3 BRDF(vec3 baseColor) {
         perceptualRoughness = clamp(push.roughness, 0.04, 1.0);
     }
     
+    // Anisotropic linear roughness
     float alphaRoughness = perceptualRoughness * perceptualRoughness;
     vec2 alphaAniso = computeAnisoRoughness(alphaRoughness);
     
+    // Separate diffuse and specular from metallic workflow textures
 	float reflectance = 0.5;
     vec3 f0 = vec3(reflectance * reflectance * 0.16);
     vec3 diffuseColor = baseColor.rgb * (1.0 - metallic);
     vec3 specularColor = mix(f0, baseColor.rgb, metallic);
 
-    vec3 N = normalize(vert.N);
-    vec3 T = normalize(vert.T - dot(vert.T, N) * N);
-    vec3 B = cross(N, T) * vert.sign;
-
-    mat3 TBN = mat3(T,B,N);
-    mat3 invTBN = transpose(TBN);
-
-    vec3 n = normalize(TBN * n_ts);
+    vec3 n = normalize(TBN_ws * n_ts);
     vec3 v = normalize(ubo.invViewMatrix[3].xyz - vert.worldPos);
     vec3 reflection = normalize(reflect(-v, n));
     
-    vec3 color = vec3(0);
+    // Shade each light entity
     const float lightNum = ubo.lightInfo & 0xFF;
     for (int i = 0; i < lightNum; i++) {
         
-        // Light intensity and shadow filtering
-        vec3 l, u_LightColor;
-        float shadow = 1.0;
+        // Different interpretation for different light types
+        vec3 l, u_LightColor; float shadow = 1.0;
         if (((ubo.lightInfo >> (8 + i)) & 0x1) == 0) {
             l = normalize(ubo.lightVector[i].xyz - vert.worldPos); // Vector from surface point to light
 
@@ -370,31 +371,27 @@ vec3 BRDF(vec3 baseColor) {
         }
         
         vec3 h = normalize(l + v);
-        vec3 l_ts = normalize(invTBN * l);
-        vec3 v_ts = normalize(invTBN * v);
+        vec3 l_ts = normalize(TBN_ts * l);
+        vec3 v_ts = normalize(TBN_ts * v);
         vec3 h_ts = normalize(l_ts + v_ts);
         
         float NoV = max(abs(dot(n, v)), 0.001);
         float NoL = max(dot(n, l), 0.001);
         float LoH = max(dot(l, h), 0.0);
         float NoVg = max(dot(N, v), 0.0);
-        
         float energyComp = (NoVg > 0.0) ? (NoV / NoVg) : 1.0;
 
-        // Cook-Torrance BRDF using Covariance matrix in slope space
-        
-        //mat2 cov2 = AxisAlignedNDFFiltering(h_ts, alphaAniso * alphaAniso);
-        //mat2 cov2 = NonAxisAlignedNDFFiltering(h_ts, alphaAniso * alphaAniso);
-        //mat2 cov2 = FullNonAxisAlignedNDFFiltering(h_ts , alphaAniso * alphaAniso);
+        // Cook-Torrance Anisotropic Microfacet BRDF using Covariance matrix in slope space
         mat2 cov2 = standardCovarianceMatrix(alphaAniso, 0.0);
 
         float D = D_GGX_Covariance(h_ts, cov2);
         float G = G_Smith_Covariance(l_ts, v_ts, cov2);
         vec3 F = F_Schlick(specularColor, 1.0, LoH);
+
         vec3 specContrib = energyComp * shadow * (D * G * F) / (4.0 * NoL * NoV);
-        
         vec3 diffuseContrib = diffuseColor * Fd_Burley(alphaRoughness, NoV, NoL, LoH);
 
+        // Simple Cook-Torrance Isotropic BRDF
         float weight = push.coatWeight;
         float Dcc = D_GGX(dot(N, h), pow(push.coatRoughness, 2.0));
         float Gcc = G_SmithGGX(NoV, NoL, pow(push.coatRoughness, 2.0));
