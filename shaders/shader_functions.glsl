@@ -294,6 +294,20 @@ float Fd_Burley(float roughness, float NoV, float NoL, float LoH) {
 }
 
 
+vec2 evaluateClearCoat(float weight, float roughness, float NoV, float NoL, float NoHg, float LoH) {
+    if (weight <= 0.0) return vec2(0.0);
+
+    float alpha = roughness * roughness;
+
+    float D = D_GGX(NoHg, alpha);
+    float G = G_SmithGGX(NoV, NoL, alpha);
+    float F = F_Schlick(0.04 * weight, 1.0, LoH) * weight;
+    float DGF = (D * G * F) / (4.0 * NoL * NoV);
+
+    return vec2(F, DGF);
+}
+
+
 vec3 disneySheen(float LoH, vec3 sheenColor, float sheen)
 {
     if (sheen <= 0.0) return vec3(0.0);
@@ -392,15 +406,12 @@ vec3 BRDF(vec3 baseColor) {
         vec3 diffuseContrib = diffuseColor * Fd_Burley(alphaRoughness, NoV, NoL, LoH);
 
         // Simple Cook-Torrance Isotropic BRDF
-        float weight = push.coatWeight;
-        float Dcc = D_GGX(dot(N, h), pow(push.coatRoughness, 2.0));
-        float Gcc = G_SmithGGX(NoV, NoL, pow(push.coatRoughness, 2.0));
-        float Fcc = F_Schlick(0.04 * weight, 1.0, LoH) * weight;
-        float DGFcc = shadow * shadow * (Dcc * Gcc * Fcc) / (4.0 * NoL * NoV);
+        vec2 coatContrib = evaluateClearCoat(push.coatWeight, push.coatRoughness, NoV, NoL, dot(N, h), LoH);
+        coatContrib.y *= shadow * shadow;
 
         vec3 sheenContrib = disneySheen(LoH, vec3(1.0,0.0,0.0), 0.0);
         
-        color += NoL * u_LightColor * ((diffuseContrib + specContrib * (1.0 - Fcc)) * (1.0 - Fcc) + DGFcc) * shadow;
+        color += NoL * u_LightColor * ((diffuseContrib + specContrib * (1.0 - coatContrib.x)) * (1.0 - coatContrib.x) + coatContrib.y) * shadow;
     }
     
     // Calculate lighting contribution from image based lighting source (IBL)

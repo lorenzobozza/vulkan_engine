@@ -1,3 +1,4 @@
+#define __BT_DISABLE_SSE__
 #include "LinearMath/btAlignedAllocator.cpp"
 #include "LinearMath/btGeometryUtil.cpp"
 #include "LinearMath/btSerializer.cpp"

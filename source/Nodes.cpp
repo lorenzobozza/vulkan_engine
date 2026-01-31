@@ -158,7 +158,7 @@ void NodeSet::loadNodeFromModel(int gltfIndex, uint32_t parentIndex) {
     if (gltfNode.mesh > -1) thisNode.flags |= Node::Flags::MESH;
     if (gltfNode.light > -1) thisNode.flags |= Node::Flags::LIGHT;
     
-    thisNode.matrix *= (glm::translate(glm::mat4(1.0), thisNode.transl) * glm::toMat4(thisNode.quat));// * glm::scale(glm::mat4(1.0), thisNode.scale));
+    thisNode.matrix *= (glm::translate(glm::mat4(1.0), thisNode.transl) * glm::toMat4(thisNode.quat) * glm::scale(glm::mat4(1.0), thisNode.scale));
     }
     
     // Tree propagation
@@ -317,7 +317,7 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform,
             
             for (size_t v = 0; v < posAccessor.count; v++) {
                 Mesh::Data::Vertex vertex{};
-                vertex.position = glm::make_vec3(&bufferPos[v * posByteStride]) * m_NodeTree.nodes[thisIndex].scale;
+                vertex.position = glm::make_vec3(&bufferPos[v * posByteStride]);
                 
                 vertex.normal = glm::normalize(glm::vec3(bufferNormals ? glm::make_vec3(&bufferNormals[v * normByteStride]) : glm::vec3(0.0f)));
                 
@@ -477,14 +477,32 @@ void NodeSet::parseMeshFromNode(const tinygltf::Node& node, glm::mat4 transform,
     }
 }
 
+static VkFormat getVulkanFormat(int bits, int component) {
+    switch (component) {
+    case 4:
+        switch (bits) {
+        case 16:
+            return VK_FORMAT_R16G16B16A16_UNORM;
+            break;
+
+        default:
+            return VK_FORMAT_R8G8B8A8_UNORM;
+            break;
+        }
+        break;
+
+    default:
+        return VK_FORMAT_R8G8B8_UNORM;
+        break;
+    }
+}
+
 
 void NodeSet::loadMaterialsToVRAM(void) {
     size_t index = m_Assets.textures.size();
     size_t materialID = m_Assets.materials.size();
     bool mipMapping = true;
     
-    const VkFormat default_rgb_format = VK_FORMAT_R8G8B8_UNORM;
-    const VkFormat default_rgba_format = VK_FORMAT_R8G8B8A8_UNORM;
     
     m_Assets.textures.reserve(index + m_gltfModel.textures.size());
     m_Assets.materials.reserve(m_Assets.materials.size() + m_gltfModel.materials.size());
@@ -513,10 +531,11 @@ void NodeSet::loadMaterialsToVRAM(void) {
             const tinygltf::Image& color = m_gltfModel.images[m_gltfModel.textures[colorTextureIndex].source];
             
             fillSamplerInfo(colorTextureIndex, &samplerInfo);
+
             
             m_Assets.textures.emplace_back(std::make_unique<const Texture>(m_Device, m_Image, (void*)color.image.data(),
                                                                            color.width, color.height, color.component, mipMapping,
-                                                                           (color.component > 3 ? default_rgba_format : default_rgb_format), &samplerInfo));
+                                                                           getVulkanFormat(color.bits, color.component), &samplerInfo));
             material.setColorTexture(index++);
             material.setNormalTexCoordSet(gltfMaterial.pbrMetallicRoughness.baseColorTexture.texCoord);
             
@@ -529,7 +548,7 @@ void NodeSet::loadMaterialsToVRAM(void) {
             
             m_Assets.textures.emplace_back(std::make_unique<const Texture>(m_Device, m_Image, (void*)normal.image.data(),
                                                                            normal.width, normal.height, normal.component, mipMapping,
-                                                                           (normal.component > 3 ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8_UNORM), &samplerInfo));
+                                                                           getVulkanFormat(normal.bits, normal.component), &samplerInfo));
             material.setNormalTexture(index++);
             material.setNormalTexCoordSet(gltfMaterial.normalTexture.texCoord);
         }
@@ -541,7 +560,7 @@ void NodeSet::loadMaterialsToVRAM(void) {
             
             m_Assets.textures.emplace_back(std::make_unique<const Texture>(m_Device, m_Image, (void*)occlusion.image.data(),
                                                                            occlusion.width, occlusion.height, occlusion.component, mipMapping,
-                                                                           (occlusion.component > 3 ? default_rgba_format : default_rgb_format), &samplerInfo));
+                                                                           getVulkanFormat(occlusion.bits, occlusion.component), &samplerInfo));
             material.setOcclusionTexture(index++);
             material.setOcclusionTexCoordSet(gltfMaterial.occlusionTexture.texCoord);
         }
@@ -555,7 +574,7 @@ void NodeSet::loadMaterialsToVRAM(void) {
             
             m_Assets.textures.emplace_back(std::make_unique<const Texture>(m_Device, m_Image, (void*)metalRough.image.data(),
                                                                            metalRough.width, metalRough.height, metalRough.component, mipMapping,
-                                                                           (metalRough.component > 3 ? default_rgba_format : default_rgb_format), &samplerInfo));
+                                                                           getVulkanFormat(metalRough.bits, metalRough.component), &samplerInfo));
             material.setRoughMetalTexture(index++);
             material.setMetalRoughTexCoordSet(gltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.texCoord);
         }

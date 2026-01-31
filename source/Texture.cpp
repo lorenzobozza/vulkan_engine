@@ -27,8 +27,13 @@ Texture::Texture(const Device& dev, const Image& image, std::string filePath, bo
 
 Texture::Texture(const Device& dev, const Image& image, void* data, uint32_t texWidth, uint32_t texHeight, uint8_t depth, bool mipMapping, VkFormat format, VkSamplerCreateInfo *samplerInfo)
 : m_Device{dev}, m_Image{image}, m_MipMapping{mipMapping}, m_ViewType{VK_IMAGE_VIEW_TYPE_2D}, m_Format{format} {
-    
-    VkDeviceSize imageSize = texWidth * texHeight * depth * sizeof(uint8_t);
+
+    VkDeviceSize imageSize = texWidth * texHeight * depth;
+    if (m_Format > VK_FORMAT_A8B8G8R8_SRGB_PACK32) {
+        imageSize *= sizeof(uint16_t);
+    } else {
+        imageSize *= sizeof(uint8_t);
+    }
     
     m_StagingBuffer = std::make_unique<Buffer>(m_Device, imageSize, 1, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                                                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
