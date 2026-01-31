@@ -320,12 +320,11 @@ vec3 disneySheen(float LoH, vec3 sheenColor, float sheen)
 
 
 vec3 BRDF(vec3 baseColor) {
+    // World space tangent frame
     vec3 N = normalize(vert.N);
     vec3 T = normalize(vert.T - dot(vert.T, N) * N);
     vec3 B = cross(N, T) * vert.sign;
-
     mat3 TBN_ws = mat3(T,B,N);
-    mat3 TBN_ts = transpose(TBN_ws);
 
     vec3 color = vec3(0);
 
@@ -361,6 +360,13 @@ vec3 BRDF(vec3 baseColor) {
     vec3 n = normalize(TBN_ws * n_ts);
     vec3 v = normalize(ubo.invViewMatrix[3].xyz - vert.worldPos);
     vec3 reflection = normalize(reflect(-v, n));
+
+    // Perturbated tangent space TBN matrix
+    mat3 TBN_pts;
+    TBN_pts[2] = n;
+    TBN_pts[0] = normalize(T - dot(T, n) * n);
+    TBN_pts[1] = cross(n, TBN_pts[0]) * vert.sign;
+    TBN_pts = transpose(TBN_pts);
     
     // Shade each light entity
     const float lightNum = ubo.lightInfo & 0xFF;
@@ -385,9 +391,9 @@ vec3 BRDF(vec3 baseColor) {
         }
         
         vec3 h = normalize(l + v);
-        vec3 l_ts = normalize(TBN_ts * l);
-        vec3 v_ts = normalize(TBN_ts * v);
-        vec3 h_ts = normalize(l_ts + v_ts);
+        vec3 l_pts = normalize(TBN_pts * l);
+        vec3 v_pts = normalize(TBN_pts * v);
+        vec3 h_pts = normalize(l_pts + v_pts);
         
         float NoV = max(abs(dot(n, v)), 0.001);
         float NoL = max(dot(n, l), 0.001);
@@ -398,8 +404,8 @@ vec3 BRDF(vec3 baseColor) {
         // Cook-Torrance Anisotropic Microfacet BRDF using Covariance matrix in slope space
         mat2 cov2 = standardCovarianceMatrix(alphaAniso, 0.0);
 
-        float D = D_GGX_Covariance(h_ts, cov2);
-        float G = G_Smith_Covariance(l_ts, v_ts, cov2);
+        float D = D_GGX_Covariance(h_pts, cov2);
+        float G = G_Smith_Covariance(l_pts, v_pts, cov2);
         vec3 F = F_Schlick(specularColor, 1.0, LoH);
 
         vec3 specContrib = energyComp * shadow * (D * G * F) / (4.0 * NoL * NoV);
