@@ -302,23 +302,24 @@ private:
             {
             ImGui::TableNextRow();
             ImGui::TableNextColumn(); ImGui::Text("Name");
-            ImGui::TableNextColumn(); ImGui::Text("Color");
-            ImGui::TableNextColumn(); ImGui::Text("Normal");
-            ImGui::TableNextColumn(); ImGui::Text("Occlusion");
-            ImGui::TableNextColumn(); ImGui::Text("Metal/Rough");
+            ImGui::TableNextColumn(); ImGui::Text("Base Color");
+            ImGui::TableNextColumn(); ImGui::Text("Normal Map");
+            ImGui::TableNextColumn(); ImGui::Text("Roughness Metallic");
+            ImGui::TableNextColumn(); ImGui::Text("AO Texture");
             for (auto& kv: m_Assets.materials) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
                 ImGui::Text("%s", kv.first.c_str());
                 ImGui::TableNextColumn();
-                if ((kv.second.getTextureBitmap() & 0x1) == 0) {ImGui::ColorButton(std::format("##{}", kv.first).c_str(), ImVec4(kv.second.color.r,kv.second.color.g,kv.second.color.b,kv.second.color.a));}
+                if ((kv.second.getTextureBitmap() & COLOR_TEXTURE) == 0) {ImGui::ColorButton(std::format("##{}", kv.first).c_str(), ImVec4(kv.second.color.r,kv.second.color.g,kv.second.color.b,kv.second.color.a));}
                 else { ImGui::Text("%s","Texture"); }
                 ImGui::TableNextColumn();
-                ImGui::Text("%s", (kv.second.getTextureBitmap() & 0x2) == 0 ? "NO" : "Texture");
+                ImGui::Text("%s", (kv.second.getTextureBitmap() & NORMAL_TEXTURE) == 0 ? "NO" : "YES");
                 ImGui::TableNextColumn();
-                ImGui::Text("%s", (kv.second.getTextureBitmap() & 0x4) == 0 ? "NO" : "Texture");
+                ImGui::Text("%s", (kv.second.getTextureBitmap() & ROUGH_METAL_TEXTURE) == 0 ? ( "M: " + std::to_string(kv.second.metalness) + ", R: " + std::to_string(kv.second.roughness) ).c_str() : "Texture");
                 ImGui::TableNextColumn();
-                ImGui::Text("%s", (kv.second.getTextureBitmap() & 0x8) == 0 ? ( "M: " + std::to_string(kv.second.metalness) + ", R: " + std::to_string(kv.second.roughness) ).c_str() : "Texture");
+                ImGui::Text("%s", (kv.second.getTextureBitmap() & SPLIT_AO_TEXTURE) == 0 &&
+                                (kv.second.getTextureBitmap() & COMBO_ARM_TEXTURE) == 0 ? "NO" : "YES");
             }
             ImGui::EndTable();
             }

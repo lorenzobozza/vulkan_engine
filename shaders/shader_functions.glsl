@@ -5,13 +5,14 @@
 
 #define COLOR_TEXTURE       0x1
 #define NORMAL_TEXTURE      0x2
-#define OCCLUSION_TEXTURE   0x4
-#define ROUGH_METAL_TEXTURE 0x8
+#define ROUGH_METAL_TEXTURE 0x4
+#define COMBO_ARM_TEXTURE   0x8
+#define SPLIT_AO_TEXTURE    0x10
 
-#define COLOR_UV            0x10
-#define NORMAL_UV           0x20
-#define OCCLUSION_UV        0x40
-#define ROUGH_METAL_UV      0x80
+#define COLOR_UV            0x100
+#define NORMAL_UV           0x200
+#define ROUGH_METAL_UV      0x400
+#define OCCLUSION_UV        0x800
 
 #define ALPHAMODE_OPAQUE 0
 #define ALPHAMODE_MASK 1
@@ -46,7 +47,7 @@ layout(set = 0, binding = 0) uniform GlobalUbo {
 } ubo;
 layout(set = 0, binding = 1) uniform samplerCube irradianceMap;
 layout(set = 0, binding = 2) uniform samplerCube prefilteredMap;
-layout(set = 0, binding = 3) uniform sampler2D brdfLUT;
+layout(set = 0, binding = 3) uniform sampler2D dfgLUT;
 layout(set = 0, binding = 4) uniform sampler2D shadowMap;
 
 layout(set = 1, binding = 1) uniform sampler2D normalMap;
@@ -56,13 +57,16 @@ layout(set = 1, binding = 3) uniform sampler2D occlusionMap;
 layout(push_constant) uniform Push {
     mat4 modelMatrix;
     int textureBitmap;
-    float metalness;
-    float roughness;
+    float metallicFactor;
+    float roughnessFactor;
     vec4 color;
     int alphaMode;
     float alphaCutoff;
+    float f0;
     float coatWeight;
     float coatRoughness;
+    float anisoStrength;
+    float anisoRotation;
 } push;
 
 
@@ -145,7 +149,7 @@ vec3 getIBLContribution(vec3 n, vec3 v, vec3 reflection, float roughness, vec3 d
 
 	float NdotV = clamp(dot(n, v), 0.001, 1.0);
 	// retrieve a scale and bias to F0. See [1], Figure 3
-	vec2 brdf = texture(brdfLUT, vec2(NdotV, roughness)).rg;
+	vec2 brdf = texture(dfgLUT, vec2(NdotV, roughness)).rg;
 	vec3 diffuseLight = (texture(irradianceMap, n)).rgb;
 
 	vec3 specularLight = (textureLod(prefilteredMap, reflection, lod)).rgb;
@@ -160,64 +164,55 @@ vec3 getIBLContribution(vec3 n, vec3 v, vec3 reflection, float roughness, vec3 d
 	return diffuse + specular;
 }
 
-vec3 computeIBL(vec3 n, vec3 v, vec3 reflection, float roughness, vec3 diffuse_color, vec3 specular_color, bool multi_scatter) {
+vec3 evaluateIBL(vec3 Ng, vec3 n, vec3 v, vec2 Ldfg, vec3 diffuse_color, vec3 specular_color, float roughness,float coatWeight, float coatRoughness) {
     float numEnvLevels = float(textureQueryLevels(prefilteredMap) - 1);
     float lodLevel = roughness * numEnvLevels;
     
-    float NoV = clamp(dot(n, v), 0.001, 1.0);
+    float alpha2 = pow(roughness, 4);
 
-	reflection = mix(reflection, n, roughness * roughness * roughness * roughness);
-
-	// mat3 Mr = mat3(cos(3.14), 0, sin(3.14),
-    //                0,				  1,0,
-    //                -sin(3.14), 0, cos(3.14));
-    // if (!multi_scatter) {
-	// 	n = Mr * n;
-	// 	reflection = Mr * reflection;
-	// }
+    vec3 reflection = reflect(-v, n);
+	reflection = mix(reflection, n, alpha2);
+    vec3 reflectionG = reflect(-v, Ng);
+	reflectionG = mix(reflection, Ng, alpha2);
     
     // Load env textures
-    vec2 DFG = texture(brdfLUT, vec2(NoV, roughness)).xy;
     vec3 radiance = textureLod(prefilteredMap, reflection, lodLevel).xyz;
     vec3 irradiance = texture(irradianceMap, n).xyz;
     
-	vec3 FssEss = mix(DFG.xxx, DFG.yyy, specular_color);
+	vec3 specular = mix(Ldfg.xxx, Ldfg.yyy, specular_color) * radiance;
+    vec3 diffuse = diffuse_color * irradiance;
 
-    if (!multi_scatter) {
-        return FssEss * radiance + diffuse_color * irradiance;
+    if (coatWeight > 0.0) {
+        float Fc = F_Schlick(0.04 * coatWeight, 1.0, dot(Ng, v)) * coatWeight;
+        diffuse  *= 1.0 - Fc;
+        specular *= (1.0 - Fc) * (1.0 - Fc);
+        specular += Fc * textureLod(prefilteredMap, reflectionG, coatRoughness * numEnvLevels).xyz;
     }
 
-	FssEss *= radiance;
-	diffuse_color *= irradiance;
-
-	float Fc = F_Schlick(0.04, 1.0, NoV) * 0.0;
-	diffuse_color  *= (1.0 - Fc);
-	FssEss *= (1.0 - Fc);
-	FssEss += radiance * Fc;
-	return FssEss + diffuse_color;
-
-    // Multiple scattering, from Fdez-Aguera
-    // float Ems = (1.0 - (DFG.x + DFG.y));
-    // vec3 F_avg = specular_color + (1.0 - specular_color) / 21.0;
-    // vec3 FmsEms = Ems * FssEss * F_avg / (1.0 - F_avg * Ems);
-    // vec3 k_D = diffuse_color * (1.0 - FssEss - FmsEms);
-    // return FssEss * radiance + (FmsEms + k_D) * irradiance;
+    return specular + diffuse;
 }
 
-vec2 computeAnisoRoughness(float alpha) {
-    float anisotropy = clamp(0.0, -1.0, 1.0);
+vec2 computeAnisoRoughness(float alpha, float strength) {
+    if (strength == 0.0) return vec2(alpha);
+    
+    float anisotropy = clamp(abs(strength), 0.0, 1.0);
+    float aspect = sqrt(1.0 - 0.9 * anisotropy);
 
-    float alphaX = clamp(alpha * (1.0 + anisotropy), 0.001, 1.0);
-    float alphaY = clamp(alpha * (1.0 - anisotropy), 0.001, 1.0);
+    float alphaX = clamp(alpha / aspect, 0.001, 1.0);
+    float alphaY = clamp(alpha * aspect, 0.001, 1.0);
 
     return vec2(alphaX, alphaY);
 }
 
 mat2 standardCovarianceMatrix(vec2 alpha, float phi) {
-    float c = cos(phi), s = sin(phi);
-    mat2 R = mat2(c, -s, s, c);
     mat2 S2 = mat2(alpha.x * alpha.x, 0.0, 0.0, alpha.y * alpha.y);
-    return R * S2 * transpose(R);
+    float c = cos(phi);
+    if (c == 1.0) { return S2; }
+    else {
+        float s = sin(phi);
+        mat2 R = mat2(c, s, -s, c);
+        return R * S2 * transpose(R);
+    }
 }
 
 float D_NDF_GGX_Covariance(mat2 C, float ToH, float BoH, float NoH) {
@@ -335,31 +330,32 @@ vec3 BRDF(vec3 baseColor) {
         n_ts = normalSample.rgb * 2.0 - 1.0;
     }
     
-    // Metallic - Roughness - Occlusion
-    float metallic, perceptualRoughness;
-    float occlusion = (push.textureBitmap & OCCLUSION_TEXTURE) == 0 ? 1.0 : texture(occlusionMap, (push.textureBitmap & OCCLUSION_UV) == 0 ? vert.texcoord : vert.texcoord1).r;
+    // Occlusion - Roughness - Metallic
+    float metallic = 1.0, perceptualRoughness = 1.0;
+    float occlusion = (push.textureBitmap & SPLIT_AO_TEXTURE) == 0 ? 1.0 : texture(occlusionMap, (push.textureBitmap & OCCLUSION_UV) == 0 ? vert.texcoord : vert.texcoord1).r;
     if (MASK_COMPARE(push.textureBitmap, ROUGH_METAL_TEXTURE)) {
-        vec4 mro = texture(metalRoughnessMap, (push.textureBitmap & ROUGH_METAL_UV) == 0 ? vert.texcoord : vert.texcoord1);
-        metallic = clamp(mro.b, 0.0, 1.0);
-        perceptualRoughness = clamp(mro.g, 0.04, 1.0);
-    } else {
-        metallic = clamp(push.metalness, 0.0, 1.0);
-        perceptualRoughness = clamp(push.roughness, 0.04, 1.0);
+        vec4 arm = texture(metalRoughnessMap, (push.textureBitmap & ROUGH_METAL_UV) == 0 ? vert.texcoord : vert.texcoord1);
+        if (MASK_COMPARE(push.textureBitmap, COMBO_ARM_TEXTURE)) { occlusion = arm.r; }
+        perceptualRoughness = arm.g;
+        metallic = arm.b;
     }
+    perceptualRoughness = clamp(perceptualRoughness * push.roughnessFactor, 0.04, 1.0);
+    metallic = clamp(metallic * push.metallicFactor, 0.0, 1.0);
     
     // Anisotropic linear roughness
     float alphaRoughness = perceptualRoughness * perceptualRoughness;
-    vec2 alphaAniso = computeAnisoRoughness(alphaRoughness);
+    vec2 alphaAniso = computeAnisoRoughness(alphaRoughness, push.anisoStrength);
     
     // Separate diffuse and specular from metallic workflow textures
-	float reflectance = 0.5;
-    vec3 f0 = vec3(reflectance * reflectance * 0.16);
     vec3 diffuseColor = baseColor.rgb * (1.0 - metallic);
-    vec3 specularColor = mix(f0, baseColor.rgb, metallic);
+    vec3 specularColor = mix(vec3(push.f0), baseColor.rgb, metallic);
 
     vec3 n = normalize(TBN_ws * n_ts);
     vec3 v = normalize(ubo.invViewMatrix[3].xyz - vert.worldPos);
-    vec3 reflection = normalize(reflect(-v, n));
+    float NoV = max(abs(dot(n, v)), 0.001);
+    float NoVg = max(abs(dot(N, v)), 0.001);
+
+    vec2 DFG = texture(dfgLUT, vec2(NoV, perceptualRoughness)).xy;
 
     // Perturbated tangent space TBN matrix
     mat3 TBN_pts;
@@ -395,20 +391,19 @@ vec3 BRDF(vec3 baseColor) {
         vec3 v_pts = normalize(TBN_pts * v);
         vec3 h_pts = normalize(l_pts + v_pts);
         
-        float NoV = max(abs(dot(n, v)), 0.001);
         float NoL = max(dot(n, l), 0.001);
         float LoH = max(dot(l, h), 0.0);
-        float NoVg = max(dot(N, v), 0.0);
-        float energyComp = (NoVg > 0.0) ? (NoV / NoVg) : 1.0;
 
         // Cook-Torrance Anisotropic Microfacet BRDF using Covariance matrix in slope space
-        mat2 cov2 = standardCovarianceMatrix(alphaAniso, 0.0);
+        mat2 cov2 = standardCovarianceMatrix(alphaAniso, push.anisoRotation);
 
         float D = D_GGX_Covariance(h_pts, cov2);
         float G = G_Smith_Covariance(l_pts, v_pts, cov2);
         vec3 F = F_Schlick(specularColor, 1.0, LoH);
 
-        vec3 specContrib = energyComp * shadow * (D * G * F) / (4.0 * NoL * NoV);
+        float energyComp = (NoVg > 0.0) ? (NoV / NoVg) : 1.0;
+        vec3 multiScatter = 1.0 + specularColor * (1.0 / DFG.y - 1.0);
+        vec3 specContrib = energyComp * multiScatter * shadow * (D * G * F) / (4.0 * NoL * NoV);
         vec3 diffuseContrib = diffuseColor * Fd_Burley(alphaRoughness, NoV, NoL, LoH);
 
         // Simple Cook-Torrance Isotropic BRDF
@@ -419,17 +414,18 @@ vec3 BRDF(vec3 baseColor) {
         
         color += NoL * u_LightColor * ((diffuseContrib + specContrib * (1.0 - coatContrib.x)) * (1.0 - coatContrib.x) + coatContrib.y) * shadow;
     }
+
+    vec3 anisotropicTangent = cross(B, v);
+    vec3 anisotropicNormal = cross(anisotropicTangent, B);
+    vec3 bentNormal = normalize(mix(n, anisotropicNormal, push.anisoStrength));
     
-    // Calculate lighting contribution from image based lighting source (IBL)
+    // Calculate indirect lighting contribution from an image based light source (IBL)
     if (MASK_COMPARE(ubo.debugMode, DEBUG_IBL_CONTRIB_BIT)) {
-        bool multi_scatter = MASK_COMPARE(ubo.debugMode, DEBUG_MULTISCATTER_BIT);
-        color += computeIBL(n, v, reflection, perceptualRoughness, diffuseColor, specularColor, multi_scatter);
-    }
-    
-    // Apply optional PBR terms for additional (optional) shading
-    const float u_OcclusionStrength = 0.5f;
-    if ((push.textureBitmap & OCCLUSION_TEXTURE) == OCCLUSION_TEXTURE) {
-        color = mix(color, color * occlusion, u_OcclusionStrength);
+        vec3 indirect = evaluateIBL(N, bentNormal, v, DFG, diffuseColor, specularColor, perceptualRoughness, push.coatWeight, push.coatRoughness);
+        if (MASK_COMPARE(push.textureBitmap, SPLIT_AO_TEXTURE) || MASK_COMPARE(push.textureBitmap, COMBO_ARM_TEXTURE)) {
+            indirect *= occlusion;
+        }
+        color += indirect;
     }
     
     switch (ubo.debugMode & 0xFF) {

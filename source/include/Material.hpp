@@ -16,13 +16,14 @@
 
 #define COLOR_TEXTURE       0x1
 #define NORMAL_TEXTURE      0x2
-#define OCCLUSION_TEXTURE   0x4
-#define ROUGH_METAL_TEXTURE 0x8
+#define ROUGH_METAL_TEXTURE 0x4
+#define COMBO_ARM_TEXTURE   0x8
+#define SPLIT_AO_TEXTURE    0x10
 
-#define COLOR_UV            0x10
-#define NORMAL_UV           0x20
-#define OCCLUSION_UV        0x40
-#define ROUGH_METAL_UV      0x80
+#define COLOR_UV            0x100
+#define NORMAL_UV           0x200
+#define ROUGH_METAL_UV      0x400
+#define OCCLUSION_UV        0x800
 
 
 class Material {
@@ -38,13 +39,17 @@ public:
     AlphaMode alphaMode = ALPHAMODE_OPAQUE;
     float alphaCutoff{0.5};
     
+    float f0{.04f};
     float coatWeight{0.f};
     float coatRoughness{.04f};
+    float anisoStrength{0.f};
+    float anisoRotation{0.f};
     
     void setColorTexture(size_t id) { m_TextureBitmap |= COLOR_TEXTURE; m_ColorTextureId = id; }
     void setNormalTexture(size_t id) { m_TextureBitmap |= NORMAL_TEXTURE; m_NormalTextureId = id; }
-    void setOcclusionTexture(size_t id) { m_TextureBitmap |= OCCLUSION_TEXTURE; m_OcclusionTextureId = id; }
     void setRoughMetalTexture(size_t id) { m_TextureBitmap |= ROUGH_METAL_TEXTURE; m_RoughMetalTextureId = id; }
+    void setARMTexture(size_t id) { m_TextureBitmap |= COMBO_ARM_TEXTURE; m_OcclusionTextureId = id; }
+    void setOcclusionTexture(size_t id) { m_TextureBitmap |= SPLIT_AO_TEXTURE; m_OcclusionTextureId = id; }
     
     void setColorTexCoordSet(int set) { m_TextureBitmap |= (set == 1) ? COLOR_UV : 0; }
     void setNormalTexCoordSet(int set) { m_TextureBitmap |= (set == 1) ? NORMAL_UV : 0; }

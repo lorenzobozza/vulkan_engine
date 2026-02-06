@@ -16,8 +16,11 @@ struct PushConstantData {
     alignas(16) glm::vec4 color{};
     int alphaMode{};
     float alphaCutoff{};
+    float f0;
     float coatWeight;
     float coatRoughness;
+    float anisoStrength;
+    float anisoRotation;
 };
 
 void ScenePipeline::customizePipelineConfig(PipelineConfigInfo& config) {
@@ -179,8 +182,11 @@ void ScenePipeline::render(VkCommandBuffer commandBuffer, int frameIndex) {
             push.color =        m_FrameData.assets.materials.at(material).color;
             push.alphaMode =    m_FrameData.assets.materials.at(material).alphaMode;
             push.alphaCutoff =  m_FrameData.assets.materials.at(material).alphaCutoff;
+            push.f0 =           m_FrameData.assets.materials.at(material).f0;
             push.coatWeight =     m_FrameData.assets.materials.at(material).coatWeight;
             push.coatRoughness =  m_FrameData.assets.materials.at(material).coatRoughness;
+            push.anisoStrength =     m_FrameData.assets.materials.at(material).anisoStrength;
+            push.anisoRotation =  m_FrameData.assets.materials.at(material).anisoRotation;
             
             vkCmdPushConstants(commandBuffer,
                                m_PipelineLayout,
@@ -223,8 +229,11 @@ void ScenePipeline::render(VkCommandBuffer commandBuffer, int frameIndex) {
             push.color =        m_FrameData.assets.materials.at(material).color;
             push.alphaMode =    m_FrameData.assets.materials.at(material).alphaMode;
             push.alphaCutoff =  m_FrameData.assets.materials.at(material).alphaCutoff;
+            push.f0 =           m_FrameData.assets.materials.at(material).f0;
             push.coatWeight =     m_FrameData.assets.materials.at(material).coatWeight;
             push.coatRoughness =  m_FrameData.assets.materials.at(material).coatRoughness;
+            push.anisoStrength =     m_FrameData.assets.materials.at(material).anisoStrength;
+            push.anisoRotation =  m_FrameData.assets.materials.at(material).anisoRotation;
             
             vkCmdPushConstants(commandBuffer,
                                m_PipelineLayout,

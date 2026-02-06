@@ -744,12 +744,14 @@ static std::pair<bool, uint32_t> DirectoryTreeViewRecursive(const std::filesyste
     uint32_t node_clicked = 0;
     
     for (const auto& entry : std::filesystem::directory_iterator(path)) {
+        std::string name = entry.path().string();
+        std::string ext = name.substr(name.size() - 4, name.size() - 1);
+        if (ext != ".glb" && ext != "gltf") continue;
+    
         ImGuiTreeNodeFlags node_flags = base_flags;
         const bool is_selected = (*selection_mask & BIT(*count)) != 0;
         if (is_selected)
             node_flags |= ImGuiTreeNodeFlags_Selected;
-        
-        std::string name = entry.path().string();
         
         auto lastSlash = name.find_last_of("/\\");
         lastSlash = lastSlash == std::string::npos ? 0 : lastSlash + 1;
@@ -794,32 +796,31 @@ static std::pair<bool, uint32_t> DirectoryTreeViewRecursive(const std::filesyste
 
 void UI::treeAssetsWidget(void)
 {
-    std::string directoryPath = "../../../shaders/";
+    std::string directoryPath = "../../../assets/models/";
     
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0.0f, 0.0f });
     
     ImGui::Begin("Assets");
     
-    if (ImGui::CollapsingHeader("Shaders")) {
-        uint32_t count = 0;
-        for (const auto& entry : std::filesystem::recursive_directory_iterator(directoryPath)) {
-            (void)entry;
-            count++;
-        }
-        
-        static int selection_mask = 0;
-        
-        auto clickState = DirectoryTreeViewRecursive(directoryPath, &count, &selection_mask);
-        
-        if (clickState.first) {
-            // Update selection state
-            // (process outside of tree loop to avoid visual inconsistencies during the clicking frame)
-            if (ImGui::GetIO().KeyCtrl)
-                selection_mask ^= BIT(clickState.second);          // CTRL+click to toggle
-            else //if (!(selection_mask & (1 << clickState.second))) // Depending on selection behavior you want, may want to preserve selection when clicking on item that is part of the selection
-                selection_mask = BIT(clickState.second);           // Click to single-select
-        }
+    uint32_t count = 0;
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(directoryPath)) {
+        (void)entry;
+        count++;
     }
+    
+    static int selection_mask = 0;
+    
+    auto clickState = DirectoryTreeViewRecursive(directoryPath, &count, &selection_mask);
+    
+    if (clickState.first) {
+        // Update selection state
+        // (process outside of tree loop to avoid visual inconsistencies during the clicking frame)
+        if (ImGui::GetIO().KeyCtrl)
+            selection_mask ^= BIT(clickState.second);          // CTRL+click to toggle
+        else //if (!(selection_mask & (1 << clickState.second))) // Depending on selection behavior you want, may want to preserve selection when clicking on item that is part of the selection
+            selection_mask = BIT(clickState.second);           // Click to single-select
+    }
+    
     ImGui::End();
     
     ImGui::PopStyleVar();

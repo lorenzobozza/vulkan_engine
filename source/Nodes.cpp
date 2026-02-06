@@ -23,7 +23,7 @@ static bool tinygltf_LoadImageDataCallback(tinygltf::Image *image, const int ima
                                            std::string *warn, int req_width, int req_height,
                                            const unsigned char *bytes, int size, void *user_data);
                                            
-static inline bool parseMaterialExtensions(const tinygltf::Material& material, float& coatWeight, float& coatRoughness);
+static inline void parseMaterialExtensions(const tinygltf::Material& material, Material& out);
 static inline bool parseMotionAndCollision(const tinygltf::Node& node, bool& isConvex, bool& isStatic, bool& isKinematic, float& mass,
                              float& gravityFactor, int& phyMaterial, int& implicitShape, glm::vec3& linVel, glm::vec3& angVel);
 
@@ -524,7 +524,7 @@ void NodeSet::loadMaterialsToVRAM(void) {
             material.alphaCutoff = (float)gltfMaterial.alphaCutoff;
         }
         
-        parseMaterialExtensions(gltfMaterial, material.coatWeight, material.coatRoughness);
+        parseMaterialExtensions(gltfMaterial, material);
         
         material.color = glm::make_vec4(gltfMaterial.pbrMetallicRoughness.baseColorFactor.data());
         if (colorTextureIndex > -1) {
@@ -553,18 +553,6 @@ void NodeSet::loadMaterialsToVRAM(void) {
             material.setNormalTexCoordSet(gltfMaterial.normalTexture.texCoord);
         }
         
-        if (occlusionTextureIndex > -1) {
-            const tinygltf::Image& occlusion = m_gltfModel.images[m_gltfModel.textures[occlusionTextureIndex].source];
-            
-            fillSamplerInfo(occlusionTextureIndex, &samplerInfo);
-            
-            m_Assets.textures.emplace_back(std::make_unique<const Texture>(m_Device, m_Image, (void*)occlusion.image.data(),
-                                                                           occlusion.width, occlusion.height, occlusion.component, mipMapping,
-                                                                           getVulkanFormat(occlusion.bits, occlusion.component), &samplerInfo));
-            material.setOcclusionTexture(index++);
-            material.setOcclusionTexCoordSet(gltfMaterial.occlusionTexture.texCoord);
-        }
-        
         material.metalness = (float)gltfMaterial.pbrMetallicRoughness.metallicFactor;
         material.roughness = (float)gltfMaterial.pbrMetallicRoughness.roughnessFactor;
         if (metalRoughTextureIndex > -1) {
@@ -577,6 +565,22 @@ void NodeSet::loadMaterialsToVRAM(void) {
                                                                            getVulkanFormat(metalRough.bits, metalRough.component), &samplerInfo));
             material.setRoughMetalTexture(index++);
             material.setMetalRoughTexCoordSet(gltfMaterial.pbrMetallicRoughness.metallicRoughnessTexture.texCoord);
+        }
+        
+        if (occlusionTextureIndex > -1) {
+            const tinygltf::Image& occlusion = m_gltfModel.images[m_gltfModel.textures[occlusionTextureIndex].source];
+            
+            fillSamplerInfo(occlusionTextureIndex, &samplerInfo);
+            
+            m_Assets.textures.emplace_back(std::make_unique<const Texture>(m_Device, m_Image, (void*)occlusion.image.data(),
+                                                                           occlusion.width, occlusion.height, occlusion.component, mipMapping,
+                                                                           getVulkanFormat(occlusion.bits, occlusion.component), &samplerInfo));
+            if (occlusionTextureIndex == metalRoughTextureIndex) {
+                material.setARMTexture(index++);
+            } else {
+                material.setOcclusionTexture(index++);
+            }
+            material.setOcclusionTexCoordSet(gltfMaterial.occlusionTexture.texCoord);
         }
         
         m_Assets.materials.emplace(gltfMaterial.name + "_" + std::to_string(materialID++), std::move(material));
@@ -635,21 +639,34 @@ void NodeSet::fillSamplerInfo(int textureIndex, VkSamplerCreateInfo *samplerInfo
     }
 }
 
-static inline bool parseMaterialExtensions(const tinygltf::Material& material, float& coatWeight, float& coatRoughness) {
+static inline void parseMaterialExtensions(const tinygltf::Material& material, Material& out) {
+    if (material.extensions.find("KHR_materials_ior") != material.extensions.end()) {
+        auto& material_ior = material.extensions.at("KHR_materials_ior");
+        if (material_ior.Has("ior")) {
+            float ior = material_ior.Get("ior").GetNumberAsDouble();
+            out.f0 = round(pow((ior - 1.f) / (ior + 1.f), 2.f) * 1000.0) / 1000.0;
+        }
+    }
     if (material.extensions.find("KHR_materials_clearcoat") != material.extensions.end()) {
         auto& clearCoat = material.extensions.at("KHR_materials_clearcoat");
         if (clearCoat.Has("clearcoatFactor")) {
-            auto& clearCoatWeight = clearCoat.Get("clearcoatFactor");
-            coatWeight = clearCoatWeight.GetNumberAsDouble();
+            out.coatWeight = clearCoat.Get("clearcoatFactor").GetNumberAsDouble();
         }
         if (clearCoat.Has("clearcoatRoughnessFactor")) {
             auto& clearCoatRoughness = clearCoat.Get("clearcoatRoughnessFactor");
             if (clearCoatRoughness.GetNumberAsDouble() > .04f)
-                coatRoughness = clearCoatRoughness.GetNumberAsDouble();
+                out.coatRoughness = clearCoatRoughness.GetNumberAsDouble();
         }
     }
-
-    return true;
+    if (material.extensions.find("KHR_materials_anisotropy") != material.extensions.end()) {
+        auto& aniso = material.extensions.at("KHR_materials_anisotropy");
+        if (aniso.Has("anisotropyStrength")) {
+            out.anisoStrength = aniso.Get("anisotropyStrength").GetNumberAsDouble();
+        }
+        if (aniso.Has("anisotropyRotation")) {
+            out.anisoRotation = aniso.Get("anisotropyRotation").GetNumberAsDouble();
+        }
+    }
 }
 
 void NodeSet::parsePhysicsMaterialsAndShapes(void) {
