@@ -1,5 +1,5 @@
 workspace "VulkanEngine"
-	configurations { "Debug", "Release" }
+	configurations {"Release", "Debug"}
 	location "build"
 
 project "Acinonyx"
@@ -32,19 +32,22 @@ project "Acinonyx"
 
 	links {
 		"SDL3",
-		"freetype.6"
+        "shaderc_shared",
+		"freetype"
 	}
 
 	libdirs {
 		"external/**/lib",
-		"$(VULKAN_SDK)/Lib"
 	}
 
-	filter "system:macos"
-		links {"vulkan.1", "shaderc_shared.1"}
+	filter "system:macosx or linux"
+		links {"vulkan"}
+        libdirs {"/usr/local/lib","/opt/homebrew/lib"}
+        runpathdirs {"/usr/local/lib"}
 
 	filter "system:windows"
-		links {"vulkan-1", "shaderc_shared"}
+		links {"vulkan-1"}
+        libdirs {"$(VULKAN_SDK)/Lib"}
 		debugdir "$(TargetDir)"
 		architecture "x86_64"
 

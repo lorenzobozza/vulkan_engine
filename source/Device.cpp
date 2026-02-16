@@ -395,8 +395,10 @@ QueueFamilyIndices Device::findQueueFamilies(VkPhysicalDevice device) const {
                 indices.transferQueueCount = 1;
                 indices.transferFamilyHasValue = true;
             }
-            i++;
-            continue;
+            if (queueFamilies.size() - i > 1 || indices.transferFamilyHasValue) {
+                i++;
+                continue;
+            }
         }
         
         if (queueFamily.queueCount > 0 && (queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT) && !indices.transferFamilyHasValue) {
