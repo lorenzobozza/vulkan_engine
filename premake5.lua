@@ -32,8 +32,7 @@ project "Acinonyx"
 
 	links {
 		"SDL3",
-        "shaderc_shared",
-		"freetype"
+        "shaderc_shared"
 	}
 
 	libdirs {
@@ -41,12 +40,12 @@ project "Acinonyx"
 	}
 
 	filter "system:macosx or linux"
-		links {"vulkan"}
+		links {"vulkan","freetype"}
         libdirs {"/usr/local/lib","/opt/homebrew/lib"}
         runpathdirs {"/usr/local/lib"}
 
 	filter "system:windows"
-		links {"vulkan-1"}
+		links {"vulkan-1","freetype.6"}
         libdirs {"$(VULKAN_SDK)/Lib"}
 		debugdir "$(TargetDir)"
 		architecture "x86_64"
