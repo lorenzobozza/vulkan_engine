@@ -19,8 +19,11 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
+#include "TaskScheduler.h"
+
 #include <thread>
 
+enki::TaskScheduler g_TaskScheduler;
 
 struct WidgetStruct {
     std::shared_ptr<Viewport> view;
@@ -33,6 +36,11 @@ struct WidgetStruct {
 };
 
 void Application::run() {
+        
+    enki::TaskSchedulerConfig config;
+    config.numTaskThreadsToCreate = enki::GetNumHardwareThreads() - 1;
+    config.numExternalTaskThreads = 1;
+    g_TaskScheduler.Initialize(config);
     
     /**** User Interface Setup */
     UI ui(m_Device, m_Renderer);
@@ -189,7 +197,13 @@ void Application::run() {
                     m_Assets.busy.test_and_set();
                     std::string file(event.drop.data);
                     /**** Load Scene from glTF file on a separate thread */
-                    std::thread([this, file](){ NodeSet(initNodeStruct, file); m_Assets.changed.test_and_set(); }).detach();
+                    std::thread([this, file](){
+                        if (g_TaskScheduler.RegisterExternalTaskThread()) {
+                            NodeSet(initNodeStruct, file);
+                            m_Assets.changed.test_and_set();
+                            g_TaskScheduler.DeRegisterExternalTaskThread();
+                        }
+                    }).detach();
                 }
             break;
                 
@@ -284,6 +298,7 @@ void Application::run() {
         
     }
     vkDeviceWaitIdle(m_Device.device());
+    g_TaskScheduler.ShutdownNow();
     
 }
 

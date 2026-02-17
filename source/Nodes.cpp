@@ -16,7 +16,7 @@
 
 #include <random>
 
-enki::TaskScheduler g_TS;
+extern enki::TaskScheduler g_TaskScheduler;
 
 static inline void convertImageData(tinygltf::Image& image);
 static bool tinygltf_LoadImageDataCallback(tinygltf::Image *image, const int image_idx, std::string *err,
@@ -74,26 +74,20 @@ struct ImageParseTaskSet : enki::ITaskSet {
 };
 
 NodeSet::NodeSet(InitStruct& init, std::string filePath) : m_Device(init.device), m_Image(init.image), m_Primitives(init.primitives),
-                                                            m_PrimitivesAlpha(init.primitivesAlpha), m_Physics(init.physics),
-                                                            m_Assets(init.assets), m_Cameras(init.cameras), m_Lights(init.lights),
-                                                            m_NodeTree(init.nodeTree), m_FilePath(filePath) {
+m_PrimitivesAlpha(init.primitivesAlpha), m_Physics(init.physics), m_Assets(init.assets), m_Cameras(init.cameras), m_Lights(init.lights),
+m_NodeTree(init.nodeTree), m_FilePath(filePath) {
+    
     parseGLTF();
     parsePhysicsMaterialsAndShapes();
-    
-    const unsigned int vCpu = enki::GetNumHardwareThreads();
-    g_TS.Initialize(vCpu);
-    
-    ImageParseTaskSet task(m_gltfModel.images);
-    g_TS.AddTaskSetToPipe( &task );
-    
-    g_TS.WaitforTask( &task );
-    
-    g_TS.ShutdownNow();
     
     m_NodeTree.nodes.reserve(m_NodeTree.nodes.size() + m_gltfModel.nodes.size());
     for(int gltfIndex: m_gltfModel.scenes[m_gltfModel.defaultScene].nodes) {
         loadNodeFromModel(gltfIndex, 0);
     }
+    
+    ImageParseTaskSet task(m_gltfModel.images);
+    g_TaskScheduler.AddTaskSetToPipe(&task);
+    g_TaskScheduler.WaitforTask(&task);
     
     loadMaterialsToVRAM();
 }
