@@ -240,3 +240,37 @@ int Renderer::getFrameIndex() const {
     assert(m_IsFrameStarted && "Cannot get frame index when frame not in progress");
     return m_CurrentImageIndex;
 }
+
+void Renderer::graphic2GraphicMemoryBarrier(VkCommandBuffer commandBuffer, RenderPass pass, int frameIndex) {
+    static VkImageMemoryBarrier s_Barrier = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .pNext = NULL,
+        // Synchronization
+        .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+        // Layout transition
+        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        // No queue ownership transfer
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .subresourceRange = {
+            .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel   = 0,
+            .levelCount     = 1,
+            .baseArrayLayer = 0,
+            .layerCount     = 1
+        }
+    };
+    
+    s_Barrier.image = m_Offscreen[pass].color.image[frameIndex];
+    vkCmdPipelineBarrier(
+        commandBuffer,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,  // Source pipeline stage
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,          // Destination pipeline stage
+        0,              // dependency flags
+        0, NULL,        // memory barriers
+        0, NULL,        // buffer barriers
+        1, &s_Barrier   // image barriers
+    );
+}

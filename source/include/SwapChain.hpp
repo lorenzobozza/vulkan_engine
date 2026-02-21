@@ -74,7 +74,7 @@ private:
     std::vector<VkFramebuffer> m_SwapChainFramebuffers;
     VkRenderPass m_CompositionRenderPass;
     
-    FrameBufferAttachment m_DepthStencil;
+    FrameBufferAttachment m_DepthStencil[MAX_FRAMES_IN_FLIGHT];
     
     std::vector<VkSemaphore> m_ImageAvailableSemaphores;
     std::vector<VkSemaphore> m_RenderFinishedSemaphores;

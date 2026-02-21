@@ -48,6 +48,8 @@ Device::Device(SDLWindow &window) : m_Window(window) {
     createLogicalDevice();
     createGraphicsCommandPool();
     createTransferCommandPool();
+    
+    ext = std::make_unique<Extensions>(this);
 }
 
 Device::~Device() {
@@ -129,9 +131,9 @@ void Device::pickPhysicalDevice(void) {
     std::vector<VkPhysicalDevice> devices(deviceCount);
     vkEnumeratePhysicalDevices(m_InstanceHandle, &deviceCount, devices.data());
     
-    for (const auto &device : devices) {
-        if (isDeviceSuitable(device)) {
-            m_PhysicalDevice = device;
+    for (auto device = devices.begin(); device != devices.end(); ++device) {
+        if (isDeviceSuitable(*device)) {
+            m_PhysicalDevice = *device;
             m_MaxMSAASamples = getMaxUsableSampleCount();
             break;
         }
@@ -152,30 +154,40 @@ void Device::createLogicalDevice(void) {
     m_Indices = findQueueFamilies(m_PhysicalDevice);
     
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-    std::set<uint32_t> uniqueQueueFamilies;
     
-    bool multipleQueues = m_Indices.graphicsFamily == m_Indices.transferFamily;
-    if ( multipleQueues ) {
-        uniqueQueueFamilies = {m_Indices.graphicsFamily, m_Indices.presentFamily};
+    struct QueueFamily {
+        uint32_t id;
+        uint32_t count;
+    };
+    std::vector<uint32_t> uniqueQueueFamilies;
+    
+    uniqueQueueFamilies.push_back(m_Indices.graphicsFamily);
+    if (m_Indices.graphicsFamily == m_Indices.presentFamily) {
+        if (m_Indices.graphicsFamily != m_Indices.transferFamily) {
+            uniqueQueueFamilies.push_back(m_Indices.transferFamily);
+        }
     } else {
-        uniqueQueueFamilies = {m_Indices.graphicsFamily, m_Indices.transferFamily, m_Indices.presentFamily};
+        uniqueQueueFamilies.push_back(m_Indices.presentFamily);
+        if (m_Indices.graphicsFamily != m_Indices.transferFamily) {
+            uniqueQueueFamilies.push_back(m_Indices.transferFamily);
+        }
     }
     
-    float queuePriority = 1.0f;
-    for (uint32_t queueFamily : uniqueQueueFamilies) {
+    const float queuePriority = 1.0f;
+    for (auto& queueFamily : uniqueQueueFamilies) {
         VkDeviceQueueCreateInfo queueCreateInfo = {};
         queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         queueCreateInfo.queueFamilyIndex = queueFamily;
-        queueCreateInfo.queueCount = (multipleQueues && queueFamily == m_Indices.graphicsFamily) ? 2 : 1;
+        queueCreateInfo.queueCount = 1;
         queueCreateInfo.pQueuePriorities = &queuePriority;
         queueCreateInfos.push_back(queueCreateInfo);
     }
     
     VkPhysicalDeviceFeatures deviceFeatures = {};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
-    deviceFeatures.sampleRateShading = VK_TRUE;
     deviceFeatures.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
-    deviceFeatures.fillModeNonSolid = VK_TRUE;
+    //deviceFeatures.sampleRateShading = VK_TRUE;
+    //deviceFeatures.fillModeNonSolid = VK_TRUE;
     
     VkDeviceCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -252,7 +264,7 @@ bool Device::isDeviceSuitable(VkPhysicalDevice device) {
     vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
     
     return indices.isComplete() && extensionsSupported && swapChainAdequate &&
-    supportedFeatures.samplerAnisotropy && supportedFeatures.fillModeNonSolid;
+    supportedFeatures.samplerAnisotropy;// && supportedFeatures.fillModeNonSolid;
 }
 
 void Device::populateDebugMessengerCreateInfo(

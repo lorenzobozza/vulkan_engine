@@ -20,7 +20,7 @@ void CompositingPipeline::customizePipelineConfig(PipelineConfigInfo& config) {
     config.pipelineLayout = m_PipelineLayout;
     
     config.multisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-    config.multisampleInfo.sampleShadingEnable = VK_TRUE;
+    config.multisampleInfo.sampleShadingEnable = VK_FALSE;
     config.multisampleInfo.minSampleShading = .2f;
 }
 
@@ -71,7 +71,7 @@ void CompositingPipeline::render(VkCommandBuffer commandBuffer, int frameIndex) 
                             m_PipelineLayout,
                             0,
                             1,
-                            &m_DescriptorSets->at(frameIndex),
+                            &(m_DescriptorSets->at(frameIndex)),
                             0,
                             nullptr);
     

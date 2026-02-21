@@ -16,10 +16,10 @@ void DebugPipeline::customizePipelineConfig(PipelineConfigInfo& config) {
     config.pipelineLayout = m_PipelineLayout;
     
     config.multisampleInfo.rasterizationSamples = m_SampleCount;
-    config.multisampleInfo.sampleShadingEnable = VK_TRUE;
+    config.multisampleInfo.sampleShadingEnable = VK_FALSE;
     config.multisampleInfo.minSampleShading = .2f;
     
-    config.rasterizationInfo.polygonMode = VK_POLYGON_MODE_LINE;
+    config.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
     
     config.inputAssemblyInfo.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
 }

@@ -315,7 +315,7 @@ void TextRender::createPipeline(VkRenderPass renderPass) {
     pipelineConfig.renderPass = renderPass;
     pipelineConfig.pipelineLayout = pipelineLayout;
     pipelineConfig.multisampleInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-    pipelineConfig.multisampleInfo.sampleShadingEnable = VK_TRUE;
+    pipelineConfig.multisampleInfo.sampleShadingEnable = VK_FALSE;
     pipelineConfig.multisampleInfo.minSampleShading = .2f;
     pipeline = std::make_unique<Pipeline>(
       device,

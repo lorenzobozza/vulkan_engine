@@ -16,7 +16,7 @@ void ShadowPipeline::customizePipelineConfig(PipelineConfigInfo& config) {
     config.pipelineLayout = m_PipelineLayout;
     
     config.multisampleInfo.rasterizationSamples = m_SampleCount;
-    config.multisampleInfo.sampleShadingEnable = VK_TRUE;
+    config.multisampleInfo.sampleShadingEnable = VK_FALSE;
     config.multisampleInfo.minSampleShading = .2f;
     
     config.rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;

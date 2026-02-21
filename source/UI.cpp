@@ -151,7 +151,9 @@ void UI::createPipeline(VkRenderPass renderPass, std::string dynamicShaderPath) 
     if(vkCreateGraphicsPipelines(m_Device.device(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_ImguiPipeline) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create imgui pipeline");
     }
-    
+
+    m_Device.ext->setDebugUtilsObjectName(VK_OBJECT_TYPE_PIPELINE, (uint64_t)m_ImguiPipeline, "UI_Pipeline");
+
     for (auto shaderStage : shaderStages) {
         vkDestroyShaderModule(m_Device.device(), shaderStage.module, nullptr);
     }

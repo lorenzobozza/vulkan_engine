@@ -277,11 +277,15 @@ void Application::run() {
             if (m_DebugMode) m_Pipes.debug.render(commandBuffer, m_FrameIndex);
             m_Renderer.endRenderPass(commandBuffer);
             
+            m_Renderer.graphic2GraphicMemoryBarrier(commandBuffer, RenderPass::WorldSpace, m_FrameIndex);
+            
             m_Renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::ScreenSpace);
             if (!m_PreviewMode) {
                 m_Pipes.composit.render(commandBuffer, m_FrameIndex);
             }
             m_Renderer.endRenderPass(commandBuffer);
+            
+            m_Renderer.graphic2GraphicMemoryBarrier(commandBuffer, RenderPass::ScreenSpace, m_FrameIndex);
             
             m_Renderer.beginSwapChainRenderPass(commandBuffer);
             if (m_PreviewMode) {

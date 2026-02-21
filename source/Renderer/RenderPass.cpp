@@ -50,6 +50,9 @@ void Renderer::createOffscreenPass(RenderPass index) {
         if (vkCreateImageView(m_Device.device(), &viewInfo, nullptr, &attachments.color.view[f]) != VK_SUCCESS) {
             throw std::runtime_error("failed to create texture image view!");
         }
+        
+        std::string name = ((index == RenderPass::WorldSpace) ? "WorldPass_" : "ScreenPass_") + std::to_string(f);
+        m_Device.ext->setDebugUtilsObjectName(VK_OBJECT_TYPE_IMAGE_VIEW, (uint64_t)attachments.color.view[f], name);
     }
     
     // Depth Resources

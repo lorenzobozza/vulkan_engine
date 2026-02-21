@@ -88,6 +88,7 @@ Pipeline::Status Pipeline::createGraphicsPipeline(const std::string &vertFilepat
     if(vkCreateGraphicsPipelines(m_Device.device(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_GraphicsPipeline) != VK_SUCCESS) {
         return Status::ERR;
     }
+    m_Device.ext->setDebugUtilsObjectName(VK_OBJECT_TYPE_PIPELINE, (uint64_t)m_GraphicsPipeline, fragFilepath);
     
     return Status::OK;
 }

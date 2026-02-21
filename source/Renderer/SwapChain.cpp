@@ -42,9 +42,11 @@ SwapChain::~SwapChain() {
     }
     m_SwapChainImageViews.clear();
     
-    vkDestroyImageView(m_Device.device(), m_DepthStencil.view, nullptr);
-    vkDestroyImage(m_Device.device(), m_DepthStencil.image, nullptr);
-    vkFreeMemory(m_Device.device(), m_DepthStencil.mem, nullptr);
+    for (int i = 0; i < imageCount(); i++) {
+        vkDestroyImageView(m_Device.device(), m_DepthStencil[i].view, nullptr);
+        vkDestroyImage(m_Device.device(), m_DepthStencil[i].image, nullptr);
+        vkFreeMemory(m_Device.device(), m_DepthStencil[i].mem, nullptr);
+    }
     
     if (m_SwapChainHandle != VK_NULL_HANDLE) {
         vkDestroySwapchainKHR(m_Device.device(), m_SwapChainHandle, nullptr);
@@ -264,10 +266,10 @@ void SwapChain::createCompositionRenderPass(void) {
 
 void SwapChain::createSwapChainFramebuffers(void) {
     VkImageView attachments[2];
-    attachments[1] = m_DepthStencil.view;
     m_SwapChainFramebuffers.resize(imageCount());
     for (size_t i = 0; i < imageCount(); i++) {
         attachments[0] = m_SwapChainImageViews[i];
+        attachments[1] = m_DepthStencil[i].view;
         VkExtent2D swapChainExtent = getSwapChainExtent();
         VkFramebufferCreateInfo framebufferInfo = {};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -304,21 +306,23 @@ void SwapChain::createDepthStencilResources(void) {
     imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     imageInfo.flags = 0;
     
-    m_Device.createImageWithInfo(imageInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_DepthStencil.image, m_DepthStencil.mem);
-    
-    VkImageViewCreateInfo viewInfo{};
-    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    viewInfo.image = m_DepthStencil.image;
-    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    viewInfo.format = depthFormat;
-    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-    viewInfo.subresourceRange.baseMipLevel = 0;
-    viewInfo.subresourceRange.levelCount = 1;
-    viewInfo.subresourceRange.baseArrayLayer = 0;
-    viewInfo.subresourceRange.layerCount = 1;
-    
-    if (vkCreateImageView(m_Device.device(), &viewInfo, nullptr, &m_DepthStencil.view) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create texture image view!");
+    for (int i = 0; i < imageCount(); i++) {
+        m_Device.createImageWithInfo(imageInfo, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_DepthStencil[i].image, m_DepthStencil[i].mem);
+        
+        VkImageViewCreateInfo viewInfo{};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = m_DepthStencil[i].image;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = depthFormat;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = 1;
+        
+        if (vkCreateImageView(m_Device.device(), &viewInfo, nullptr, &m_DepthStencil[i].view) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create texture image view!");
+        }
     }
 }
 

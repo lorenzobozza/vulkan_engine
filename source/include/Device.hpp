@@ -42,6 +42,36 @@ public:
     Device(SDLWindow &window);
     ~Device();
     
+    class Extensions {
+    public:
+        Extensions(const Extensions&) = delete;
+        Extensions& operator=(const Extensions&) = delete;
+        Extensions(Extensions&&) = delete;
+        Extensions& operator=(Extensions&&) = delete;
+        
+        Extensions(Device* device) : m_Device(device) {
+            m_PfnSetDebugUtilsObjectNameEXT = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetDeviceProcAddr(m_Device->device(), "vkSetDebugUtilsObjectNameEXT");
+        }
+        ~Extensions() = default;
+        
+        void setDebugUtilsObjectName(VkObjectType type, uint64_t object, std::string name)
+        {
+#ifdef DEBUG
+            VkDebugUtilsObjectNameInfoEXT nameInfo {
+                .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+                .objectType = type,
+                .objectHandle = object,
+                .pObjectName = name.c_str()
+            };
+            m_PfnSetDebugUtilsObjectNameEXT(m_Device->device(), &nameInfo);
+#endif
+        }
+        
+    private:
+        Device* m_Device;
+        PFN_vkSetDebugUtilsObjectNameEXT m_PfnSetDebugUtilsObjectNameEXT;
+    };
+    
 #ifdef DEBUG
     constexpr static bool ValidationLayersEnabled = true;
 #else
@@ -70,6 +100,8 @@ public:
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) const;
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags prop, VkBuffer& buffer, VkDeviceMemory& bufferMemory) const;
     void createImageWithInfo(const VkImageCreateInfo& imageInfo, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory &imageMemory) const;
+    
+    std::unique_ptr<Extensions> ext;
 
 private:
     void createInstance(void);

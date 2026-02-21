@@ -77,6 +77,8 @@ public:
     const VkDescriptorSetLayout* getDescriptorSetLayout(RenderPass index) const { return m_Offscreen[index].descriptor.layout->getDescriptorSetLayout(); }
     std::vector<VkDescriptorSet>* getDescriptorSets(RenderPass index) { return &m_Offscreen[index].descriptor.v_set; }
     VkDescriptorImageInfo* getImageDescriptor(RenderPass index) { return m_Offscreen[index].descriptorImage; }
+        
+    void graphic2GraphicMemoryBarrier(VkCommandBuffer commandBuffer, RenderPass pass, int frameIndex);
     
 private:
     void createCommandBuffers(void);
