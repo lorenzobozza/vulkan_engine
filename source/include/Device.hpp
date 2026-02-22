@@ -11,7 +11,7 @@
 #include "SDLWindow.hpp"
 
 #include <vector>
-
+#include <memory>
 
 struct SwapChainSupportDetails {
     VkSurfaceCapabilitiesKHR capabilities;
@@ -29,6 +29,7 @@ struct QueueFamilyIndices {
     bool graphicsFamilyHasValue = false;
     bool transferFamilyHasValue = false;
     bool presentFamilyHasValue = false;
+    bool enableAsyncTransfer = false;
     bool isComplete() { return graphicsFamilyHasValue && transferFamilyHasValue && presentFamilyHasValue; }
 };
 
@@ -91,7 +92,6 @@ public:
     VkSampleCountFlagBits getSupportedSmapleCount(void) const { return m_MaxMSAASamples; }
 
     SwapChainSupportDetails getSwapChainSupport() const { return querySwapChainSupport(m_PhysicalDevice); }
-    QueueFamilyIndices findPhysicalQueueFamilies() const { return findQueueFamilies(m_PhysicalDevice); }
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
     VkFormat findSupportedFormat(const std::vector<VkFormat> &candidates, VkImageTiling tiling, VkFormatFeatureFlags features) const;
     

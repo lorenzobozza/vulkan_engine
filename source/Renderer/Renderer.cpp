@@ -249,7 +249,7 @@ void Renderer::graphic2GraphicMemoryBarrier(VkCommandBuffer commandBuffer, Rende
         .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
         .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
         // Layout transition
-        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         // No queue ownership transfer
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,

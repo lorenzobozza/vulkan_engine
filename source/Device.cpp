@@ -151,35 +151,27 @@ void Device::pickPhysicalDevice(void) {
 }
 
 void Device::createLogicalDevice(void) {
-    m_Indices = findQueueFamilies(m_PhysicalDevice);
-    
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
     
     struct QueueFamily {
         uint32_t id;
         uint32_t count;
     };
-    std::vector<uint32_t> uniqueQueueFamilies;
-    
-    uniqueQueueFamilies.push_back(m_Indices.graphicsFamily);
-    if (m_Indices.graphicsFamily == m_Indices.presentFamily) {
-        if (m_Indices.graphicsFamily != m_Indices.transferFamily) {
-            uniqueQueueFamilies.push_back(m_Indices.transferFamily);
-        }
+    std::vector<QueueFamily> uniqueQueueFamilies;
+    if (m_Indices.graphicsFamily != m_Indices.transferFamily) {
+        uniqueQueueFamilies.push_back({m_Indices.graphicsFamily, 1U});
+        uniqueQueueFamilies.push_back({m_Indices.transferFamily, 1U});
     } else {
-        uniqueQueueFamilies.push_back(m_Indices.presentFamily);
-        if (m_Indices.graphicsFamily != m_Indices.transferFamily) {
-            uniqueQueueFamilies.push_back(m_Indices.transferFamily);
-        }
+        uniqueQueueFamilies.push_back({m_Indices.graphicsFamily, (m_Indices.enableAsyncTransfer ? 2U : 1U)});
     }
     
-    const float queuePriority = 1.0f;
+    float queuePriority[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
     for (auto& queueFamily : uniqueQueueFamilies) {
         VkDeviceQueueCreateInfo queueCreateInfo = {};
         queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueCreateInfo.queueFamilyIndex = queueFamily;
-        queueCreateInfo.queueCount = 1;
-        queueCreateInfo.pQueuePriorities = &queuePriority;
+        queueCreateInfo.queueFamilyIndex = queueFamily.id;
+        queueCreateInfo.queueCount = queueFamily.count;
+        queueCreateInfo.pQueuePriorities = queuePriority;
         queueCreateInfos.push_back(queueCreateInfo);
     }
     
@@ -201,8 +193,7 @@ void Device::createLogicalDevice(void) {
     
     createInfo.pNext = nullptr;
     
-    // might not really be necessary anymore because device specific validation layers
-    // have been deprecated
+    // might not really be necessary anymore because device specific validation layers have been deprecated
     if (ValidationLayersEnabled) {
         createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
         createInfo.ppEnabledLayerNames = validationLayers.data();
@@ -220,11 +211,9 @@ void Device::createLogicalDevice(void) {
 }
 
 void Device::createGraphicsCommandPool(void) {
-    QueueFamilyIndices queueFamilyIndices = findQueueFamilies(m_PhysicalDevice);
-    
     VkCommandPoolCreateInfo poolInfo = {};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily;
+    poolInfo.queueFamilyIndex = m_Indices.graphicsFamily;
     poolInfo.flags =
     VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     
@@ -234,11 +223,9 @@ void Device::createGraphicsCommandPool(void) {
 }
 
 void Device::createTransferCommandPool(void) {
-    QueueFamilyIndices queueFamilyIndices = findQueueFamilies(m_PhysicalDevice);
-    
     VkCommandPoolCreateInfo poolInfo = {};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.queueFamilyIndex = queueFamilyIndices.transferFamily;
+    poolInfo.queueFamilyIndex = m_Indices.transferFamily;
     poolInfo.flags =
     VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     
@@ -250,7 +237,7 @@ void Device::createTransferCommandPool(void) {
 void Device::createSurface(void) { m_Window.createWindowSurface(m_InstanceHandle, &m_SurfaceHandle); }
 
 bool Device::isDeviceSuitable(VkPhysicalDevice device) {
-    QueueFamilyIndices indices = findQueueFamilies(device);
+    m_Indices = findQueueFamilies(device);
     
     bool extensionsSupported = checkDeviceExtensionSupport(device);
     
@@ -263,12 +250,11 @@ bool Device::isDeviceSuitable(VkPhysicalDevice device) {
     VkPhysicalDeviceFeatures supportedFeatures;
     vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
     
-    return indices.isComplete() && extensionsSupported && swapChainAdequate &&
+    return m_Indices.isComplete() && extensionsSupported && swapChainAdequate &&
     supportedFeatures.samplerAnisotropy;// && supportedFeatures.fillModeNonSolid;
 }
 
-void Device::populateDebugMessengerCreateInfo(
-                                              VkDebugUtilsMessengerCreateInfoEXT &createInfo) {
+void Device::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo) {
     createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
     createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
@@ -389,41 +375,65 @@ QueueFamilyIndices Device::findQueueFamilies(VkPhysicalDevice device) const {
     std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
     
-    int i = 0;
-    for (const auto &queueFamily : queueFamilies) {
-        VkBool32 presentSupport = false;
-        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_SurfaceHandle, &presentSupport);
-        if (queueFamily.queueCount > 0 && presentSupport && !indices.presentFamilyHasValue) {
+    
+    // Priority to find a family that supports both graphics and present
+    for (int i = 0; i < queueFamilies.size(); ++i) {
+        VkBool32 present = false;
+        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_SurfaceHandle, &present);
+        auto& family = queueFamilies[i];
+        if (family.queueCount > 0 && present && (family.queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
             indices.presentFamily = i;
             indices.presentFamilyHasValue = true;
-        }
-        
-        if (queueFamily.queueCount > 0 && (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) && !indices.graphicsFamilyHasValue) {
+            indices.presentQueueCount = 0;
             indices.graphicsFamily = i;
             indices.graphicsQueueCount = 0;
             indices.graphicsFamilyHasValue = true;
-            if (queueFamily.queueCount > 1 && (queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT) && !indices.transferFamilyHasValue) {
-                indices.transferFamily = i;
-                indices.transferQueueCount = 1;
-                indices.transferFamilyHasValue = true;
-            }
-            if (queueFamilies.size() - i > 1 || indices.transferFamilyHasValue) {
-                i++;
-                continue;
-            }
-        }
-        
-        if (queueFamily.queueCount > 0 && (queueFamily.queueFlags & VK_QUEUE_TRANSFER_BIT) && !indices.transferFamilyHasValue) {
-            indices.transferFamily = i;
-            indices.transferQueueCount = 0;
-            indices.transferFamilyHasValue = true;
-        }
-        
-        if (indices.isComplete()) {
             break;
         }
-        
-        i++;
+    }
+    
+    if (!indices.presentFamilyHasValue) {
+        for (int i = 0; i < queueFamilies.size(); ++i) {
+            VkBool32 present = false;
+            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_SurfaceHandle, &present);
+            if (present) {
+                indices.presentFamily = i;
+                indices.presentFamilyHasValue = true;
+                break;
+            }
+        }
+    }
+    
+    if (!indices.graphicsFamilyHasValue) {
+        for (int i = 0; i < queueFamilies.size(); ++i) {
+            auto& family = queueFamilies[i];
+            if (family.queueCount > 0 && (family.queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
+                indices.graphicsFamily = i;
+                indices.graphicsQueueCount = 0;
+                indices.graphicsFamilyHasValue = true;
+                break;
+            }
+        }
+    }
+    
+    for (int i = 0; i < queueFamilies.size(); ++i) {
+        auto& family = queueFamilies[i];
+        if (family.queueCount > 0 && (family.queueFlags & VK_QUEUE_TRANSFER_BIT)) {
+            if (indices.graphicsFamily == i && family.queueCount == 1) continue;
+            indices.transferFamily = i;
+            indices.transferQueueCount = (indices.graphicsFamily == i) ? 1 : 0;
+            indices.transferFamilyHasValue = true;
+            break;
+        }
+    }
+    
+    // No async transfer
+    if (!indices.transferFamilyHasValue) {
+        indices.transferFamily = indices.graphicsFamily;
+        indices.transferQueueCount = 0;
+        indices.transferFamilyHasValue = true;
+    } else {
+        indices.enableAsyncTransfer = true;
     }
     
     return indices;

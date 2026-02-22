@@ -199,8 +199,10 @@ void Application::run() {
                     /**** Load Scene from glTF file on a separate thread */
                     std::thread([this, file](){
                         if (g_TaskScheduler.RegisterExternalTaskThread()) {
+                            m_AssetsLoaded = false;
                             NodeSet(initNodeStruct, file);
                             m_Assets.changed.test_and_set();
+                            m_AssetsLoaded = true;
                             g_TaskScheduler.DeRegisterExternalTaskThread();
                         }
                     }).detach();
@@ -247,6 +249,7 @@ void Application::run() {
             m_Assets.busy.clear();
         }
         
+        if (m_Device.getFamilyIndices().enableAsyncTransfer || m_AssetsLoaded)
         if (auto commandBuffer = m_Renderer.beginFrame()) {
             m_FrameIndex = m_Renderer.getFrameIndex();
             
