@@ -138,8 +138,8 @@ private:
     VkDebugUtilsMessengerEXT m_DebugMessenger;
     VkSampleCountFlagBits m_MaxMSAASamples;
 
-    const std::vector<const char *> validationLayers = {"VK_LAYER_KHRONOS_validation"};
-    const std::vector<const char *> deviceExtensions = {
+    const std::vector<const char *> m_RequiredLayers = {"VK_LAYER_KHRONOS_validation"};
+    const std::vector<const char *> m_RequiredExtensions = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 #ifdef __APPLE__
         "VK_KHR_portability_subset"

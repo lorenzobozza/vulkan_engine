@@ -90,8 +90,8 @@ void Device::createInstance(void) {
     
     VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
     if (ValidationLayersEnabled) {
-        createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-        createInfo.ppEnabledLayerNames = validationLayers.data();
+        createInfo.enabledLayerCount = static_cast<uint32_t>(m_RequiredLayers.size());
+        createInfo.ppEnabledLayerNames = m_RequiredLayers.data();
         
         populateDebugMessengerCreateInfo(debugCreateInfo);
         createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT *)&debugCreateInfo;
@@ -131,9 +131,9 @@ void Device::pickPhysicalDevice(void) {
     std::vector<VkPhysicalDevice> devices(deviceCount);
     vkEnumeratePhysicalDevices(m_InstanceHandle, &deviceCount, devices.data());
     
-    for (auto device = devices.begin(); device != devices.end(); ++device) {
-        if (isDeviceSuitable(*device)) {
-            m_PhysicalDevice = *device;
+    for (auto& device : devices) {
+        if (isDeviceSuitable(device)) {
+            m_PhysicalDevice = device;
             m_MaxMSAASamples = getMaxUsableSampleCount();
             break;
         }
@@ -143,11 +143,21 @@ void Device::pickPhysicalDevice(void) {
         throw std::runtime_error("failed to find a suitable GPU!");
     }
     
-    vkGetPhysicalDeviceProperties(m_PhysicalDevice, &m_DeviceProperties);
-    log->info("Vulkan API {}.{}.{} / {}",
+    VkPhysicalDeviceDriverProperties driverProp {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES
+    };
+    VkPhysicalDeviceProperties2 deviceProp {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+        .pNext = (void*)&driverProp
+    };
+    vkGetPhysicalDeviceProperties2(m_PhysicalDevice, &deviceProp);
+    
+    m_DeviceProperties = deviceProp.properties;
+    log->info("Vulkan {}.{}.{} - {} - {}",
               VK_API_VERSION_MAJOR(m_DeviceProperties.apiVersion),
               VK_API_VERSION_MINOR(m_DeviceProperties.apiVersion),
-              VK_API_VERSION_PATCH(m_DeviceProperties.apiVersion), m_DeviceProperties.deviceName);
+              VK_API_VERSION_PATCH(m_DeviceProperties.apiVersion),
+              std::string(driverProp.driverName), std::string(m_DeviceProperties.deviceName));
 }
 
 void Device::createLogicalDevice(void) {
@@ -175,28 +185,27 @@ void Device::createLogicalDevice(void) {
         queueCreateInfos.push_back(queueCreateInfo);
     }
     
-    VkPhysicalDeviceFeatures deviceFeatures = {};
-    deviceFeatures.samplerAnisotropy = VK_TRUE;
-    deviceFeatures.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
-    //deviceFeatures.sampleRateShading = VK_TRUE;
-    //deviceFeatures.fillModeNonSolid = VK_TRUE;
+    VkPhysicalDeviceFeatures supportedFeatures = {};
+    VkPhysicalDeviceFeatures requestedFeatures = {};
+    vkGetPhysicalDeviceFeatures(m_PhysicalDevice, &supportedFeatures);
+    requestedFeatures.samplerAnisotropy = supportedFeatures.samplerAnisotropy;
+    requestedFeatures.sampleRateShading = supportedFeatures.sampleRateShading;
+    requestedFeatures.fillModeNonSolid = supportedFeatures.fillModeNonSolid;
+    requestedFeatures.shaderSampledImageArrayDynamicIndexing = supportedFeatures.shaderSampledImageArrayDynamicIndexing;
     
     VkDeviceCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    
     createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
     createInfo.pQueueCreateInfos = queueCreateInfos.data();
-    
-    createInfo.pEnabledFeatures = &deviceFeatures;
-    createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
-    createInfo.ppEnabledExtensionNames = deviceExtensions.data();
-    
+    createInfo.pEnabledFeatures = &requestedFeatures;
+    createInfo.enabledExtensionCount = static_cast<uint32_t>(m_RequiredExtensions.size());
+    createInfo.ppEnabledExtensionNames = m_RequiredExtensions.data();
     createInfo.pNext = nullptr;
     
     // might not really be necessary anymore because device specific validation layers have been deprecated
     if (ValidationLayersEnabled) {
-        createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-        createInfo.ppEnabledLayerNames = validationLayers.data();
+        createInfo.enabledLayerCount = static_cast<uint32_t>(m_RequiredLayers.size());
+        createInfo.ppEnabledLayerNames = m_RequiredLayers.data();
     } else {
         createInfo.enabledLayerCount = 0;
     }
@@ -238,20 +247,15 @@ void Device::createSurface(void) { m_Window.createWindowSurface(m_InstanceHandle
 
 bool Device::isDeviceSuitable(VkPhysicalDevice device) {
     m_Indices = findQueueFamilies(device);
-    
-    bool extensionsSupported = checkDeviceExtensionSupport(device);
-    
+        
     bool swapChainAdequate = false;
+    bool extensionsSupported = checkDeviceExtensionSupport(device);
     if (extensionsSupported) {
         SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
         swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
     }
     
-    VkPhysicalDeviceFeatures supportedFeatures;
-    vkGetPhysicalDeviceFeatures(device, &supportedFeatures);
-    
-    return m_Indices.isComplete() && extensionsSupported && swapChainAdequate &&
-    supportedFeatures.samplerAnisotropy;// && supportedFeatures.fillModeNonSolid;
+    return m_Indices.isComplete() && extensionsSupported && swapChainAdequate;
 }
 
 void Device::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo) {
@@ -283,7 +287,7 @@ bool Device::checkValidationLayerSupport(void) {
     std::vector<VkLayerProperties> availableLayers(layerCount);
     vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
     
-    for (const char *layerName : validationLayers) {
+    for (const char *layerName : m_RequiredLayers) {
         bool layerFound = false;
         
         for (const auto &layerProperties : availableLayers) {
@@ -326,24 +330,18 @@ std::vector<const char *> Device::getRequiredExtensions(void) {
 }
 
 void Device::hasRequiredInstanceExtensions(void) {
-//    Log* log = Log::getInstance();
-    
     uint32_t extensionCount = 0;
     vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
     std::vector<VkExtensionProperties> extensions(extensionCount);
     vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
     
-//    log->info("Available extensions:");
     std::unordered_set<std::string> available;
     for (const auto &extension : extensions) {
-//        log->info("\t{}", std::string(extension.extensionName));
         available.insert(extension.extensionName);
     }
     
-//    log->info("Required extensions:");
     auto requiredExtensions = getRequiredExtensions();
     for (const auto &required : requiredExtensions) {
-//        log->info("\t{}", std::string(required));
         if (available.find(required) == available.end()) {
             throw std::runtime_error("Missing required sdl2 extension");
         }
@@ -357,13 +355,14 @@ bool Device::checkDeviceExtensionSupport(VkPhysicalDevice device) {
     std::vector<VkExtensionProperties> availableExtensions(extensionCount);
     vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
     
-    std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
+    std::set<std::string> requiredExtensionsChecklist(m_RequiredExtensions.begin(), m_RequiredExtensions.end());
     
-    for (const auto &extension : availableExtensions) {
-        requiredExtensions.erase(extension.extensionName);
+    for (const auto& ext : availableExtensions) {
+        size_t required = requiredExtensionsChecklist.erase(ext.extensionName);
+        if ((std::string(ext.extensionName) == "VK_KHR_portability_subset") && !required) return false;
     }
     
-    return requiredExtensions.empty();
+    return requiredExtensionsChecklist.empty();
 }
 
 QueueFamilyIndices Device::findQueueFamilies(VkPhysicalDevice device) const {

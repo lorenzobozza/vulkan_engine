@@ -147,7 +147,7 @@ void Texture::loadTexture(void) {
     
     if (fileExt == ".exr") {
         float* data;
-        int ret = LoadEXR(&data, &texWidth, &texHeight, m_TextureFilePath.c_str(), nullptr);
+        (void)LoadEXR(&data, &texWidth, &texHeight, m_TextureFilePath.c_str(), nullptr);
         pixels = (void*)data;
     } else {
         if(stbi_is_hdr(m_TextureFilePath.c_str())) {
