@@ -2,7 +2,7 @@
 //  Device.cpp
 //  vulkan_engine
 //
-//  Created by Brendan Galea on 05/11/21.
+//  Created by Lorenzo Bozza on 05/11/21.
 //
 
 #include "include/Device.hpp"
@@ -17,7 +17,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityF
                                                     VkDebugUtilsMessageTypeFlagsEXT messageType,
                                                     const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData) {
     if (messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
-        std::println("~Validation Layer~\n{}", pCallbackData->pMessage);
+        //std::println("~Validation Layer~\n{}", pCallbackData->pMessage);
         Log::getInstance()->error("~Validation Layer~\n{}", pCallbackData->pMessage);
     }
     return VK_FALSE;
@@ -68,7 +68,7 @@ Device::~Device() {
 void Device::createInstance(void) {
     if (ValidationLayersEnabled) {
         if(!checkValidationLayerSupport())
-            throw std::runtime_error("validation layers requested, but not available!");
+            throw std::runtime_error("Validation layers requested, but not available!");
     }
     
     VkApplicationInfo appInfo = {};
@@ -101,17 +101,14 @@ void Device::createInstance(void) {
     }
     
     if (vkCreateInstance(&createInfo, nullptr, &m_InstanceHandle) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create instance!");
+        throw std::runtime_error("Failed to create instance!");
     }
     
     hasRequiredInstanceExtensions();
 }
 
 VkSampleCountFlagBits Device::getMaxUsableSampleCount(void) {
-    VkPhysicalDeviceProperties physicalDeviceProperties;
-    vkGetPhysicalDeviceProperties(m_PhysicalDevice, &physicalDeviceProperties);
-    
-    VkSampleCountFlags counts = physicalDeviceProperties.limits.framebufferColorSampleCounts & physicalDeviceProperties.limits.framebufferDepthSampleCounts;
+    VkSampleCountFlags counts = m_DeviceProperties.limits.framebufferColorSampleCounts & m_DeviceProperties.limits.framebufferDepthSampleCounts;
     if (counts & VK_SAMPLE_COUNT_16_BIT) { return VK_SAMPLE_COUNT_16_BIT; }
     if (counts & VK_SAMPLE_COUNT_8_BIT) { return VK_SAMPLE_COUNT_8_BIT; }
     if (counts & VK_SAMPLE_COUNT_4_BIT) { return VK_SAMPLE_COUNT_4_BIT; }
@@ -122,25 +119,25 @@ VkSampleCountFlagBits Device::getMaxUsableSampleCount(void) {
 
 void Device::pickPhysicalDevice(void) {
     Log* log = Log::getInstance();
+    
     uint32_t deviceCount = 0;
     vkEnumeratePhysicalDevices(m_InstanceHandle, &deviceCount, nullptr);
     if (deviceCount == 0) {
-        throw std::runtime_error("failed to find GPUs with Vulkan support!");
+        throw std::runtime_error("Failed to find Devices with Vulkan support!");
     }
     log->info("Device count: {}", deviceCount);
+    
     std::vector<VkPhysicalDevice> devices(deviceCount);
     vkEnumeratePhysicalDevices(m_InstanceHandle, &deviceCount, devices.data());
-    
     for (auto& device : devices) {
         if (isDeviceSuitable(device)) {
             m_PhysicalDevice = device;
-            m_MaxMSAASamples = getMaxUsableSampleCount();
             break;
         }
     }
     
     if (m_PhysicalDevice == VK_NULL_HANDLE) {
-        throw std::runtime_error("failed to find a suitable GPU!");
+        throw std::runtime_error("Failed to find a suitable Device!");
     }
     
     VkPhysicalDeviceDriverProperties driverProp {
@@ -151,8 +148,9 @@ void Device::pickPhysicalDevice(void) {
         .pNext = (void*)&driverProp
     };
     vkGetPhysicalDeviceProperties2(m_PhysicalDevice, &deviceProp);
-    
     m_DeviceProperties = deviceProp.properties;
+    m_MaxMSAASamples = getMaxUsableSampleCount();
+    
     log->info("Vulkan {}.{}.{} - {} - {}",
               VK_API_VERSION_MAJOR(m_DeviceProperties.apiVersion),
               VK_API_VERSION_MINOR(m_DeviceProperties.apiVersion),
@@ -211,7 +209,7 @@ void Device::createLogicalDevice(void) {
     }
     
     if (vkCreateDevice(m_PhysicalDevice, &createInfo, nullptr, &m_DeviceHandle) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create logical device!");
+        throw std::runtime_error("Failed to create logical device!");
     }
     
     vkGetDeviceQueue(m_DeviceHandle, m_Indices.graphicsFamily, m_Indices.graphicsQueueCount, &m_GraphicsQueue);
@@ -227,7 +225,7 @@ void Device::createGraphicsCommandPool(void) {
     VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     
     if (vkCreateCommandPool(m_DeviceHandle, &poolInfo, nullptr, &m_GraphicsCommandPool) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create graphics command pool!");
+        throw std::runtime_error("Failed to create graphics command pool!");
     }
 }
 
@@ -239,7 +237,7 @@ void Device::createTransferCommandPool(void) {
     VK_COMMAND_POOL_CREATE_TRANSIENT_BIT | VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     
     if (vkCreateCommandPool(m_DeviceHandle, &poolInfo, nullptr, &m_TransferCommandPool) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create transfer command pool!");
+        throw std::runtime_error("Failed to create transfer command pool!");
     }
 }
 
@@ -276,7 +274,7 @@ void Device::setupDebugMessenger(void) {
     VkDebugUtilsMessengerCreateInfoEXT createInfo;
     populateDebugMessengerCreateInfo(createInfo);
     if (CreateDebugUtilsMessengerEXT(m_InstanceHandle, &createInfo, nullptr, &m_DebugMessenger) != VK_SUCCESS) {
-        throw std::runtime_error("failed to set up debug messenger!");
+        throw std::runtime_error("Failed to set up debug messenger!");
     }
 }
 
@@ -343,7 +341,7 @@ void Device::hasRequiredInstanceExtensions(void) {
     auto requiredExtensions = getRequiredExtensions();
     for (const auto &required : requiredExtensions) {
         if (available.find(required) == available.end()) {
-            throw std::runtime_error("Missing required sdl2 extension");
+            throw std::runtime_error("Missing required SDL3 extension");
         }
     }
 }
@@ -471,7 +469,7 @@ VkFormat Device::findSupportedFormat(const std::vector<VkFormat> &candidates, Vk
             return format;
         }
     }
-    throw std::runtime_error("failed to find supported format!");
+    throw std::runtime_error("Failed to find supported format!");
 }
 
 uint32_t Device::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const {
@@ -484,7 +482,7 @@ uint32_t Device::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags prope
         }
     }
     
-    throw std::runtime_error("failed to find suitable memory type!");
+    throw std::runtime_error("Failed to find suitable memory type!");
 }
 
 void Device::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
@@ -496,7 +494,7 @@ void Device::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
     bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     
     if (vkCreateBuffer(m_DeviceHandle, &bufferInfo, nullptr, &buffer) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create vertex buffer!");
+        throw std::runtime_error("Failed to create vertex buffer!");
     }
     
     VkMemoryRequirements memRequirements;
@@ -508,7 +506,7 @@ void Device::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, prop);
     
     if (vkAllocateMemory(m_DeviceHandle, &allocInfo, nullptr, &bufferMemory) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate vertex buffer memory!");
+        throw std::runtime_error("Failed to allocate vertex buffer memory!");
     }
     
     vkBindBufferMemory(m_DeviceHandle, buffer, bufferMemory, 0);
@@ -561,7 +559,7 @@ void Device::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize siz
 void Device::createImageWithInfo(const VkImageCreateInfo &imageInfo, VkMemoryPropertyFlags properties,
                                  VkImage& image, VkDeviceMemory &imageMemory) const {
     if (vkCreateImage(m_DeviceHandle, &imageInfo, nullptr, &image) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create image!");
+        throw std::runtime_error("Failed to create image!");
     }
     
     VkMemoryRequirements memRequirements;
@@ -573,10 +571,10 @@ void Device::createImageWithInfo(const VkImageCreateInfo &imageInfo, VkMemoryPro
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
     
     if (vkAllocateMemory(m_DeviceHandle, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate image memory!");
+        throw std::runtime_error("Failed to allocate image memory!");
     }
     
     if (vkBindImageMemory(m_DeviceHandle, image, imageMemory, 0) != VK_SUCCESS) {
-        throw std::runtime_error("failed to bind image memory!");
+        throw std::runtime_error("Failed to bind image memory!");
     }
 }
