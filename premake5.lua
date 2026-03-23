@@ -9,6 +9,7 @@ project "Acinonyx"
 
 	files {
 		"source/**.cpp",
+		"source/include",
 		"external/imgui/*.cpp",
 		"external/mikktspace/*.c",
 		"external/enkits/*.cpp",

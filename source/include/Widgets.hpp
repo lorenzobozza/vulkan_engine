@@ -100,14 +100,17 @@ public:
 private:
     void content(void) override {
         ImGui::SetNextWindowContentSize(m_extent);
-        ImGui::Begin("Viewport", nullptr, m_flags | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_MenuBar);
+        ImGui::Begin("Viewport", nullptr, m_flags | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_MenuBar);
         ImGuiDockNode* id = ImGui::GetWindowDockNode();
         id->LocalFlags |= ImGuiDockNodeFlags_NoResize | ImGuiDockNodeFlags_AutoHideTabBar;
         
         ImGui::BeginMenuBar();
         static int source = 1;
-        ImGui::Text("Main Viewport");
-        ImGui::SameLine(m_extent.x * 0.79f);
+        ImGui::Text(" Viewport");
+        ImGui::SameLine(m_extent.x * 0.85f);
+        ImGui::Text("Framebuffer: ");
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(ImGui::CalcTextSize("Screen Space").x + 50.f);
         ImGui::Combo("##framecombo", &source, "World Space\0Screen Space\0Shadow\0");
         ImGui::EndMenuBar();
         
