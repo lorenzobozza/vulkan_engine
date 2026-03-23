@@ -16,11 +16,11 @@
 #include "Primitive.hpp"
 #include "Camera.hpp"
 #include "Physics.hpp"
-#include "Texture.hpp"
 #include "CubeMap.hpp"
-#include "Material.hpp"
+#include "Assets.hpp"
 #include "Light.hpp"
 #include "Nodes.hpp"
+#include "ImportGLTF.hpp"
 
 #include "ScenePipeline.hpp"
 #include "ShadowPipeline.hpp"
@@ -90,20 +90,20 @@ private:
         VkDescriptorImageInfo* descriptor;
     } m_Environment, m_Prefiltered, m_Irradiance;
     
+    Primitive::Map m_Primitives;
+    Primitive::Map m_PrimitivesAlpha;
+    
     Assets m_Assets;
     std::vector<Light> m_Lights;
     Camera::Collection m_Cameras;
-    Node::Tree m_NodeTree;
+    Node::Tree m_NodeTree{m_Primitives};
     
     bool m_AssetsLoaded = false;
     bool m_PreviewMode = false;
     bool m_DebugMode = false;
     bool m_RunSimulation = false;
     
-    Primitive::Map m_Primitives;
-    Primitive::Map m_PrimitivesAlpha;
-    
-    NodeSet::InitStruct initNodeStruct{m_Device, m_Image, m_Primitives, m_PrimitivesAlpha,
+    ImportGLTF::InitStruct initNodeStruct{m_Device, m_Image, m_Primitives, m_PrimitivesAlpha,
                                        m_Physics, m_Assets, m_Cameras, m_Lights, m_NodeTree};
 
     int m_FrameIndex{0};

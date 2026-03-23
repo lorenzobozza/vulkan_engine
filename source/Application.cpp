@@ -10,6 +10,7 @@
 #include "UI.hpp"
 #include "Buffer.hpp"
 #include "Widgets.hpp"
+#include "IrradianceVolume.hpp"
 
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -200,7 +201,11 @@ void Application::run() {
                     std::thread([this, file](){
                         if (g_TaskScheduler.RegisterExternalTaskThread()) {
                             m_AssetsLoaded = false;
-                            NodeSet(initNodeStruct, file);
+                            if(file.substr(file.size() - 4, file.size() - 1) == "json") {
+                                m_Assets.volumeProbes = std::make_unique<IrradianceVolume>(m_Device, file);
+                            } else {
+                                ImportGLTF(initNodeStruct, file);
+                            }
                             m_Assets.changed.test_and_set();
                             m_AssetsLoaded = true;
                             g_TaskScheduler.DeRegisterExternalTaskThread();

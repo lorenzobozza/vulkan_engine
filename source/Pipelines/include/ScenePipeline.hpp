@@ -10,7 +10,12 @@
 
 #include "PipelineWrapper.hpp"
 #include "Primitive.hpp"
-#include "Material.hpp"
+#include "Assets.hpp"
+
+struct IVUBO {
+    glm::mat4 invTransform{1.f};
+    glm::vec3 res{0};
+};
 
 class ScenePipeline : public PipelineWrapper {
 public:
@@ -60,6 +65,9 @@ private:
     
     VkDescriptorSet m_MainDescriptorSets[SwapChain::MAX_FRAMES_IN_FLIGHT];
     std::unordered_map<std::string, VkDescriptorSet> m_MaterialDescriptorSets[SwapChain::MAX_FRAMES_IN_FLIGHT];
+    
+    std::unique_ptr<Buffer> ivubo[SwapChain::MAX_FRAMES_IN_FLIGHT];
+    VkDescriptorBufferInfo ivubinfos[SwapChain::MAX_FRAMES_IN_FLIGHT];
 };
 
 #endif /* ScenePipeline_hpp */

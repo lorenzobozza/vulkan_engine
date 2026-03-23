@@ -50,6 +50,23 @@ public:
     }
     
     template <class... _Args>
+    void debug(std::format_string<_Args...> __fmt, _Args&&... __args) {
+        #ifdef DEBUG
+        std::string temp(std::format(__fmt, std::forward<_Args>(__args)...).c_str());
+        temp = std::format("[Debug] {}\n", temp);
+        
+        std::print("[Log]{}", temp);
+
+        stream << temp;
+        error_notification = true;
+        #endif
+    }
+    
+    void debug(const std::string& s) {
+        debug("{}", s);
+    }
+    
+    template <class... _Args>
     void error(std::format_string<_Args...> __fmt, _Args&&... __args) {
         std::string temp(std::format(__fmt, std::forward<_Args>(__args)...).c_str());
         temp = std::format("[Error] {}\n", temp);
@@ -60,8 +77,8 @@ public:
         
         if (error_counter < 100) {
             stream << temp;
-						error_notification = true;
-						if (++error_counter == 100) stream << "\nCLOSING STREAM, TOO MANY ERRORS\n";
+            error_notification = true;
+            if (++error_counter == 100) stream << "\nCLOSING STREAM, TOO MANY ERRORS\n";
         }
     }
     

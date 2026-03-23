@@ -26,13 +26,11 @@ Image::~Image() {
     vkDestroyCommandPool(m_Device.device(), m_CommandPool, nullptr);
 }
 
-void Image::createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, uint32_t layerCount, uint32_t levelCount, VkImageCreateFlags flags) const {
+void Image::createImage(VkExtent3D extent, VkImageType type, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory, uint32_t layerCount, uint32_t levelCount, VkImageCreateFlags flags) const {
     VkImageCreateInfo imageInfo{};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    imageInfo.imageType = VK_IMAGE_TYPE_2D;
-    imageInfo.extent.width = width;
-    imageInfo.extent.height = height;
-    imageInfo.extent.depth = 1;
+    imageInfo.imageType = type;
+    imageInfo.extent = extent;
     imageInfo.mipLevels = levelCount;
     imageInfo.arrayLayers = layerCount;
     imageInfo.format = format;
@@ -47,19 +45,59 @@ void Image::createImage(uint32_t width, uint32_t height, VkFormat format, VkImag
         throw std::runtime_error("failed to create image!");
     }
     
-    VkMemoryRequirements memRequirements;
-    vkGetImageMemoryRequirements(m_Device.device(), image, &memRequirements);
+    VkMemoryDedicatedRequirements dedicatedRequirements = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS,
+        .pNext = NULL,
+    };
+
+    VkMemoryRequirements2 memRequirements = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
+        .pNext = &dedicatedRequirements,
+    };
+
+    const VkImageMemoryRequirementsInfo2 imageRequirementsInfo = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
+        .pNext = NULL,
+        .image = image
+    };
+
+    vkGetImageMemoryRequirements2(m_Device.device(), &imageRequirementsInfo, &memRequirements);
     
-    VkMemoryAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocInfo.allocationSize = memRequirements.size;
-    allocInfo.memoryTypeIndex = m_Device.findMemoryType(memRequirements.memoryTypeBits, properties);
-    
-    if (vkAllocateMemory(m_Device.device(), &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate image memory!");
+    if (dedicatedRequirements.prefersDedicatedAllocation) {
+        
+        VkMemoryDedicatedAllocateInfo dedicatedInfo = {
+            .sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO,
+            .pNext = NULL,
+            .image = image,
+            .buffer = VK_NULL_HANDLE,
+        };
+        
+        VkMemoryAllocateInfo allocInfo = {
+            .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+            .pNext = &dedicatedInfo,
+            .allocationSize = memRequirements.memoryRequirements.size,
+            .memoryTypeIndex = m_Device.findMemoryType(memRequirements.memoryRequirements.memoryTypeBits, properties),
+        };
+        
+        if (vkAllocateMemory(m_Device.device(), &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate image memory!");
+        }
+        
+        vkBindImageMemory(m_Device.device(), image, imageMemory, 0);
+        
+    } else {
+        
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.memoryRequirements.size;
+        allocInfo.memoryTypeIndex = m_Device.findMemoryType(memRequirements.memoryRequirements.memoryTypeBits, properties);
+        
+        if (vkAllocateMemory(m_Device.device(), &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate image memory!");
+        }
+        
+        vkBindImageMemory(m_Device.device(), image, imageMemory, 0);
     }
-    
-    vkBindImageMemory(m_Device.device(), image, imageMemory, 0);
 }
 
 void Image::transitionImageLayout(VkCommandBuffer &commandBuffer, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t layerCount, uint32_t levelCount, uint32_t baseMipLevel, VkImageAspectFlags aspectMask) const {
@@ -137,7 +175,7 @@ void Image::transitionImageLayout(VkCommandBuffer &commandBuffer, VkImage image,
                          1, &barrier);
 }
 
-void Image::copyBufferToImage(VkCommandBuffer &commandBuffer, VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t layerCount, uint32_t mipLevel) const {
+void Image::copyBufferToImage(VkCommandBuffer &commandBuffer, VkBuffer buffer, VkImage image, VkExtent3D extent, uint32_t layerCount, uint32_t mipLevel) const {
     
     VkBufferImageCopy region{};
     region.bufferOffset = 0;
@@ -150,11 +188,7 @@ void Image::copyBufferToImage(VkCommandBuffer &commandBuffer, VkBuffer buffer, V
     region.imageSubresource.layerCount = layerCount;
     
     region.imageOffset = {0, 0, 0};
-    region.imageExtent = {
-        width,
-        height,
-        1
-    };
+    region.imageExtent = extent;
     
     vkCmdCopyBufferToImage(commandBuffer,
                            buffer,
@@ -163,6 +197,54 @@ void Image::copyBufferToImage(VkCommandBuffer &commandBuffer, VkBuffer buffer, V
                            1,
                            &region);
 }
+
+
+void Image::hostMemoryCopyTransition(const void* data, VkImage dstImage, VkImageAspectFlagBits aspect, VkExtent3D extent, VkImageLayout newLayout) const {
+    VkMemoryToImageCopy region = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_TO_IMAGE_COPY,
+        .pNext = NULL,
+        .memoryRowLength = 0,
+        .memoryImageHeight = 0,
+        .imageSubresource = {
+            .aspectMask = aspect,
+            .mipLevel = 0,
+            .baseArrayLayer = 0,
+            .layerCount = 1
+        },
+            .imageOffset = {0, 0, 0},
+            .imageExtent = extent,
+            .pHostPointer = data
+    };
+    
+    VkCopyMemoryToImageInfo copyInfo = {
+        .sType = VK_STRUCTURE_TYPE_COPY_MEMORY_TO_IMAGE_INFO,
+        .pNext = NULL,
+        .flags = VK_HOST_IMAGE_COPY_MEMCPY_BIT,
+        .dstImage = dstImage,
+        .dstImageLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .regionCount = 1,
+        .pRegions = &region,
+    };
+    
+    vkCopyMemoryToImage(m_Device.device(), &copyInfo);
+    
+    VkHostImageLayoutTransitionInfo transInfo = {
+        .sType = VK_STRUCTURE_TYPE_HOST_IMAGE_LAYOUT_TRANSITION_INFO,
+        .pNext = NULL,
+        .image = dstImage,
+        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .newLayout = newLayout,
+        .subresourceRange = {
+            .aspectMask = aspect,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1
+        }
+    };
+    vkTransitionImageLayout(m_Device.device(), 1, &transInfo);
+}
+
 
 VkImageView Image::createImageView(VkImage image, VkImageViewType viewType, VkFormat format, uint32_t layerCount, uint32_t levelCount, VkImageAspectFlags aspectMask) const {
     if ( viewType == VK_IMAGE_VIEW_TYPE_2D && layerCount > 1) { viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY; }

@@ -35,8 +35,11 @@ private:
     const Device& m_Device;
     const Image& m_Image;
     
-    std::unique_ptr<Buffer> m_StagingBuffer;
-    int m_Width, m_Height;
+    VkDeviceSize m_ImageSize;
+    void* m_ImageData;
+    bool m_IsStbiAllocated = false;
+    
+    uint32_t m_Width, m_Height;
     int m_MipLevels;
     
     bool m_MipMapping{false};

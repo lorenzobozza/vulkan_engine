@@ -92,7 +92,7 @@ void CubeMap::renderFaces(void) {
     
     std::unique_ptr<Mesh> cubeCanvas = std::make_unique<Mesh>(m_Device, data);
     
-    m_Image.createImage(m_Extent.width, m_Extent.height, FB_FORMAT, VK_IMAGE_TILING_OPTIMAL,
+    m_Image.createImage({m_Extent.width, m_Extent.height, 1}, VK_IMAGE_TYPE_2D, FB_FORMAT, VK_IMAGE_TILING_OPTIMAL,
                         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_CubeMap.image, m_CubeMap.mem,
                         6,          // Layers
@@ -325,7 +325,8 @@ void CubeMap::createPipeline(void) {
 }
 
 void CubeMap::createOffscreenFramebuffer(void) {
-    m_Image.createImage(m_OffscreenPass.width, m_OffscreenPass.height,
+    m_Image.createImage({uint32_t(m_OffscreenPass.width), uint32_t(m_OffscreenPass.height), 1},
+                        VK_IMAGE_TYPE_2D,
                         FB_FORMAT,
                         VK_IMAGE_TILING_OPTIMAL,
                         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
@@ -333,7 +334,8 @@ void CubeMap::createOffscreenFramebuffer(void) {
                         m_OffscreenPass.color.image,
                         m_OffscreenPass.color.mem);
     
-    m_Image.createImage(m_OffscreenPass.width, m_OffscreenPass.height,
+    m_Image.createImage({uint32_t(m_OffscreenPass.width), uint32_t(m_OffscreenPass.height), 1},
+                        VK_IMAGE_TYPE_2D,
                         m_DepthFormat,
                         VK_IMAGE_TILING_OPTIMAL,
                         VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,

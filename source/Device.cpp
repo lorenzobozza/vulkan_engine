@@ -150,6 +150,7 @@ void Device::pickPhysicalDevice(void) {
     vkGetPhysicalDeviceProperties2(m_PhysicalDevice, &deviceProp);
     m_DeviceProperties = deviceProp.properties;
     m_MaxMSAASamples = getMaxUsableSampleCount();
+    m_MemoryUMA = (m_DeviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU);
     
     log->info("Vulkan {}.{}.{} - {} - {}",
               VK_API_VERSION_MAJOR(m_DeviceProperties.apiVersion),

@@ -219,8 +219,10 @@ void TextRender::createImageStack(void) {
     
     free(bitmaps);
     
+    
     vulkanImage.createImage(
-        bitmapSize, bitmapSize,
+        {bitmapSize, bitmapSize, 1},
+        VK_IMAGE_TYPE_2D,
         VK_FORMAT_R8_SRGB,
         VK_IMAGE_TILING_OPTIMAL,
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
@@ -243,8 +245,7 @@ void TextRender::createImageStack(void) {
         commandBuffer,
         stagingBuffer.getBuffer(),
         bitmapImage,
-        bitmapSize,
-        bitmapSize,
+        {bitmapSize, bitmapSize, 1},
         layers);
     
     vulkanImage.transitionImageLayout(

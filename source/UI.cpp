@@ -356,30 +356,34 @@ void UI::loadFontTexture(void) {
     }
     
     VkDeviceSize imageSize = texWidth * texHeight * 4 * sizeof(char);
-    Buffer stagingBuffer{
-        m_Device,
-        imageSize,
-        1,
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-    };
     
-    stagingBuffer.map();
-    stagingBuffer.writeToBuffer(fontData);
-    
-    m_Image.createImage(texWidth, texHeight,
-                        VK_FORMAT_R8G8B8A8_UNORM,
-                        VK_IMAGE_TILING_OPTIMAL,
-                        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                        m_FontImage,
-                        m_FontMem);
-    
-    auto commandBuffer = m_Image.beginSingleTimeCommands();
-    m_Image.transitionImageLayout(commandBuffer, m_FontImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    m_Image.copyBufferToImage(commandBuffer, stagingBuffer.getBuffer(), m_FontImage, static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-    m_Image.transitionImageLayout(commandBuffer, m_FontImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    m_Image.endSingleTimeCommands(commandBuffer);
+    {
+        Buffer stagingBuffer{
+            m_Device,
+            imageSize,
+            1,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+        };
+        
+        stagingBuffer.map();
+        stagingBuffer.writeToBuffer(fontData);
+        
+        m_Image.createImage({uint32_t(texWidth), uint32_t(texHeight), 1},
+                            VK_IMAGE_TYPE_2D,
+                            VK_FORMAT_R8G8B8A8_UNORM,
+                            VK_IMAGE_TILING_OPTIMAL,
+                            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                            m_FontImage,
+                            m_FontMem);
+        
+        auto commandBuffer = m_Image.beginSingleTimeCommands();
+        m_Image.transitionImageLayout(commandBuffer, m_FontImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        m_Image.copyBufferToImage(commandBuffer, stagingBuffer.getBuffer(), m_FontImage, {static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), 1});
+        m_Image.transitionImageLayout(commandBuffer, m_FontImage, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        m_Image.endSingleTimeCommands(commandBuffer);
+    }
     
     m_FontView = m_Image.createImageView(m_FontImage, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R8G8B8A8_UNORM);
     

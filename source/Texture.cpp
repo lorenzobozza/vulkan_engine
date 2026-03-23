@@ -28,17 +28,12 @@ Texture::Texture(const Device& dev, const Image& image, std::string filePath, bo
 Texture::Texture(const Device& dev, const Image& image, void* data, uint32_t texWidth, uint32_t texHeight, uint8_t depth, bool mipMapping, VkFormat format, VkSamplerCreateInfo *samplerInfo)
 : m_Device{dev}, m_Image{image}, m_MipMapping{mipMapping}, m_ViewType{VK_IMAGE_VIEW_TYPE_2D}, m_Format{format} {
 
-    VkDeviceSize imageSize = texWidth * texHeight * depth;
+    m_ImageSize = texWidth * texHeight * depth;
     if (m_Format > VK_FORMAT_A8B8G8R8_SRGB_PACK32) {
-        imageSize *= sizeof(uint16_t);
+        m_ImageSize *= sizeof(uint16_t);
     } else {
-        imageSize *= sizeof(uint8_t);
+        m_ImageSize *= sizeof(uint8_t);
     }
-    
-    m_StagingBuffer = std::make_unique<Buffer>(m_Device, imageSize, 1, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    m_StagingBuffer->map();
-    m_StagingBuffer->writeToBuffer(data);
     
     m_Width = texWidth;
     m_Height = texHeight;
@@ -72,6 +67,8 @@ Texture::Texture(const Device& dev, const Image& image, void* data, uint32_t tex
     if (vkCreateSampler(m_Device.device(), samplerInfo, nullptr, &m_TextureSampler) != VK_SUCCESS) {
         throw std::runtime_error("failed to create texture sampler!");
     }
+    
+    m_ImageData = data;
     
     createTextureImage();
     createTextureImageView();
@@ -159,21 +156,14 @@ void Texture::loadTexture(void) {
         }
     }
     
-    VkDeviceSize imageSize = texWidth * texHeight * bitsPerPixel;
+    m_ImageSize = texWidth * texHeight * bitsPerPixel;
     
     if (!pixels) {
         throw std::runtime_error("failed to load texture image!");
     }
     
-    m_StagingBuffer = std::make_unique<Buffer>(m_Device, imageSize, 1, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    m_StagingBuffer->map();
-    m_StagingBuffer->writeToBuffer(pixels);
-    
-    free(pixels);
-    
-    m_Width = texWidth;
-    m_Height = texHeight;
+    m_Width = static_cast<uint32_t>(texWidth);
+    m_Height = static_cast<uint32_t>(texHeight);
     
     if (m_MipMapping) {
         m_MipLevels = (int)std::floor(std::log2(std::max(m_Width, m_Height))) + 1;
@@ -182,25 +172,44 @@ void Texture::loadTexture(void) {
         m_MipLevels = 1;
     }
     
+    m_ImageData = pixels;
+    m_IsStbiAllocated = true;
+    
 }
 
 void Texture::createTextureImage(void) {
-    m_Image.createImage(m_Width, m_Height, m_Format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_TextureImage, m_TextureImageMemory, 1, m_MipLevels);
+    const int memoryFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    const int memoryUsage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
     
-    auto commandBuffer = m_Image.beginSingleTimeCommands();
+    m_Image.createImage({m_Width, m_Height, 1}, VK_IMAGE_TYPE_2D, m_Format, VK_IMAGE_TILING_OPTIMAL, memoryUsage, memoryFlags, m_TextureImage, m_TextureImageMemory, 1, m_MipLevels);
     
-    // Load mip 0 from staging buffer
-    m_Image.transitionImageLayout(commandBuffer, m_TextureImage, m_Format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, m_MipLevels);
-    m_Image.copyBufferToImage(commandBuffer, m_StagingBuffer->getBuffer(), m_TextureImage, static_cast<uint32_t>(m_Width), static_cast<uint32_t>(m_Height));
+    {
+        Buffer stagingBuffer(m_Device, m_ImageSize, 1, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        stagingBuffer.map();
+        stagingBuffer.writeToBuffer(m_ImageData);
+        
+        if (m_IsStbiAllocated) {
+            stbi_image_free(m_ImageData);
+        }
+        
+        auto commandBuffer = m_Image.beginSingleTimeCommands();
+        m_Image.transitionImageLayout(commandBuffer, m_TextureImage, m_Format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, m_MipLevels);
+        m_Image.copyBufferToImage(commandBuffer, stagingBuffer.getBuffer(), m_TextureImage, {static_cast<uint32_t>(m_Width), static_cast<uint32_t>(m_Height), 1});
+        m_Image.endSingleTimeCommands(commandBuffer);
+    }
     
-    int mipWidth = m_Width;
-    int mipHeight = m_Height;
+    
+    int32_t mipWidth = m_Width;
+    int32_t mipHeight = m_Height;
     
     VkFormatProperties prop;
     vkGetPhysicalDeviceFormatProperties(m_Device.getPhysicalDevice(), m_Format, &prop);
     if (!(prop.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT)) {
         throw std::runtime_error("Linear filtering not supported on this image format");
     }
+    
+    auto commandBuffer = m_Image.beginSingleTimeCommands();
     
     // Compute mips
     for (int i = 1; i < m_MipLevels; i++) {
@@ -238,7 +247,6 @@ void Texture::createTextureImage(void) {
     
     m_Image.endSingleTimeCommands(commandBuffer);
     
-    m_StagingBuffer = nullptr;
 }
 
 void Texture::createTextureImageView(void) {

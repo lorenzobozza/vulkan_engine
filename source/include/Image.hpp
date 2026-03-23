@@ -15,7 +15,8 @@ public:
     Image(const Device& dev);
     ~Image();
     
-    void createImage(uint32_t width, uint32_t height,
+    void createImage(VkExtent3D extent,
+                     VkImageType type, 
                      VkFormat format,
                      VkImageTiling tiling,
                      VkImageUsageFlags usage,
@@ -38,9 +39,11 @@ public:
     void copyBufferToImage(VkCommandBuffer &commandBuffer,
                            VkBuffer buffer,
                            VkImage image,
-                           uint32_t width, uint32_t height,
+                           VkExtent3D extent,
                            uint32_t layerCount = 1,
                            uint32_t mipLevel = 0) const;
+    
+    void hostMemoryCopyTransition(const void* data, VkImage dstImage, VkImageAspectFlagBits aspect, VkExtent3D extent, VkImageLayout newLayout) const;
     
     VkImageView createImageView(VkImage image,
                                 VkImageViewType viewType,

@@ -50,6 +50,13 @@ layout(set = 0, binding = 2) uniform samplerCube prefilteredMap;
 layout(set = 0, binding = 3) uniform sampler2D dfgLUT;
 layout(set = 0, binding = 4) uniform sampler2D shadowMap;
 
+layout(set = 0, binding = 5) uniform IrrVolUbo {
+    mat4 invTransform;
+    vec3 res;
+} ivubo;
+layout(set = 0, binding = 6) uniform sampler3D irradianceVolume;
+
+
 layout(set = 1, binding = 1) uniform sampler2D normalMap;
 layout(set = 1, binding = 2) uniform sampler2D metalRoughnessMap;
 layout(set = 1, binding = 3) uniform sampler2D occlusionMap;
@@ -78,7 +85,7 @@ float textureProj(vec4 shadowCoord, vec2 off)
 		float dist = texture(shadowMap, shadowCoord.st + off).r;
 		if ( shadowCoord.w > 0.0 && dist < shadowCoord.z )
 		{
-			shadow = 0.01;
+			shadow = 0.0;
 		}
 	}
 	return shadow;
@@ -312,6 +319,43 @@ vec3 disneySheen(float LoH, vec3 sheenColor, float sheen)
     return sheen * FH * sheenColor;
 }
 
+vec3 evaluateIrradianceVolume(vec3 n) {
+    if (ivubo.res.x > 0 && ivubo.res.y > 0 && ivubo.res.z > 0) {
+        vec4 p = ivubo.invTransform * vec4(vert.worldPos, 1.0);
+        if (p.x > 1.0 || p.x < -1.0 || p.y > 1.0 || p.y < -1.0 || p.z > 1.0 || p.z < -1.0) return vec3(0.0);
+            
+        float Cx = round((p.x + 1.0) * 0.5 * (ivubo.res.x + 1));
+        float Cy = round((p.y + 1.0) * 0.5 * (ivubo.res.y + 1));
+        float Cz = round((p.z + 1.0) * 0.5 * (ivubo.res.z + 1));
+        Cx = clamp(Cx - 1, 0, ivubo.res.x - 1);
+        Cy = clamp(Cy - 1, 0, ivubo.res.y - 1);
+        Cz = clamp(Cz - 1, 0, ivubo.res.z - 1);
+        
+        float u = (Cx / ivubo.res.x) + (0.5 / ivubo.res.x);
+        float v = (Cy / ivubo.res.y) + (0.5 / ivubo.res.y);
+        float w = ((Cz / ivubo.res.z) + (0.5 / ivubo.res.z)) / 4.0;
+        
+        vec3 uvw = (p.xyz + 1.0) * 0.5;
+        u = clamp(uvw.x, (0.5 / ivubo.res.x), 1.0 - (0.5 / ivubo.res.x));
+        v = clamp(uvw.y, (0.5 / ivubo.res.y), 1.0 - (0.5 / ivubo.res.y));
+        w = clamp(uvw.z, (0.5 / ivubo.res.z), 1.0 - (0.5 / ivubo.res.z)) / 4.0;
+        
+        
+        vec4 L0 = texture(irradianceVolume, vec3(u, v, w));
+        vec4 L1a = texture(irradianceVolume, vec3(u, v, w + 0.25));
+        vec4 L1b = texture(irradianceVolume, vec3(u, v, w + 0.5));
+        vec4 L1c = texture(irradianceVolume, vec3(u, v, w + 0.75));
+        
+        float c0 = 0.282094792;
+        float c1 = 0.488602512 * (2.0 / 3.0);
+        vec3 sh = (L0.rgb * c0) + (-c1 * L1a.rgb * n.y) + (c1 * L1b.rgb * n.z) + (-c1 * L1c.rgb * n.x);
+        float vis = (L0.a * c0) + (-c1 * L1a.a * n.y)   + (c1 * L1b.a * n.z)   + (-c1 * L1c.a * n.x);
+        
+        return max(sh, 0.0);// * clamp(vis, 0.0, 1.0);
+    }
+    return vec3(0.0);
+}
+
 
 
 vec3 BRDF(vec3 baseColor) {
@@ -425,12 +469,14 @@ vec3 BRDF(vec3 baseColor) {
         if (MASK_COMPARE(push.textureBitmap, SPLIT_AO_TEXTURE) || MASK_COMPARE(push.textureBitmap, COMBO_ARM_TEXTURE)) {
             indirect *= occlusion;
         }
+        indirect = (evaluateIrradianceVolume(n) * diffuseColor);
         color += indirect;
     }
     
     switch (ubo.debugMode & 0xFF) {
     case 1:
         color = diffuseColor;
+        //color = evaluateIrradianceVolume(n);
         break;
         
     case 2:

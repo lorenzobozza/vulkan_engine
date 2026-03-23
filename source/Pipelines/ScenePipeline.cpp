@@ -53,7 +53,21 @@ void ScenePipeline::destroyPipeline(void) {
     m_PipelineAlpha.reset();
 }
 
+
+IVUBO sbuffo;
+
 ScenePipeline::Dependencies ScenePipeline::createLayoutDependencies(void) {
+    for (int i = 0; i < SwapChain::MAX_FRAMES_IN_FLIGHT; i++) {
+        ivubo[i] = std::make_unique<Buffer>(
+            m_Device,
+            sizeof(IVUBO),
+            1,
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT
+        );
+        ivubo[i]->map();
+        ivubinfos[i] = ivubo[i]->descriptorInfo();
+    }
     
     m_MainDescriptor.layout = DescriptorSetLayout::Builder(m_Device)
         .addBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_ALL_GRAPHICS)
@@ -61,6 +75,10 @@ ScenePipeline::Dependencies ScenePipeline::createLayoutDependencies(void) {
         .addBinding(2, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
         .addBinding(3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
         .addBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+    
+        .addBinding(5, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
+        .addBinding(6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+    
         .build_ptr();
     
     m_MaterialDescriptor.layout = DescriptorSetLayout::Builder(m_Device)
@@ -79,6 +97,10 @@ ScenePipeline::Dependencies ScenePipeline::createLayoutDependencies(void) {
         .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
         .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
         .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+    
+        .addPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+        .addPoolSize(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, SwapChain::MAX_FRAMES_IN_FLIGHT)
+    
         .build_ptr();
     
     m_MaterialDescriptor.pool = DescriptorPool::Builder(m_Device)
@@ -97,6 +119,10 @@ ScenePipeline::Dependencies ScenePipeline::createLayoutDependencies(void) {
             .writeImage(2, m_FrameData.imageDescriptors.reflection)
             .writeImage(3, m_FrameData.imageDescriptors.brdf)
             .writeImage(4, &m_FrameData.imageDescriptors.shadow[i])
+        
+            .writeBuffer(5, &ivubinfos[i])
+            .writeImage(6, (m_FrameData.assets.volumeProbes ? m_FrameData.assets.volumeProbes->getDescriptorImageInfo() : m_FrameData.imageDescriptors.brdf))
+
             .build(descriptorSet);
         
         m_MainDescriptorSets[i] = descriptorSet;
@@ -148,6 +174,9 @@ void ScenePipeline::beforeRecreate(void) {
 
 void ScenePipeline::render(VkCommandBuffer commandBuffer, int frameIndex) {
     m_Pipeline->bind(commandBuffer);
+    
+    ivubo[frameIndex]->writeToBuffer(&sbuffo);
+    ivubo[frameIndex]->flush();
     
     vkCmdBindDescriptorSets(commandBuffer,
                             VK_PIPELINE_BIND_POINT_GRAPHICS,

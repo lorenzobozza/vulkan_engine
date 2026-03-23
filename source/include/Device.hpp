@@ -90,6 +90,7 @@ public:
     QueueFamilyIndices getFamilyIndices(void) const { return m_Indices; }
     VkPhysicalDeviceProperties getPhysicalDeviceProp(void) const { return m_DeviceProperties; }
     VkSampleCountFlagBits getSupportedSmapleCount(void) const { return m_MaxMSAASamples; }
+    bool isUMA(void) const { return m_MemoryUMA; }
 
     SwapChainSupportDetails getSwapChainSupport() const { return querySwapChainSupport(m_PhysicalDevice); }
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) const;
@@ -137,6 +138,7 @@ private:
     VkPhysicalDeviceProperties m_DeviceProperties;
     VkDebugUtilsMessengerEXT m_DebugMessenger;
     VkSampleCountFlagBits m_MaxMSAASamples;
+    bool m_MemoryUMA;
 
     const std::vector<const char *> m_RequiredLayers = {"VK_LAYER_KHRONOS_validation"};
     const std::vector<const char *> m_RequiredExtensions = {
