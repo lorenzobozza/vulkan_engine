@@ -184,22 +184,46 @@ void Device::createLogicalDevice(void) {
         queueCreateInfos.push_back(queueCreateInfo);
     }
     
-    VkPhysicalDeviceFeatures supportedFeatures = {};
-    VkPhysicalDeviceFeatures requestedFeatures = {};
-    vkGetPhysicalDeviceFeatures(m_PhysicalDevice, &supportedFeatures);
-    requestedFeatures.samplerAnisotropy = supportedFeatures.samplerAnisotropy;
-    requestedFeatures.sampleRateShading = supportedFeatures.sampleRateShading;
-    requestedFeatures.fillModeNonSolid = supportedFeatures.fillModeNonSolid;
-    requestedFeatures.shaderSampledImageArrayDynamicIndexing = supportedFeatures.shaderSampledImageArrayDynamicIndexing;
+    VkPhysicalDeviceFeatures vulkan10supportedFeatures = {};
+    VkPhysicalDeviceFeatures vulkan10requestedFeatures = {};
     
+    VkPhysicalDeviceVulkan12Features vulkan12supportedFeatures = {};
+    vulkan12supportedFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    vulkan12supportedFeatures.pNext = nullptr;
+    
+    VkPhysicalDeviceVulkan12Features vulkan12requestedFeatures = {};
+    vulkan12requestedFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    vulkan12requestedFeatures.pNext = nullptr;
+    
+    VkPhysicalDeviceFeatures2 supportedFeatures2 = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+        .pNext = &vulkan12supportedFeatures
+    };
+    
+    vkGetPhysicalDeviceFeatures(m_PhysicalDevice, &vulkan10supportedFeatures);
+    vkGetPhysicalDeviceFeatures2(m_PhysicalDevice, &supportedFeatures2);
+    
+    vulkan10requestedFeatures.samplerAnisotropy = vulkan10supportedFeatures.samplerAnisotropy;
+    vulkan10requestedFeatures.sampleRateShading = vulkan10supportedFeatures.sampleRateShading;
+    vulkan10requestedFeatures.fillModeNonSolid = vulkan10supportedFeatures.fillModeNonSolid;
+    vulkan10requestedFeatures.shaderSampledImageArrayDynamicIndexing = vulkan10supportedFeatures.shaderSampledImageArrayDynamicIndexing;
+    
+    vulkan12requestedFeatures.descriptorBindingPartiallyBound = vulkan12supportedFeatures.descriptorBindingPartiallyBound;
+    
+    VkPhysicalDeviceFeatures2 requestedFeatures2 = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+        .features = vulkan10requestedFeatures,
+        .pNext = &vulkan12requestedFeatures
+    };
+        
     VkDeviceCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
     createInfo.pQueueCreateInfos = queueCreateInfos.data();
-    createInfo.pEnabledFeatures = &requestedFeatures;
+    createInfo.pEnabledFeatures = nullptr;
     createInfo.enabledExtensionCount = static_cast<uint32_t>(m_RequiredExtensions.size());
     createInfo.ppEnabledExtensionNames = m_RequiredExtensions.data();
-    createInfo.pNext = nullptr;
+    createInfo.pNext = &requestedFeatures2;
     
     // might not really be necessary anymore because device specific validation layers have been deprecated
     if (ValidationLayersEnabled) {

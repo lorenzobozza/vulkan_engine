@@ -17,7 +17,7 @@ Install through your package manager or download from https://github.com/premake
 #### Vulkan SDK (includes SDL3)
 Available at https://vulkan.lunarg.com/sdk/home
 
-After setting up the dependencies go to the repository root folder and execute the premake script to generate the project files for your desired platform
+After setting up the dependencies go to the repository root folder and run the premake script to generate the project files for your platform of choice
 ```bash
 # macOS
 premake5 xcode4

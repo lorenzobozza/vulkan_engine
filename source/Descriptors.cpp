@@ -13,18 +13,31 @@
 
 DescriptorSetLayout::DescriptorSetLayout(const Device& device, std::unordered_map<uint32_t,
                                          VkDescriptorSetLayoutBinding> bindings, std::vector<VkDescriptorBindingFlags> bindingsFlags)
-: m_Device(device), m_Bindings(bindings), m_BindingsFlags(bindingsFlags) {
+: m_Device(device), m_Bindings(bindings) {
     
     std::vector<VkDescriptorSetLayoutBinding> setLayoutBindings{};
     for (auto kv : m_Bindings) {
         setLayoutBindings.push_back(kv.second);
     }
+    for (size_t i = 0; i < (bindingsFlags.size() / 2U); ++i) {
+        VkDescriptorBindingFlags temp = bindingsFlags[i];
+        bindingsFlags[i] = bindingsFlags[bindingsFlags.size() - i - 1];
+        bindingsFlags[bindingsFlags.size() - i - 1] = temp;
+    }
     
-    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo{};
-    descriptorSetLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    descriptorSetLayoutInfo.bindingCount = static_cast<uint32_t>(setLayoutBindings.size());
-    descriptorSetLayoutInfo.pBindings = setLayoutBindings.data();
-    descriptorSetLayoutInfo.pNext = nullptr;
+    VkDescriptorSetLayoutBindingFlagsCreateInfo descriptorSetLayoutBindingFlagsInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+        .bindingCount = static_cast<uint32_t>(setLayoutBindings.size()),
+        .pBindingFlags = bindingsFlags.data(),
+        .pNext = nullptr
+    };
+    
+    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = static_cast<uint32_t>(setLayoutBindings.size()),
+        .pBindings = setLayoutBindings.data(),
+        .pNext = &descriptorSetLayoutBindingFlagsInfo
+    };
     
     if (vkCreateDescriptorSetLayout(m_Device.device(), &descriptorSetLayoutInfo, nullptr, &m_DescriptorSetLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create descriptor set layout!");
@@ -152,6 +165,8 @@ DescriptorWriter &DescriptorWriter::writeBuffer(uint32_t binding, VkDescriptorBu
 }
 
 DescriptorWriter& DescriptorWriter::writeImage(uint32_t binding, VkDescriptorImageInfo *imageInfo) {
+    if (binding == UINT32_MAX) return *this;
+    
     assert(m_DescriptorSetLayout.m_Bindings.count(binding) == 1 && "Layout does not contain specified binding");
     
     auto& bindingDescription = m_DescriptorSetLayout.m_Bindings[binding];

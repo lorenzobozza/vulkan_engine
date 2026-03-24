@@ -49,7 +49,6 @@ public:
 private:
     const Device& m_Device;
     std::unordered_map<uint32_t, VkDescriptorSetLayoutBinding> m_Bindings;
-    std::vector<VkDescriptorBindingFlags> m_BindingsFlags;
     VkDescriptorSetLayout m_DescriptorSetLayout;
 
     friend class DescriptorWriter;

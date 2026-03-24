@@ -77,7 +77,7 @@ ScenePipeline::Dependencies ScenePipeline::createLayoutDependencies(void) {
         .addBinding(4, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
     
         .addBinding(5, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_FRAGMENT_BIT)
-        .addBinding(6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT)
+        .addBinding(6, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT, VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT)
     
         .build_ptr();
     
@@ -121,7 +121,7 @@ ScenePipeline::Dependencies ScenePipeline::createLayoutDependencies(void) {
             .writeImage(4, &m_FrameData.imageDescriptors.shadow[i])
         
             .writeBuffer(5, &ivubinfos[i])
-            .writeImage(6, (m_FrameData.assets.volumeProbes ? m_FrameData.assets.volumeProbes->getDescriptorImageInfo() : m_FrameData.imageDescriptors.brdf))
+            .writeImage((m_FrameData.assets.volumeProbes ? 6 : UINT32_MAX), (m_FrameData.assets.volumeProbes ? m_FrameData.assets.volumeProbes->getDescriptorImageInfo() : nullptr))
 
             .build(descriptorSet);
         
