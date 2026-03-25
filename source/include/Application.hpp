@@ -91,7 +91,6 @@ private:
     } m_Environment, m_Prefiltered, m_Irradiance;
     
     Primitive::Map m_Primitives;
-    Primitive::Map m_PrimitivesAlpha;
     
     Assets m_Assets;
     std::vector<Light> m_Lights;
@@ -103,8 +102,7 @@ private:
     bool m_DebugMode = false;
     bool m_RunSimulation = false;
     
-    ImportGLTF::InitStruct initNodeStruct{m_Device, m_Image, m_Primitives, m_PrimitivesAlpha,
-                                       m_Physics, m_Assets, m_Cameras, m_Lights, m_NodeTree};
+    ImportGLTF::InitStruct initNodeStruct{m_Device, m_Image, m_Primitives, m_Physics, m_Assets, m_Cameras, m_Lights, m_NodeTree};
 
     int m_FrameIndex{0};
     Perf m_Perf;

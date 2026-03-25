@@ -67,10 +67,10 @@ private:
             bool isOpen = ImGui::TreeNodeEx((child.name.empty() ? "##empty" : child.name.c_str()), node_flags);
             
             if (ImGui::IsItemHovered()) {
-                if (!child.primitives.empty()) m_Primitives.at(child.primitives.at(0)).showAABB = true;
+                if (!child.primitives.empty()) m_Primitives.map.at(child.primitives.at(0)).showAABB = true;
                 child.aabb = true;
             } else if (child.aabb) {
-                if (!child.primitives.empty()) m_Primitives.at(child.primitives.at(0)).showAABB = false;
+                if (!child.primitives.empty()) m_Primitives.map.at(child.primitives.at(0)).showAABB = false;
                 child.aabb = false;
             }
             

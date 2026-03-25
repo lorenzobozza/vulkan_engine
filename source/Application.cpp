@@ -123,7 +123,6 @@ void Application::run() {
             "shader",
             ScenePipeline::FrameData {
             .primitives = m_Primitives,
-            .primitivesAlpha = m_PrimitivesAlpha,
             .assets = m_Assets,
             .uboDescriptors = {m_UboBuffers[0]->descriptorInfo(), m_UboBuffers[1]->descriptorInfo(), m_UboBuffers[2]->descriptorInfo()},
                 .imageDescriptors = {
@@ -230,7 +229,7 @@ void Application::run() {
                 bt.second->getMotionState()->getWorldTransform(t);
                 float m[16];
                 t.getOpenGLMatrix(m);
-                m_Primitives.at(bt.first).transform.matrix = glm::make_mat4(m);
+                m_Primitives.map.at(bt.first).transform.matrix = glm::make_mat4(m);
             }
         }
         

@@ -174,6 +174,7 @@ void ScenePipeline::beforeRecreate(void) {
 
 void ScenePipeline::render(VkCommandBuffer commandBuffer, int frameIndex) {
     m_Pipeline->bind(commandBuffer);
+    uint32_t boundPipeline = 0U;
     
     ivubo[frameIndex]->writeToBuffer(&sbuffo);
     ivubo[frameIndex]->flush();
@@ -187,8 +188,17 @@ void ScenePipeline::render(VkCommandBuffer commandBuffer, int frameIndex) {
                             0,
                             nullptr);
     
-    for (auto &kv : m_FrameData.primitives) {
+    for (auto &kv : m_FrameData.primitives.map) {
         auto &primitive = kv.second;
+        
+        if (primitive.transparentPipeline && (boundPipeline == 0U)) {
+            m_PipelineAlpha->bind(commandBuffer);
+            boundPipeline = 1U;
+        }
+        else if (!primitive.transparentPipeline && (boundPipeline == 1U)) {
+            m_Pipeline->bind(commandBuffer);
+            boundPipeline = 0U;
+        }
         
         try {
             std::string material(primitive.material);
@@ -231,52 +241,4 @@ void ScenePipeline::render(VkCommandBuffer commandBuffer, int frameIndex) {
             Log::getInstance()->error("Trying to fetch material \"{}\" that does not exist [{}]", primitive.material, e.what());
         }
     }
-    
-    m_PipelineAlpha->bind(commandBuffer);
-    
-    for (auto &kv : m_FrameData.primitivesAlpha) {
-        auto &primitive = kv.second;
-        
-        try {
-            std::string material(primitive.material);
-            if (!m_MaterialDescriptorSets[frameIndex].contains(material)) material = "Global_Default_Material";
-            
-            vkCmdBindDescriptorSets(commandBuffer,
-                                    VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                    m_PipelineLayout,
-                                    1,
-                                    1,
-                                    &m_MaterialDescriptorSets[frameIndex].at(material),
-                                    0,
-                                    nullptr);
-            
-            PushConstantData push{};
-            push.modelMatrix = primitive.transform.mat4();
-            push.textureIndex = m_FrameData.assets.materials.at(material).getTextureBitmap();
-            push.metalness =    m_FrameData.assets.materials.at(material).metalness;
-            push.roughness =    m_FrameData.assets.materials.at(material).roughness;
-            push.color =        m_FrameData.assets.materials.at(material).color;
-            push.alphaMode =    m_FrameData.assets.materials.at(material).alphaMode;
-            push.alphaCutoff =  m_FrameData.assets.materials.at(material).alphaCutoff;
-            push.f0 =           m_FrameData.assets.materials.at(material).f0;
-            push.coatWeight =     m_FrameData.assets.materials.at(material).coatWeight;
-            push.coatRoughness =  m_FrameData.assets.materials.at(material).coatRoughness;
-            push.anisoStrength =     m_FrameData.assets.materials.at(material).anisoStrength;
-            push.anisoRotation =  m_FrameData.assets.materials.at(material).anisoRotation;
-            
-            vkCmdPushConstants(commandBuffer,
-                               m_PipelineLayout,
-                               VK_SHADER_STAGE_ALL_GRAPHICS,
-                               0,
-                               sizeof(PushConstantData),
-                               &push);
-            
-            primitive.model->bind(commandBuffer);
-            primitive.model->draw(commandBuffer);
-            
-        } catch (const std::exception& e) {
-            Log::getInstance()->error("Trying to fetch material \"{}\" that does not exist [{}]", primitive.material, e.what());
-        }
-    }
-    
 }

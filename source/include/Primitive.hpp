@@ -14,6 +14,8 @@
 #include <glm/gtx/quaternion.hpp>
 
 #include <unordered_map>
+#include <atomic>
+#include <mutex>
 
 struct TransformComponent {
     glm::vec3 translation{0.f};
@@ -31,7 +33,11 @@ struct TransformComponent {
 class Primitive {
 public:
     using id_t = unsigned int;
-    using Map = std::unordered_map<id_t, Primitive>;
+    
+    struct Map {
+        std::mutex mutex;
+        std::unordered_map<id_t, Primitive> map;
+    };
     
     Primitive(const Primitive &) = delete;
     Primitive& operator=(const Primitive &) = delete;
@@ -40,17 +46,17 @@ public:
     Primitive& operator=(Primitive &&) = default;
     
     static Primitive new_primitive() {
-        static id_t currentId = 0;
+        static std::atomic<id_t> currentId = 0;
         return Primitive{currentId++};
     }
     
     id_t getId() const { return m_Id; }
     
-    std::shared_ptr<Mesh> model;
+    std::unique_ptr<Mesh> model;
     
     bool showAABB = false;
-    std::shared_ptr<Mesh> aabb;
-    std::shared_ptr<Mesh> normals;
+    std::unique_ptr<Mesh> aabb;
+    std::unique_ptr<Mesh> normals;
     
     glm::vec3 color{};
     int textureIndex{-1};
@@ -59,6 +65,7 @@ public:
     TransformComponent transform{};
     
     std::string material{"Global_Default_Material"};
+    bool transparentPipeline = false;
     
 private:
     Primitive(id_t objId) : m_Id(objId) {}

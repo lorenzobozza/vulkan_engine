@@ -34,7 +34,6 @@ public:
     };
     struct FrameData {
         Primitive::Map& primitives;
-        Primitive::Map& primitivesAlpha;
         Assets& assets;
         std::array<VkDescriptorBufferInfo, SwapChain::MAX_FRAMES_IN_FLIGHT> uboDescriptors;
         struct {

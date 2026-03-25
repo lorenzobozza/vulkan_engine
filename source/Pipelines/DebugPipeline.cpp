@@ -74,7 +74,7 @@ void DebugPipeline::render(VkCommandBuffer commandBuffer, int frameIndex) {
                             0,
                             nullptr);
     
-    for (auto &kv : m_FrameData.primitives) {
+    for (auto &kv : m_FrameData.primitives.map) {
         auto &primitive = kv.second;
         
         PushConstantData push{};

@@ -12,6 +12,7 @@
 
 #include <vector>
 #include <memory>
+#include <mutex>
 
 struct SwapChainSupportDetails {
     VkSurfaceCapabilitiesKHR capabilities;
@@ -134,6 +135,12 @@ private:
     VkCommandPool m_GraphicsCommandPool = VK_NULL_HANDLE;
     VkCommandPool m_TransferCommandPool = VK_NULL_HANDLE;
     QueueFamilyIndices m_Indices;
+    
+    void controlTransferQueueLock(bool lock) const {
+        static std::mutex mutex;
+        if (lock) mutex.lock();
+        else mutex.unlock();
+    }
     
     VkPhysicalDeviceProperties m_DeviceProperties;
     VkDebugUtilsMessengerEXT m_DebugMessenger;

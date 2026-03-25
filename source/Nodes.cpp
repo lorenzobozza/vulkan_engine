@@ -35,9 +35,9 @@ void Node::Tree::pop(uint32_t node) {
         int32_t parent = nodes[node].parent;
         uint32_t child = 0;
         for (auto it = nodes[parent].children.begin(); it < nodes[parent].children.end(); ++it, ++child) {
-            if (nodes[parent].children[child] == node) { nodes[parent].children.erase(it); break; }
+            //if (nodes[parent].children[child] == node) { nodes[parent].children.erase(it); break; }
         }
-        nodes.erase(nodes.begin() + node);
+        //nodes.erase(nodes.begin() + node);
         // TODO: Fix Leaking dangling nodes
     }
 }
@@ -60,7 +60,7 @@ void Node::Tree::computeTransformMatrix(uint32_t node) {
             n.cacheMatrix = nodes[parent].cacheMatrix * n.matrix * (glm::translate(glm::mat4(1.0), n.transl) * glm::toMat4(n.quat) * glm::scale(glm::mat4(1.0), n.scale));
             n.invalidateCache = false;
             for (Primitive::id_t p : n.primitives) {
-                m_Primitives.at(p).transform.matrix = n.cacheMatrix;
+                m_Primitives.map.at(p).transform.matrix = n.cacheMatrix;
             }
         }
     }

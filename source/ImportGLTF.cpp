@@ -14,7 +14,6 @@
 #include <tinygltf/tiny_gltf.h>
 
 #include "mikktspace.h"
-#include "TaskScheduler.h"
 
 #include <random>
 
@@ -54,8 +53,7 @@ struct ImageParseTaskSet : enki::ITaskSet {
 };
 
 ImportGLTF::ImportGLTF(InitStruct& init, std::string filePath) : m_Device(init.device), m_Image(init.image), m_Primitives(init.primitives),
-m_PrimitivesAlpha(init.primitivesAlpha), m_Physics(init.physics), m_Assets(init.assets), m_Cameras(init.cameras), m_Lights(init.lights),
-m_NodeTree(init.nodeTree), m_FilePath(filePath) {
+m_Physics(init.physics), m_Assets(init.assets), m_Cameras(init.cameras), m_Lights(init.lights), m_NodeTree(init.nodeTree), m_FilePath(filePath) {
     
     Stopwatch sw;
     sw.begin();
@@ -68,10 +66,23 @@ m_NodeTree(init.nodeTree), m_FilePath(filePath) {
     
     sw.begin();
     
-    m_NodeTree.nodes.reserve(m_NodeTree.nodes.size() + m_gltfModel.nodes.size());
-    for(int gltfIndex: m_gltfModel.scenes[m_gltfModel.defaultScene].nodes) {
+    m_NodeTreeOffset = m_NodeTree.nodes.size();
+    m_NodeTree.nodes.reserve(m_NodeTreeOffset + m_gltfModel.nodes.size());
+    for (int gltfIndex: m_gltfModel.scenes[m_gltfModel.defaultScene].nodes) {
         loadNodeFromModel(gltfIndex, 0);
     }
+    
+    size_t newPrimitivesCount = 0;
+    for (size_t nodeID = m_NodeTreeOffset; nodeID < m_NodeTree.nodes.size(); ++nodeID) {
+        Node& node = m_NodeTree.nodes[nodeID];
+        if (node.flags & Node::MESH) {
+            newPrimitivesCount += m_gltfModel.meshes[node.tinygltf.meshID].primitives.size();
+        }
+    }
+    m_Primitives.map.reserve(m_Primitives.map.size() + newPrimitivesCount);
+    NodeParseTaskSet ask(*this);
+    g_TaskScheduler.AddTaskSetToPipe(&ask);
+    g_TaskScheduler.WaitforTask(&ask);
     
     sw.end("Loading geometry: ");
     
@@ -158,7 +169,7 @@ void ImportGLTF::loadNodeFromModel(int gltfIndex, uint32_t parentIndex) {
     
     {
         Node& thisNode = m_NodeTree.nodes.back();
-        thisNode.tinygltfNodeIndex = gltfIndex;
+        thisNode.tinygltf.nodeID = gltfIndex;
         
         if (gltfNode.scale.size() == 3) {
             thisNode.flags |= Node::Flags::SCALE;
@@ -177,8 +188,18 @@ void ImportGLTF::loadNodeFromModel(int gltfIndex, uint32_t parentIndex) {
             thisNode.flags |= Node::Flags::MATRIX;
             thisNode.matrix = glm::make_mat4x4(gltfNode.matrix.data());
         }
-        if (gltfNode.mesh > -1) thisNode.flags |= Node::Flags::MESH;
-        if (gltfNode.light > -1) thisNode.flags |= Node::Flags::LIGHT;
+        if (gltfNode.mesh > -1) {
+            thisNode.flags |= Node::Flags::MESH;
+            thisNode.tinygltf.meshID = gltfNode.mesh;
+        }
+        if (gltfNode.light > -1) {
+            thisNode.flags |= Node::Flags::LIGHT;
+            thisNode.tinygltf.lightID = gltfNode.light;
+        }
+        if (gltfNode.camera > -1) {
+            thisNode.flags |= Node::Flags::CAMERA;
+            thisNode.tinygltf.cameraID = gltfNode.camera;
+        }
     }
     
     // Tree propagation
@@ -191,17 +212,16 @@ void ImportGLTF::loadNodeFromModel(int gltfIndex, uint32_t parentIndex) {
     m_NodeTree.computeTransformMatrix(thisIndex);
     
     // This can be a task set, need to pre-allocate instead of emplace
-    parseCameraFromNode(gltfNode, thisIndex);
-    parseLightFromNode(gltfNode, thisIndex);
-    parseMeshFromNode(gltfNode, thisIndex);
+    parseCameraFromNode(thisIndex);
+    parseLightFromNode(thisIndex);
+    //parseMeshFromNode(thisIndex);
 }
 
-void ImportGLTF::parseCameraFromNode(const tinygltf::Node& node, uint32_t nodeIndex) {
-    //m_NodeTree.nodes[
-    int cameraIdx = node.camera;
-    if (cameraIdx > -1) {
-        auto& cam = m_gltfModel.cameras[cameraIdx];
-        glm::mat4 transform = m_NodeTree.nodes[nodeIndex].cacheMatrix;
+void ImportGLTF::parseCameraFromNode(const uint32_t nodeIndex) {
+    Node& node = m_NodeTree.nodes[nodeIndex];
+    if (node.tinygltf.cameraID > -1) {
+        auto& cam = m_gltfModel.cameras[node.tinygltf.cameraID];
+        glm::mat4 transform = node.cacheMatrix;
         
         Camera newCamera;
         /** Rotating coordinate system  R⋅(R⋅T)⁻¹ -> R⋅T⁻¹⋅R⁻¹
@@ -225,10 +245,10 @@ void ImportGLTF::parseCameraFromNode(const tinygltf::Node& node, uint32_t nodeIn
     }
 }
 
-void ImportGLTF::parseLightFromNode(const tinygltf::Node& node, uint32_t nodeIndex) {
-    int lightIdx = node.light;
-    if (lightIdx > -1) {
-        auto& light = m_gltfModel.lights[lightIdx];
+void ImportGLTF::parseLightFromNode(const uint32_t nodeIndex) {
+    Node& node = m_NodeTree.nodes[nodeIndex];
+    if (node.tinygltf.lightID > -1) {
+        auto& light = m_gltfModel.lights[node.tinygltf.lightID];
         glm::mat4 transform = m_NodeTree.nodes[nodeIndex].cacheMatrix;
         
         if (light.type == Light::gltfTypes[Light::Type::Point]) {
@@ -248,9 +268,10 @@ void ImportGLTF::parseLightFromNode(const tinygltf::Node& node, uint32_t nodeInd
     }
 }
 
-void ImportGLTF::parseMeshFromNode(const tinygltf::Node& node, uint32_t nodeIndex) {
-    if (node.mesh > -1) {
-        const tinygltf::Mesh& mesh = m_gltfModel.meshes[node.mesh];
+void ImportGLTF::parseMeshFromNode(const uint32_t nodeIndex) {
+    Node& node = m_NodeTree.nodes[nodeIndex];
+    if (node.tinygltf.meshID > -1) {
+        const tinygltf::Mesh& mesh = m_gltfModel.meshes[node.tinygltf.meshID];
         
         for (const tinygltf::Primitive& primitive : mesh.primitives) {
             Mesh::Data data{};
@@ -429,7 +450,7 @@ void ImportGLTF::parseMeshFromNode(const tinygltf::Node& node, uint32_t nodeInde
                 4,5, 5,6, 6,7, 7,4,
                 0,4, 1,5, 2,6, 3,7,
             };
-            p.aabb = std::make_shared<Mesh>(m_Device, cubeData);
+            p.aabb = std::make_unique<Mesh>(m_Device, cubeData);
             }
             {
             Mesh::Data normals;
@@ -442,22 +463,19 @@ void ImportGLTF::parseMeshFromNode(const tinygltf::Node& node, uint32_t nodeInde
                 glm::vec3 n = glm::normalize(v.normal);
                 normals.vertices[i++].position = v.position + n * 0.05f * glm::length(posMax);
             }
-            p.normals = std::make_shared<Mesh>(m_Device, normals);
+            p.normals = std::make_unique<Mesh>(m_Device, normals);
             }
             
-            p.model = std::make_shared<Mesh>(m_Device, data);
+            p.model = std::make_unique<Mesh>(m_Device, data);
             
             glm::mat4 transform = m_NodeTree.nodes[nodeIndex].cacheMatrix;
             
             p.transform.hasMatrix = true;
             p.transform.matrix = transform;
-            
-            // TODO: Make the whole node transform hierarchy always affect the final matrix (needs cache system)
-            
-            bool alpha = false;
+                        
             if (materialID > -1) {
                 if (m_gltfModel.materials[materialID].alphaMode != "OPAQUE") {
-                    alpha = true;
+                    p.transparentPipeline = true;
                 }
                 p.material = m_gltfModel.materials[materialID].name + "_" + std::to_string(materialID + m_Assets.materials.size());
             } else {
@@ -465,17 +483,16 @@ void ImportGLTF::parseMeshFromNode(const tinygltf::Node& node, uint32_t nodeInde
             }
             
             auto id = p.getId();
-            if (alpha) {
-                m_PrimitivesAlpha.emplace(id, std::move(p));
-            } else {
-                m_Primitives.emplace(id, std::move(p));
-                m_NodeTree.nodes.at(nodeIndex).primitives.emplace_back(id);
-            }
+            m_Primitives.mutex.lock();
+            m_Primitives.map.emplace(id, std::move(p));
+            m_Primitives.mutex.unlock();
+            m_NodeTree.nodes.at(nodeIndex).primitives.emplace_back(id);
+
             
             bool isConvex = false, isStatic = false, isKinematic = false;
             float mass = 0.f, gravityFactor = 1.f; int phyMaterial = 0, implicitShape = -1;
             glm::vec3 linVel{0.f}, angVel{0.f};
-            if (parseMotionAndCollision(node, isConvex, isStatic, isKinematic, mass, gravityFactor, phyMaterial, implicitShape, linVel, angVel)) {
+            if (parseMotionAndCollision(m_gltfModel.nodes[node.tinygltf.nodeID], isConvex, isStatic, isKinematic, mass, gravityFactor, phyMaterial, implicitShape, linVel, angVel)) {
                 if (implicitShape > -1) {
                     m_Physics.addBasicShape(implicitShape, id, transform, mass, phyMaterial);
                 }

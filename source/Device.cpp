@@ -544,6 +544,8 @@ VkCommandBuffer Device::beginSingleTimeCommands(void) const {
     allocInfo.commandPool = m_TransferCommandPool;
     allocInfo.commandBufferCount = 1;
     
+    controlTransferQueueLock(true);
+    
     VkCommandBuffer commandBuffer;
     vkAllocateCommandBuffers(m_DeviceHandle, &allocInfo, &commandBuffer);
     
@@ -567,6 +569,8 @@ void Device::endSingleTimeCommands(VkCommandBuffer commandBuffer) const {
     vkQueueWaitIdle(m_TransferQueue);
     
     vkFreeCommandBuffers(m_DeviceHandle, m_TransferCommandPool, 1, &commandBuffer);
+    
+    controlTransferQueueLock(false);
 }
 
 void Device::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) const {

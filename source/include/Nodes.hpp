@@ -33,9 +33,7 @@ struct Node {
     std::vector<uint32_t> children;
     std::vector<Primitive::id_t> primitives;
     bool aabb = false;
-    
-    int tinygltfNodeIndex = -1;
-    
+        
     std::string name;
     glm::mat4 matrix{1.0f};
     glm::quat quat{1.0f, 0.0f, 0.0f, 0.0f};
@@ -53,9 +51,17 @@ struct Node {
         SCALE = 0x4,
         TRANSL = 0x8,
         MESH = 0x10,
-        LIGHT = 0x20
+        LIGHT = 0x20,
+        CAMERA = 0x40
     };
     int8_t flags = 0;
+    
+    struct tinyGLTF {
+        int nodeID = -1;
+        int meshID = -1;
+        int lightID = -1;
+        int cameraID = -1;
+    } tinygltf;
 };
 
 #endif /* Nodes_hpp */

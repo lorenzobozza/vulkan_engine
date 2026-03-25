@@ -64,11 +64,11 @@ unsigned int TextRender::renderText(std::string text, float x, float y, float sc
             rectMesh.indices = {0,3,2,0,2,1};
         
             auto rect = Primitive::new_primitive();
-            rect.model = std::make_shared<Mesh>(device, rectMesh);
+            rect.model = std::make_unique<Mesh>(device, rectMesh);
             rect.transform.translation = {x, y, 0.f};
             rect.textureIndex = ch.TextureID;
             
-            meshes.emplace(rect.getId(), std::move(rect));
+            meshes.map.emplace(rect.getId(), std::move(rect));
             boxes.push_back(rect.getId());
             
             if(ypos < maxHeight) { maxHeight = ypos; } //
@@ -80,7 +80,7 @@ unsigned int TextRender::renderText(std::string text, float x, float y, float sc
     }
     // Center text to given coordinates
     for (auto box : boxes) {
-        meshes.at(box).transform.translation += glm::vec3(-.5f*(x - startingXpos), .5f*maxHeight, .0f);
+        meshes.map.at(box).transform.translation += glm::vec3(-.5f*(x - startingXpos), .5f*maxHeight, .0f);
     }
     return boxes.back();
 }
@@ -99,7 +99,7 @@ void TextRender::render(VkCommandBuffer commandBuffer, int frameIndex) {
         nullptr
     );
 
-    for (auto &kv : meshes) {
+    for (auto &kv : meshes.map) {
         auto &obj = kv.second;
     
         PushConstantData push{};
