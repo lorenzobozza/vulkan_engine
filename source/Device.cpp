@@ -212,8 +212,8 @@ void Device::createLogicalDevice(void) {
     
     VkPhysicalDeviceFeatures2 requestedFeatures2 = {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-        .features = vulkan10requestedFeatures,
-        .pNext = &vulkan12requestedFeatures
+        .pNext = &vulkan12requestedFeatures,
+        .features = vulkan10requestedFeatures
     };
         
     VkDeviceCreateInfo createInfo = {};

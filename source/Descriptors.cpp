@@ -27,16 +27,16 @@ DescriptorSetLayout::DescriptorSetLayout(const Device& device, std::unordered_ma
     
     VkDescriptorSetLayoutBindingFlagsCreateInfo descriptorSetLayoutBindingFlagsInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO,
+        .pNext = nullptr,
         .bindingCount = static_cast<uint32_t>(setLayoutBindings.size()),
-        .pBindingFlags = bindingsFlags.data(),
-        .pNext = nullptr
+        .pBindingFlags = bindingsFlags.data()
     };
     
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .pNext = &descriptorSetLayoutBindingFlagsInfo,
         .bindingCount = static_cast<uint32_t>(setLayoutBindings.size()),
-        .pBindings = setLayoutBindings.data(),
-        .pNext = &descriptorSetLayoutBindingFlagsInfo
+        .pBindings = setLayoutBindings.data()
     };
     
     if (vkCreateDescriptorSetLayout(m_Device.device(), &descriptorSetLayoutInfo, nullptr, &m_DescriptorSetLayout) != VK_SUCCESS) {

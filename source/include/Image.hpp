@@ -43,7 +43,7 @@ public:
                            uint32_t layerCount = 1,
                            uint32_t mipLevel = 0) const;
     
-    void hostMemoryCopyTransition(const void* data, VkImage dstImage, VkImageAspectFlagBits aspect, VkExtent3D extent, VkImageLayout newLayout) const;
+    void hostMemoryCopyTransition(const void* data, VkImage dstImage, VkImageAspectFlags aspect, VkExtent3D extent, VkImageLayout newLayout) const;
     
     VkImageView createImageView(VkImage image,
                                 VkImageViewType viewType,

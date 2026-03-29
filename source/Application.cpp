@@ -278,13 +278,15 @@ void Application::run() {
             m_Pipes.shadow.render(commandBuffer, m_FrameIndex);
             m_Renderer.endRenderPass(commandBuffer);
             
-            m_Renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::WorldSpace);
-            m_Pipes.scene.render(commandBuffer, m_FrameIndex);
-            m_Pipes.skybox.render(commandBuffer, m_FrameIndex);
-            if (m_DebugMode) m_Pipes.debug.render(commandBuffer, m_FrameIndex);
-            m_Renderer.endRenderPass(commandBuffer);
-            
-            m_Renderer.graphic2GraphicMemoryBarrier(commandBuffer, RenderPass::WorldSpace, m_FrameIndex);
+            if (m_Pipes.scene.ptr) {
+                m_Renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::WorldSpace);
+                if (m_DebugMode) m_Pipes.debug.render(commandBuffer, m_FrameIndex);
+                m_Pipes.skybox.render(commandBuffer, m_FrameIndex);
+                m_Pipes.scene.render(commandBuffer, m_FrameIndex);
+                m_Renderer.endRenderPass(commandBuffer);
+                
+                m_Renderer.graphic2GraphicMemoryBarrier(commandBuffer, RenderPass::WorldSpace, m_FrameIndex);
+            }
             
             m_Renderer.beginOffscreenRenderPass(commandBuffer, RenderPass::ScreenSpace);
             if (!m_PreviewMode) {

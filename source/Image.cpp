@@ -199,50 +199,50 @@ void Image::copyBufferToImage(VkCommandBuffer &commandBuffer, VkBuffer buffer, V
 }
 
 
-void Image::hostMemoryCopyTransition(const void* data, VkImage dstImage, VkImageAspectFlagBits aspect, VkExtent3D extent, VkImageLayout newLayout) const {
-    VkMemoryToImageCopy region = {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_TO_IMAGE_COPY,
-        .pNext = NULL,
-        .memoryRowLength = 0,
-        .memoryImageHeight = 0,
-        .imageSubresource = {
-            .aspectMask = aspect,
-            .mipLevel = 0,
-            .baseArrayLayer = 0,
-            .layerCount = 1
-        },
-            .imageOffset = {0, 0, 0},
-            .imageExtent = extent,
-            .pHostPointer = data
-    };
-    
-    VkCopyMemoryToImageInfo copyInfo = {
-        .sType = VK_STRUCTURE_TYPE_COPY_MEMORY_TO_IMAGE_INFO,
-        .pNext = NULL,
-        .flags = VK_HOST_IMAGE_COPY_MEMCPY_BIT,
-        .dstImage = dstImage,
-        .dstImageLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .regionCount = 1,
-        .pRegions = &region,
-    };
-    
-    vkCopyMemoryToImage(m_Device.device(), &copyInfo);
-    
-    VkHostImageLayoutTransitionInfo transInfo = {
-        .sType = VK_STRUCTURE_TYPE_HOST_IMAGE_LAYOUT_TRANSITION_INFO,
-        .pNext = NULL,
-        .image = dstImage,
-        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .newLayout = newLayout,
-        .subresourceRange = {
-            .aspectMask = aspect,
-            .baseMipLevel = 0,
-            .levelCount = 1,
-            .baseArrayLayer = 0,
-            .layerCount = 1
-        }
-    };
-    vkTransitionImageLayout(m_Device.device(), 1, &transInfo);
+void Image::hostMemoryCopyTransition(const void* data, VkImage dstImage, VkImageAspectFlags aspect, VkExtent3D extent, VkImageLayout newLayout) const {
+//    VkMemoryToImageCopy region = {
+//        .sType = VK_STRUCTURE_TYPE_MEMORY_TO_IMAGE_COPY,
+//        .pNext = NULL,
+//        .pHostPointer = data,
+//        .memoryRowLength = 0,
+//        .memoryImageHeight = 0,
+//        .imageSubresource = {
+//            .aspectMask = aspect,
+//            .mipLevel = 0,
+//            .baseArrayLayer = 0,
+//            .layerCount = 1
+//        },
+//        .imageOffset = {0, 0, 0},
+//        .imageExtent = extent
+//    };
+//    
+//    VkCopyMemoryToImageInfo copyInfo = {
+//        .sType = VK_STRUCTURE_TYPE_COPY_MEMORY_TO_IMAGE_INFO,
+//        .pNext = NULL,
+//        .flags = VK_HOST_IMAGE_COPY_MEMCPY_BIT,
+//        .dstImage = dstImage,
+//        .dstImageLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+//        .regionCount = 1,
+//        .pRegions = &region,
+//    };
+//    
+//    vkCopyMemoryToImage(m_Device.device(), &copyInfo);
+//    
+//    VkHostImageLayoutTransitionInfo transInfo = {
+//        .sType = VK_STRUCTURE_TYPE_HOST_IMAGE_LAYOUT_TRANSITION_INFO,
+//        .pNext = NULL,
+//        .image = dstImage,
+//        .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+//        .newLayout = newLayout,
+//        .subresourceRange = {
+//            .aspectMask = aspect,
+//            .baseMipLevel = 0,
+//            .levelCount = 1,
+//            .baseArrayLayer = 0,
+//            .layerCount = 1
+//        }
+//    };
+//    vkTransitionImageLayout(m_Device.device(), 1, &transInfo);
 }
 
 

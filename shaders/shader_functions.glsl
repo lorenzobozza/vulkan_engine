@@ -361,7 +361,8 @@ vec3 evaluateIrradianceVolume(vec3 n) {
 vec3 BRDF(vec3 baseColor) {
     // World space tangent frame
     vec3 N = normalize(vert.N);
-    vec3 T = normalize(vert.T - dot(vert.T, N) * N);
+    vec3 T = vert.T - dot(vert.T, N) * N;
+    if (length(T) != 0.0) T = normalize(T);
     vec3 B = cross(N, T) * vert.sign;
     mat3 TBN_ws = mat3(T,B,N);
 
@@ -404,7 +405,8 @@ vec3 BRDF(vec3 baseColor) {
     // Perturbated tangent space TBN matrix
     mat3 TBN_pts;
     TBN_pts[2] = n;
-    TBN_pts[0] = normalize(T - dot(T, n) * n);
+    TBN_pts[0] = T - dot(T, n) * n;
+    if (length(TBN_pts[0]) != 0.0) TBN_pts[0] = normalize(TBN_pts[0]);
     TBN_pts[1] = cross(n, TBN_pts[0]) * vert.sign;
     TBN_pts = transpose(TBN_pts);
     
@@ -433,7 +435,7 @@ vec3 BRDF(vec3 baseColor) {
         vec3 h = normalize(l + v);
         vec3 l_pts = normalize(TBN_pts * l);
         vec3 v_pts = normalize(TBN_pts * v);
-        vec3 h_pts = normalize(l_pts + v_pts);
+        vec3 h_pts = normalize(TBN_pts * h);
         
         float NoL = max(dot(n, l), 0.001);
         float LoH = max(dot(l, h), 0.0);
